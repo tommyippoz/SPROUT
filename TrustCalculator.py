@@ -7,15 +7,33 @@ import numpy as np
 class TrustCalculator:
 
     def trust_strategy_name(self):
+        """
+        Returns the name of the strategy to calculate trust score (as string)
+        """
         pass
 
-    def trust_score(self, value):
+    def trust_score(self, feature_values, proba):
+        """
+        Method to compute trust score for a single data point
+        :param feature_values: the feature values of the data point
+        :param proba: the probability array assigned by the algorithm to the data point
+        """
         pass
 
-    def trust_scores(self, values):
+    def trust_scores(self, feature_values_array, proba_array):
+        """
+        Method to compute trust score for a set of data points
+        :param feature_values_array: the feature values of the data points in the test set
+        :param proba_array: the probability arrays assigned by the algorithm to the data points
+        :return: array of trust scores
+        """
         trust = []
-        for value in values:
-            trust.append(self.trust_score(value))
+        if len(feature_values_array) == len(proba_array):
+            for i in range(0, len(proba_array)):
+                print(i)
+                trust.append(self.trust_score(feature_values_array[i], proba_array[i]))
+        else:
+            print("Items of the feature set have a different cardinality wrt probabilities")
         return trust
 
 
@@ -30,8 +48,8 @@ class LimeTrust(TrustCalculator):
                                                                 class_names=class_names,
                                                                 verbose=True)
 
-    def trust_score(self, value):
-        val_exp = self.explainer.explain_instance(data_row=value,
+    def trust_score(self, feature_values, proba):
+        val_exp = self.explainer.explain_instance(data_row=feature_values,
                                                   predict_fn=self.model.predict_proba,
                                                   num_features=len(self.column_names))
         return {"LIME_Sum": sum(x[1] for x in val_exp.local_exp[1]),
@@ -47,9 +65,8 @@ class EntropyTrust(TrustCalculator):
     def __init__(self):
         return
 
-    def trust_score(self, value):
-        print()
-        p = value / value.sum()
+    def trust_score(self, feature_values, proba):
+        p = proba / proba.sum()
         return (-p*np.log2(p)).sum()
 
     def trust_strategy_name(self):

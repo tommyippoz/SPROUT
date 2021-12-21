@@ -11,6 +11,7 @@ MY_FILE = "input_folder/NSLKDD_Shuffled.csv"
 LABEL_NAME = 'multilabel'
 
 
+
 def process_dataset(dataset_name):
 
     # Loading Dataset
@@ -25,7 +26,7 @@ def process_dataset(dataset_name):
     normal_frame = df.loc[df[LABEL_NAME] == "normal"]
     print("Normal data points: " + str(len(normal_frame.index)) + " items ")
 
-    x = df.drop(columns=["multilabel"])
+    x = df.drop(columns=[LABEL_NAME])
     x_no_cat = x.select_dtypes(exclude=['object'])
 
     x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_no_cat, y_bin, test_size=0.5, shuffle=True)
@@ -55,6 +56,7 @@ if __name__ == '__main__':
     ]
 
     # Output Dataframe
+    xt_numpy = X_test.to_numpy()
     df = X_test
     df['true_label'] = y_test
     df['predicted_label'] = y_pred
@@ -62,7 +64,7 @@ if __name__ == '__main__':
 
     for calculator in calculators:
 
-        trust_scores = calculator.trust_scores(y_proba)
+        trust_scores = calculator.trust_scores(xt_numpy, y_proba)
         df[calculator.trust_strategy_name()] = trust_scores
 
     df.to_csv('output_folder/out_frame.csv', index=False)
