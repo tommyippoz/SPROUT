@@ -11,7 +11,6 @@ MY_FILE = "input_folder/NSLKDD_Shuffled.csv"
 LABEL_NAME = 'multilabel'
 
 
-
 def process_dataset(dataset_name):
 
     # Loading Dataset
@@ -68,5 +67,5 @@ if __name__ == '__main__':
 
     df.to_csv('output_folder/out_frame.csv', index=False)
 
-    explainer = LimeTrust(X_train.to_numpy(), y_train, X.columns, ['normal', 'attack'], classifierModel)
-    print(explainer.trust_scores(xt_numpy, y_proba))
+    # explainer = LimeTrust(X_train.to_numpy(), y_train, X.columns, ['normal', 'attack'], classifierModel)
+    # print(explainer.trust_scores(xt_numpy, y_proba))
