@@ -1,32 +1,34 @@
 import pandas as pd
 import sklearn as sk
 import numpy as np
+from sklearn.tree import DecisionTreeClassifier
 
 from xgboost import XGBClassifier
 
-from TrustCalculator import LimeTrust
-from TrustCalculator import EntropyTrust
+from TrustCalculator import LimeTrust, NativeTrust, EntropyTrust
 
 MY_FILE = "input_folder/NSLKDD_Shuffled.csv"
 LABEL_NAME = 'multilabel'
 
 
-
-def process_dataset(dataset_name):
-
+def process_dataset(dataset_name, label_name):
+    """
+    Method to process an input dataset as CSV
+    :param dataset_name: name of the file (CSV) containing the dataset
+    :param label_name: name of the feature containing the label
+    :return:
+    """
     # Loading Dataset
     df = pd.read_csv(dataset_name, sep=",")
     print("Dataset loaded: " + str(len(df.index)) + " items")
-
-    y = df[LABEL_NAME]
+    y = df[label_name]
     y_bin = np.where(y == "normal", "normal", "attack")
 
     # Basic Pre-Processing
-    attack_labels = df[LABEL_NAME].unique()
-    normal_frame = df.loc[df[LABEL_NAME] == "normal"]
+    normal_frame = df.loc[df[label_name] == "normal"]
     print("Normal data points: " + str(len(normal_frame.index)) + " items ")
 
-    x = df.drop(columns=[LABEL_NAME])
+    x = df.drop(columns=[label_name])
     x_no_cat = x.select_dtypes(exclude=['object'])
 
     x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_no_cat, y_bin, test_size=0.5, shuffle=True)
@@ -38,7 +40,7 @@ def process_dataset(dataset_name):
 if __name__ == '__main__':
 
     # Reading Dataset
-    X, y, X_train, X_test, y_train, y_test = process_dataset(MY_FILE)
+    X, y, X_train, X_test, y_train, y_test = process_dataset(MY_FILE, LABEL_NAME)
 
     # Building Classifier
     classifierName = "XGBoost"
@@ -52,22 +54,23 @@ if __name__ == '__main__':
 
     # Trust Calculators
     calculators = [
-        EntropyTrust()
+        EntropyTrust(),
+        NativeTrust()
     ]
 
     # Output Dataframe
     xt_numpy = X_test.to_numpy()
-    df = X_test
-    df['true_label'] = y_test
-    df['predicted_label'] = y_pred
-    df['probabilities'] = np.array2string(y_proba)
+    out_df = X_test
+    out_df['true_label'] = y_test
+    out_df['predicted_label'] = y_pred
+    out_df['probabilities'] = y_proba
 
     for calculator in calculators:
 
-        trust_scores = calculator.trust_scores(xt_numpy, y_proba)
-        df[calculator.trust_strategy_name()] = trust_scores
+        trust_scores = calculator.trust_scores(xt_numpy, y_proba, classifierModel)
+        out_df[calculator.trust_strategy_name()] = trust_scores
 
-    df.to_csv('output_folder/out_frame.csv', index=False)
+    out_df.to_csv('output_folder/out_frame.csv', index=False)
 
     # explainer = LimeTrust(X_train.to_numpy(), y_train, X_no_cat.columns, ['normal', 'attack'], classifierModel)
     # print(explainer.trust_scores(X_test.to_numpy()))
