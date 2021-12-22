@@ -60,10 +60,9 @@ if __name__ == '__main__':
     df = X_test
     df['true_label'] = y_test
     df['predicted_label'] = y_pred
-    df['probabilities'] = np.array2string(y_proba)
+    df['probabilities'] = [y_proba[i] for i in range(len(y_test))]
 
     for calculator in calculators:
-
         trust_scores = calculator.trust_scores(xt_numpy, y_proba)
         df[calculator.trust_strategy_name()] = trust_scores
 
