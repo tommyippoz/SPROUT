@@ -69,5 +69,5 @@ if __name__ == '__main__':
 
     df.to_csv('output_folder/out_frame.csv', index=False)
 
-    # explainer = LimeTrust(X_train.to_numpy(), y_train, X_no_cat.columns, ['normal', 'attack'], classifierModel)
-    # print(explainer.trust_scores(X_test.to_numpy()))
+    explainer = LimeTrust(X_train.to_numpy(), y_train, X.columns, ['normal', 'attack'], classifierModel)
+    print(explainer.trust_scores(xt_numpy, y_proba))
