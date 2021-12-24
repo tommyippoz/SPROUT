@@ -17,10 +17,18 @@ class Classifier:
         self.X_test = X_test
         self.model = model
 
-    def predict_(self):
+    def predict_class(self):
+        """
+        Method to compute predict of a classifier
+        :return: array of predicted class
+        """
         return self.model.fit(self.X_train, self.y_train).predict(self.X_test)
 
-    def predict_proba_(self):
+    def predict_prob(self):
+        """
+        Method to compute probabilities of predicted classes
+        :return: array of probabilities for each classes
+        """
         return self.model.fit(self.X_train, self.y_train).predict_proba(self.X_test)
 
     def classifier_name(self):
@@ -30,7 +38,7 @@ class Classifier:
         pass
 
 
-class GBClassifier(XGBClassifier, Classifier):
+class GBClassifier(Classifier):
 
     def __init__(self, X_train, y_train, X_test):
         Classifier.__init__(self, X_train, y_train, X_test, XGBClassifier())
@@ -39,7 +47,7 @@ class GBClassifier(XGBClassifier, Classifier):
         return "XGBoost"
 
 
-class DecisionTree(DecisionTreeClassifier, Classifier):
+class DecisionTree(Classifier):
 
     def __init__(self, X_train, y_train, X_test):
         Classifier.__init__(self, X_train, y_train, X_test, DecisionTreeClassifier())
@@ -111,4 +119,3 @@ class NeuralNetwork(Classifier):
 
     def classifier_name(self):
         return "NeuralNetwork"
-
