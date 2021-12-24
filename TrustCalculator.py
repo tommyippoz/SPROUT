@@ -30,7 +30,7 @@ class TrustCalculator:
         trust = []
         if len(feature_values_array) == len(proba_array):
             for i in range(0, len(proba_array)):
-                print(i)
+                # print(i)
                 trust.append(self.trust_score(feature_values_array[i], proba_array[i]))
         else:
             print("Items of the feature set have a different cardinality wrt probabilities")

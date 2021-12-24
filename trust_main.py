@@ -2,7 +2,14 @@ import pandas as pd
 import sklearn as sk
 import numpy as np
 
-from xgboost import XGBClassifier
+from Classifier import GBClassifier
+from Classifier import DecisionTree
+from Classifier import KNeighbors
+from Classifier import LDA
+from Classifier import LogisticReg
+from Classifier import Bayes
+from Classifier import RandomForest
+from Classifier import CSupportVector
 
 from TrustCalculator import LimeTrust
 from TrustCalculator import EntropyTrust
@@ -39,6 +46,20 @@ def load_config(file_config):
     return config_file['path'], config_file['label']
 
 
+def print_to_csv(X_test, y_pred, y_proba, calculators, classifierName):
+    xt_numpy = X_test.to_numpy()
+    df = X_test
+    df['predicted_label'] = y_pred
+    df['probabilities'] = [y_proba[i] for i in range(len(X_test))]
+
+    for calculator in calculators:
+        trust_scores = calculator.trust_scores(xt_numpy, y_proba)
+        df[calculator.trust_strategy_name()] = trust_scores
+
+    df.to_csv('output_folder/' + classifierName + '.csv', index=False)
+
+
+
 if __name__ == '__main__':
 
     dataset_file, y_label = load_config("config.cfg")
@@ -46,33 +67,37 @@ if __name__ == '__main__':
     # Reading Dataset
     X, y, X_train, X_test, y_train, y_test = process_dataset(dataset_file, y_label)
 
-    # Building Classifier
-    classifierName = "XGBoost"
-    classifierModel = XGBClassifier()
-    classifierModel.fit(X_train, y_train)
-    y_pred = classifierModel.predict(X_test)
-    y_proba = classifierModel.predict_proba(X_test)
-
-    # Classifier Evaluation
-    print(classifierName + " Accuracy: " + str(sk.metrics.accuracy_score(y_test, y_pred)))
-
     # Trust Calculators
     calculators = [
         EntropyTrust()
     ]
 
+    # Building Classifier
+    classifiers = [
+        GBClassifier(X_train, y_train, X_test),
+        DecisionTree(X_train, y_train, X_test),
+        KNeighbors(X_train, y_train, X_test),
+        LDA(X_train, y_train, X_test),
+        LogisticReg(X_train, y_train, X_test),
+        Bayes(X_train, y_train, X_test),
+        RandomForest(X_train, y_train, X_test),
+        CSupportVector(X_train, y_train, X_test)
+    ]
+
     # Output Dataframe
-    xt_numpy = X_test.to_numpy()
-    df = X_test
-    df['true_label'] = y_test
-    df['predicted_label'] = y_pred
-    df['probabilities'] = [y_proba[i] for i in range(len(y_test))]
+    for classifier in classifiers:
+        print(type(classifier))
+        classifierName = classifier.classifier_name()
+        print(classifierName)
+        y_pred = classifier.predict_()
+        print(y_pred)
+        y_proba = classifier.predict_proba_()
+        print(y_proba)
 
-    for calculator in calculators:
-        trust_scores = calculator.trust_scores(xt_numpy, y_proba)
-        df[calculator.trust_strategy_name()] = trust_scores
+        # Classifier Evaluation
+        print(classifierName + " Accuracy: " + str(sk.metrics.accuracy_score(y_test, y_pred)))
+        # print_to_csv(X_test, y_pred, y_proba, calculators, classifierName)
 
-    df.to_csv('output_folder/out_frame.csv', index=False)
 
     # explainer = LimeTrust(X_train.to_numpy(), y_train, X.columns, ['normal', 'attack'], classifierModel)
     # print(explainer.trust_scores(xt_numpy, y_proba))
