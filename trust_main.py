@@ -6,26 +6,24 @@ from xgboost import XGBClassifier
 
 from TrustCalculator import LimeTrust
 from TrustCalculator import EntropyTrust
-
-MY_FILE = "input_folder/NSLKDD_Shuffled.csv"
-LABEL_NAME = 'multilabel'
+import configparser
 
 
-def process_dataset(dataset_name):
+def process_dataset(dataset_name, y_label):
 
     # Loading Dataset
     df = pd.read_csv(dataset_name, sep=",")
     print("Dataset loaded: " + str(len(df.index)) + " items")
 
-    y = df[LABEL_NAME]
+    y = df[y_label]
     y_bin = np.where(y == "normal", "normal", "attack")
 
     # Basic Pre-Processing
-    attack_labels = df[LABEL_NAME].unique()
-    normal_frame = df.loc[df[LABEL_NAME] == "normal"]
+    attack_labels = df[y_label].unique()
+    normal_frame = df.loc[df[y_label] == "normal"]
     print("Normal data points: " + str(len(normal_frame.index)) + " items ")
 
-    x = df.drop(columns=[LABEL_NAME])
+    x = df.drop(columns=[y_label])
     x_no_cat = x.select_dtypes(exclude=['object'])
 
     x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_no_cat, y_bin, test_size=0.5, shuffle=True)
@@ -34,10 +32,19 @@ def process_dataset(dataset_name):
     return x_no_cat, y_bin, x_tr, x_te, y_tr, y_te
 
 
+def load_config(file_config):
+    config = configparser.RawConfigParser()
+    config.read(file_config)
+    config_file = dict(config.items('CONFIGURATION'))
+    return config_file['path'], config_file['label']
+
+
 if __name__ == '__main__':
 
+    dataset_file, y_label = load_config("config.cfg")
+
     # Reading Dataset
-    X, y, X_train, X_test, y_train, y_test = process_dataset(MY_FILE)
+    X, y, X_train, X_test, y_train, y_test = process_dataset(dataset_file, y_label)
 
     # Building Classifier
     classifierName = "XGBoost"
