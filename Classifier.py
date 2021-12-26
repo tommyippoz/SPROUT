@@ -7,6 +7,9 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from keras.models import Sequential
+from keras.layers.core import Dense, Dropout
+from tensorflow.keras.utils import to_categorical
+from sklearn.preprocessing import LabelEncoder
 
 
 class Classifier:
@@ -105,7 +108,7 @@ class RandomForest(Classifier):
 class CSupportVector(Classifier):
 
     def __init__(self, X_train, y_train, X_test):
-        Classifier.__init__(self, X_train, y_train, X_test, SVC())
+        Classifier.__init__(self, X_train, y_train, X_test, SVC(probability=True))
 
     def classifier_name(self):
         return "CSupportVector"
@@ -114,8 +117,17 @@ class CSupportVector(Classifier):
 class NeuralNetwork(Classifier):
 
     def __init__(self, X_train, y_train, X_test):
+        self.y_train = LabelEncoder().fit_transform(y_train)
+        categorical = to_categorical(self.y_train)
+        num_classes = len(categorical[0])
+        num_input = len(X_test.values[0])
         self.model = Sequential()
-        super().__init__(X_train, y_train, X_test)
+        self.model.add(Dense(num_input, input_shape=(num_input,), activation='relu'))
+        self.model.add(Dense(num_input * 10, activation='relu'))
+        self.model.add(Dense(num_input * 10, activation='relu'))
+        self.model.add(Dense(num_classes, activation='softmax'))
+        self.model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=['accuracy'])
+        super().__init__(X_train, self.y_train, X_test, self.model)
 
     def classifier_name(self):
         return "NeuralNetwork"
