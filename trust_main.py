@@ -108,15 +108,15 @@ if __name__ == '__main__':
     ]
     # Building Classifiers
     classifiers = [
-        GBClassifier(X_train, y_train, X_test),
-        DecisionTree(X_train, y_train, X_test),
-        KNeighbors(X_train, y_train, X_test),
-        LDA(X_train, y_train, X_test),
-        LogisticReg(X_train, y_train, X_test),
-        Bayes(X_train, y_train, X_test),
-        RandomForest(X_train, y_train, X_test),
+        # GBClassifier(X_train, y_train, X_test),
+        # DecisionTree(X_train, y_train, X_test),
+        # KNeighbors(X_train, y_train, X_test),
+        # LDA(X_train, y_train, X_test),
+        # LogisticReg(X_train, y_train, X_test),
+        # Bayes(X_train, y_train, X_test),
+        # RandomForest(X_train, y_train, X_test),
         # CSupportVector(X_train, y_train, X_test),
-        # NeuralNetwork(X_train, y_train, X_test)
+        NeuralNetwork(X_train, y_train, X_test)
     ]
     # Output Dataframe
     for classifier in classifiers:

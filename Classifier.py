@@ -1,3 +1,4 @@
+import numpy as np
 from xgboost import XGBClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
@@ -7,7 +8,8 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from keras.models import Sequential
-from keras.layers.core import Dense, Dropout
+import tensorflow as tf
+from keras.layers.core import Dense
 from tensorflow.keras.utils import to_categorical
 from sklearn.preprocessing import LabelEncoder
 
@@ -117,7 +119,8 @@ class CSupportVector(Classifier):
 class NeuralNetwork(Classifier):
 
     def __init__(self, X_train, y_train, X_test):
-        self.y_train = LabelEncoder().fit_transform(y_train)
+        self.le = LabelEncoder()
+        self.y_train = self.le.fit_transform(y_train)
         categorical = to_categorical(self.y_train)
         num_classes = len(categorical[0])
         num_input = len(X_test.values[0])
@@ -127,7 +130,19 @@ class NeuralNetwork(Classifier):
         self.model.add(Dense(num_input * 10, activation='relu'))
         self.model.add(Dense(num_classes, activation='softmax'))
         self.model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=['accuracy'])
-        super().__init__(X_train, self.y_train, X_test, self.model)
+        self.model.fit(X_train, categorical, batch_size=64, epochs=10, verbose=0)
+        self.model = tf.keras.Sequential([self.model, tf.keras.layers.Softmax()])
+        self.array_proba = np.asarray(self.model.predict(X_test))
+        # super().__init__(X_train, self.y_train, X_test, self.model)
+
+    def predict_class(self):
+        predictions = np.zeros((len(self.array_proba),), dtype=int)
+        for i in range(len(self.array_proba)):
+            predictions[i] = np.argmax(self.array_proba[i], axis=0)
+        return self.le.inverse_transform(predictions)
+
+    def predict_prob(self):
+        return self.array_proba
 
     def classifier_name(self):
         return "NeuralNetwork"

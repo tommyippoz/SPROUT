@@ -71,3 +71,5 @@ class EntropyTrust(TrustCalculator):
 
     def trust_strategy_name(self):
         return 'Entropy Calculator'
+
+
