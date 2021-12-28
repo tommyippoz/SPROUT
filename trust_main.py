@@ -165,7 +165,7 @@ if __name__ == '__main__':
     xt_numpy = X_test.to_numpy()
 
     classifiers = [
-        GBClassifier(),
+        # GBClassifier(),
         # DecisionTree(depth=100),
         # KNeighbors(k=10),
         # LDA(),
@@ -173,14 +173,14 @@ if __name__ == '__main__':
         # Bayes(),
         # RandomForest(trees=100),
         # SupportVectorMachine(kernel='linear', degree=1),
-        # NeuralNetwork(X_train, y_train, X_test)
+        NeuralNetwork(X_train, y_train, X_test)
     ]
 
     # Trust Calculators
     calculators = [
         EntropyTrust(),
         NativeTrust(),
-        LimeTrust(X_train.to_numpy(), y_train, X_train.columns, ['normal', 'attack']),
+        LimeTrust(X_train.to_numpy(), y_train, X_train.columns, ['normal', 'attack'], 100),
         SHAPTrust(xt_numpy, 100)
     ]
 
@@ -217,8 +217,6 @@ if __name__ == '__main__':
                     out_df[calculator.trust_strategy_name() + ' - ' + str(key)] = trust_scores[key]
             else:
                 out_df[calculator.trust_strategy_name()] = trust_scores
-            # trust_scores = calculator.trust_scores(xt_numpy, y_proba, classifierModel)
-            # out_df[calculator.trust_strategy_name()] = trust_scores
 
         file_out = 'output_folder/' + classifierName + '_new.csv'
         print("Printing File '" + file_out + "'")

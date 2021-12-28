@@ -124,10 +124,11 @@ class SupportVectorMachine(Classifier):
 class NeuralNetwork(Classifier):
 
     def __init__(self, X_train, y_train, X_test):
+        self.X_train = X_train
         self.le = LabelEncoder()
         self.y_train = self.le.fit_transform(y_train)
-        categorical = to_categorical(self.y_train)
-        num_classes = len(categorical[0])
+        self.categorical = to_categorical(self.y_train)
+        num_classes = len(self.categorical[0])
         num_input = len(X_test.values[0])
         self.model = Sequential()
         self.model.add(Dense(num_input, input_shape=(num_input,), activation='relu'))
@@ -135,19 +136,20 @@ class NeuralNetwork(Classifier):
         self.model.add(Dense(num_input * 10, activation='relu'))
         self.model.add(Dense(num_classes, activation='softmax'))
         self.model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=['accuracy'])
-        self.model.fit(X_train, categorical, batch_size=64, epochs=10, verbose=0)
-        self.model = tf.keras.Sequential([self.model, tf.keras.layers.Softmax()])
-        self.array_proba = np.asarray(self.model.predict(X_test))
-        # super().__init__(X_train, self.y_train, X_test, self.model)
 
-    def predict_class(self):
+    def fit(self, x_train, y_train):
+        self.model.fit(self.X_train, self.categorical, batch_size=64, epochs=10, verbose=0)
+        self.model = tf.keras.Sequential([self.model, tf.keras.layers.Softmax()])
+
+    def predict_class(self, X_test):
+        self.array_proba = np.asarray(self.model.predict(X_test))
         predictions = np.zeros((len(self.array_proba),), dtype=int)
         for i in range(len(self.array_proba)):
             predictions[i] = np.argmax(self.array_proba[i], axis=0)
         return self.le.inverse_transform(predictions)
 
-    def predict_prob(self):
-        return self.array_proba
+    def predict_prob(self, X_test):
+        return np.asarray(self.model.predict(X_test))
 
     def classifier_name(self):
         return "NeuralNetwork"

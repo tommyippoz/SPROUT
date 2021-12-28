@@ -1,9 +1,8 @@
 import lime
 import lime.lime_tabular
 import shap
-
 import numpy as np
-
+from sklearn.neighbors import NearestNeighbors
 
 class TrustCalculator:
     """
@@ -66,7 +65,7 @@ class LimeTrust(TrustCalculator):
         :return:
         """
         val_exp = self.explainer.explain_instance(data_row=feature_values,
-                                                  predict_fn=classifier.predict_proba,
+                                                  predict_fn=classifier.predict_prob,
                                                   num_features=len(self.column_names),
                                                   num_samples=self.max_samples)
         return {"Sum": sum(x[1] for x in val_exp.local_exp[1]),
@@ -188,3 +187,38 @@ class SHAPTrust(TrustCalculator):
 
     def trust_strategy_name(self):
         return 'SHAP Trust Calculator (' + str(self.max_samples) + ')'
+
+class NeighborsTrust(TrustCalculator):
+
+    def __init__(self, X_train, X_test, y_train, classifier):
+        self.X_train = X_train
+        self.X_test = X_test
+        self.y_train = y_train
+        self.classifier = classifier
+
+    def find_neighbors(x_test, neighbors):
+        near_neighbors = NearestNeighbors(n_neighbors=neighbors, algorithm='ball_tree').fit(x_test)
+        distances, indices = near_neighbors.kneighbors(x_test)
+        return indices
+
+    def neighbours_train(neighbors, X_train):
+        X_train_neighbors = np.empty((0, len(X_train[0])), float)
+        for n in range(len(neighbors)):
+            X_train_neighbors = np.append(X_train_neighbors, [X_train[neighbors[n]]], axis=0)
+        return X_train_neighbors
+
+    def trust_score(self):
+        n_neighbors = int(np.round(len(self.X_train) / len(self.X_test), 0) * len(self.X_train[0]) + 1)
+        for i in range(len(self.X_test)):
+            find_n = np.vstack([self.X_train, self.X_test[i]])
+            neighbors = self.find_neighbors(find_n, n_neighbors)[len(self.find_neighbors(find_n, n_neighbors)) - 1]
+            neighbors = neighbors[1:]  # find indexes neighbors
+            # train_neighbors = self.neighbours_train(neighbors, self.X_train)  # train neighbors
+            # array_class = self.classifier.fit(train_neighbors).predict_class()
+            # for i in range(len(self.classifier)):
+            # array_class = self.classifier[i].predict_class()
+            # for j in range(len(array_class)):
+                # array_knn[j] = array_knn[j] + [array_class[j]]
+        # for i in range(len(self.classifier)):
+            # trust_neighbors = Counter(array_knn[i][0]).most_common(1)
+        # return trust_neighbors
