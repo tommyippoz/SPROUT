@@ -16,25 +16,25 @@ from sklearn.preprocessing import LabelEncoder
 
 class Classifier:
 
-    def __init__(self, X_train, y_train, X_test, model):
-        self.X_train = X_train
-        self.y_train = y_train
-        self.X_test = X_test
+    def __init__(self, model):
         self.model = model
 
-    def predict_class(self):
+    def fit(self, x_train, y_train):
+        self.model.fit(x_train, y_train)
+
+    def predict_class(self, x_test):
         """
         Method to compute predict of a classifier
         :return: array of predicted class
         """
-        return self.model.fit(self.X_train, self.y_train).predict(self.X_test)
+        return self.model.predict(x_test)
 
-    def predict_prob(self):
+    def predict_prob(self, x_test):
         """
         Method to compute probabilities of predicted classes
         :return: array of probabilities for each classes
         """
-        return self.model.fit(self.X_train, self.y_train).predict_proba(self.X_test)
+        return self.model.predict_proba(x_test)
 
     def classifier_name(self):
         """
@@ -45,8 +45,8 @@ class Classifier:
 
 class GBClassifier(Classifier):
 
-    def __init__(self, X_train, y_train, X_test):
-        Classifier.__init__(self, X_train, y_train, X_test, XGBClassifier())
+    def __init__(self):
+        Classifier.__init__(self, XGBClassifier(use_label_encoder=False))
 
     def classifier_name(self):
         return "XGBoost"
@@ -54,26 +54,28 @@ class GBClassifier(Classifier):
 
 class DecisionTree(Classifier):
 
-    def __init__(self, X_train, y_train, X_test):
-        Classifier.__init__(self, X_train, y_train, X_test, DecisionTreeClassifier())
+    def __init__(self, depth):
+        Classifier.__init__(self, DecisionTreeClassifier(max_depth=depth))
+        self.depth = depth
 
     def classifier_name(self):
-        return "DecisionTree"
+        return "DecisionTree(depth=" + str(self.depth) + ")"
 
 
 class KNeighbors(Classifier):
 
-    def __init__(self, X_train, y_train, X_test):
-        Classifier.__init__(self, X_train, y_train, X_test, KNeighborsClassifier())
+    def __init__(self, k):
+        Classifier.__init__(self, KNeighborsClassifier(n_neighbors=k))
+        self.k = k
 
     def classifier_name(self):
-        return "KNeighbors"
+        return str(self.k) + "NearestNeighbors"
 
 
 class LDA(Classifier):
 
-    def __init__(self, X_train, y_train, X_test):
-        Classifier.__init__(self, X_train, y_train, X_test, LinearDiscriminantAnalysis())
+    def __init__(self):
+        Classifier.__init__(self, LinearDiscriminantAnalysis())
 
     def classifier_name(self):
         return "LDA"
@@ -81,9 +83,9 @@ class LDA(Classifier):
 
 class LogisticReg(Classifier):
 
-    def __init__(self, X_train, y_train, X_test):
-        Classifier.__init__(self, X_train, y_train, X_test,
-                            LogisticRegression(random_state=0, multi_class='auto', max_iter=10000))
+    def __init__(self):
+        Classifier.__init__(self,
+                            LogisticRegression(random_state=0, multi_class='ovr', max_iter=10000))
 
     def classifier_name(self):
         return "LogisticRegression"
@@ -91,29 +93,32 @@ class LogisticReg(Classifier):
 
 class Bayes(Classifier):
 
-    def __init__(self, X_train, y_train, X_test):
-        Classifier.__init__(self, X_train, y_train, X_test, GaussianNB())
+    def __init__(self):
+        Classifier.__init__(self, GaussianNB())
 
     def classifier_name(self):
-        return "Bayes"
+        return "NaiveBayes"
 
 
 class RandomForest(Classifier):
 
-    def __init__(self, X_train, y_train, X_test):
-        Classifier.__init__(self, X_train, y_train, X_test, RandomForestClassifier())
+    def __init__(self, trees):
+        Classifier.__init__(self, RandomForestClassifier(n_estimators=trees))
+        self.trees = trees
 
     def classifier_name(self):
-        return "RandomForest"
+        return "RandomForest(trees=" + str(self.trees) + ")"
 
 
-class CSupportVector(Classifier):
+class SupportVectorMachine(Classifier):
 
-    def __init__(self, X_train, y_train, X_test):
-        Classifier.__init__(self, X_train, y_train, X_test, SVC(probability=True))
+    def __init__(self, kernel, degree):
+        Classifier.__init__(self, SVC(kernel=kernel, degree=degree, probability=True))
+        self.kernel = kernel
+        self.degree = degree
 
     def classifier_name(self):
-        return "CSupportVector"
+        return "SupportVectorMachine(kernel=" + str(self.kernel) + ")"
 
 
 class NeuralNetwork(Classifier):
