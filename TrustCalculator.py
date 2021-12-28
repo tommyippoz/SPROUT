@@ -1,5 +1,6 @@
 import lime
 import lime.lime_tabular
+import shap
 
 import numpy as np
 
@@ -42,8 +43,13 @@ class TrustCalculator:
 
 
 class LimeTrust(TrustCalculator):
+    """
+    Computes Trust via LIME Framework for explainability.
+    Reports on 3 different trust metrics: Sum, Intercept, Pred
+    """
 
-    def __init__(self, x_data, y_data, column_names, class_names):
+    def __init__(self, x_data, y_data, column_names, class_names, max_samples):
+        self.max_samples = max_samples
         self.column_names = column_names
         self.explainer = lime.lime_tabular.LimeTabularExplainer(training_data=x_data,
                                                                 training_labels=y_data,
@@ -52,15 +58,44 @@ class LimeTrust(TrustCalculator):
                                                                 verbose=True)
 
     def trust_score(self, feature_values, proba, classifier):
+        """
+        Outputs an array of three items for each data point, containing Sum, Intercept, Pred
+        :param feature_values:
+        :param proba:
+        :param classifier:
+        :return:
+        """
         val_exp = self.explainer.explain_instance(data_row=feature_values,
                                                   predict_fn=classifier.predict_proba,
-                                                  num_features=len(self.column_names))
-        return {"LIME_Sum": sum(x[1] for x in val_exp.local_exp[1]),
-                "LIME_Intercept": val_exp.intercept,
-                "LIME_Pred": val_exp.local_pred}
+                                                  num_features=len(self.column_names),
+                                                  num_samples=self.max_samples)
+        return {"Sum": sum(x[1] for x in val_exp.local_exp[1]),
+                "Intercept": val_exp.intercept,
+                "Pred": val_exp.local_pred}
+
+    def trust_scores(self, feature_values_array, proba_array, classifier):
+        """
+        Method to compute trust score for a set of data points
+        :param feature_values_array: the feature values of the data points in the test set
+        :param proba_array: the probability arrays assigned by the algorithm to the data points
+        :param classifier: the classifier used for classification
+        :return: array of trust scores
+        """
+        trust_sum = []
+        trust_int = []
+        trust_pred = []
+        if len(feature_values_array) == len(proba_array):
+            for i in range(0, len(proba_array)):
+                lime_out = self.trust_score(feature_values_array[i], proba_array[i], classifier)
+                trust_sum.append(lime_out["Sum"])
+                trust_int.append(lime_out["Intercept"][1])
+                trust_pred.append(lime_out["Pred"][0])
+        else:
+            print("Items of the feature set have a different cardinality wrt probabilities")
+        return {"Sum": trust_sum, "Intercept": trust_int, "Pred": trust_pred}
 
     def trust_strategy_name(self):
-        return 'Lime Trust Calculator'
+        return 'LIME Trust Calculator (' + str(self.max_samples) + ')'
 
 
 class EntropyTrust(TrustCalculator):
@@ -81,7 +116,10 @@ class EntropyTrust(TrustCalculator):
         :return: entropy score in the range [0, 1]
         """
         p = proba / proba.sum()
-        return (-p*np.log2(p)).sum()
+        if 0 in p:
+            return 0
+        else:
+            return (-p*np.log2(p)).sum()
 
     def trust_strategy_name(self):
         return 'Entropy Calculator'
@@ -112,3 +150,41 @@ class NativeTrust(TrustCalculator):
 
     def trust_strategy_name(self):
         return 'Native Trust Calculator'
+
+
+class SHAPTrust(TrustCalculator):
+    """
+    Computes Trust via SHAP Framework for explainability.
+    Reports on 3 different trust metrics: Sum, Intercept, Pred
+    """
+
+    def __init__(self, x_data, max_samples):
+        self.x_data = x_data
+        self.max_samples = max_samples
+
+    def trust_scores(self, feature_values_array, proba_array, classifier):
+        """
+        TO BE DEBUGGED. SOMETIMES IT CRASHES AND I DONT KNOW WHY
+        :param feature_values_array:
+        :param proba_array:
+        :param classifier:
+        :return:
+        """
+        explainer = shap.KernelExplainer(classifier.predict_prob,
+                                         shap.sample(self.x_data, self.max_samples),
+                                         link="logit")
+        shap_values = explainer.shap_values(feature_values_array, nsamples=100, l1_reg="bic")
+        return shap_values[0].sum(axis=1)
+
+    def trust_score(self, feature_values, proba, classifier):
+        """
+        Not defined. Use trust_scores instead.
+        :param feature_values:
+        :param proba:
+        :param classifier:
+        :return:
+        """
+        pass
+
+    def trust_strategy_name(self):
+        return 'SHAP Trust Calculator (' + str(self.max_samples) + ')'
