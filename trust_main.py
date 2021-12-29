@@ -14,7 +14,7 @@ from Classifier import SupportVectorMachine
 from Classifier import NeuralNetwork
 
 import configparser
-from TrustCalculator import LimeTrust, NativeTrust, EntropyTrust, SHAPTrust
+from TrustCalculator import LimeTrust, NativeTrust, EntropyTrust, SHAPTrust, NeighborsTrust
 
 
 def process_dataset(dataset_name, label_name):
@@ -165,15 +165,15 @@ if __name__ == '__main__':
     xt_numpy = X_test.to_numpy()
 
     classifiers = [
-        # GBClassifier(),
-        # DecisionTree(depth=100),
-        # KNeighbors(k=10),
-        # LDA(),
-        # LogisticReg(),
-        # Bayes(),
-        # RandomForest(trees=100),
+        GBClassifier(),
+        DecisionTree(depth=100),
+        KNeighbors(k=10),
+        LDA(),
+        LogisticReg(),
+        Bayes(),
+        RandomForest(trees=100),
         # SupportVectorMachine(kernel='linear', degree=1),
-        NeuralNetwork(X_train, y_train, X_test)
+        NeuralNetwork(y_train, X_test)
     ]
 
     # Trust Calculators
@@ -181,7 +181,8 @@ if __name__ == '__main__':
         EntropyTrust(),
         NativeTrust(),
         LimeTrust(X_train.to_numpy(), y_train, X_train.columns, ['normal', 'attack'], 100),
-        SHAPTrust(xt_numpy, 100)
+        SHAPTrust(xt_numpy, 100),
+        NeighborsTrust(X_train, X_test, y_train)
     ]
 
     for classifierModel in classifiers:

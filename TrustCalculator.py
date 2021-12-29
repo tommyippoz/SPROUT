@@ -3,6 +3,8 @@ import lime.lime_tabular
 import shap
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
+from collections import Counter
+from tqdm import tqdm
 
 class TrustCalculator:
     """
@@ -171,7 +173,7 @@ class SHAPTrust(TrustCalculator):
         """
         explainer = shap.KernelExplainer(classifier.predict_prob,
                                          shap.sample(self.x_data, self.max_samples),
-                                         link="logit")
+                                         link="identity")
         shap_values = explainer.shap_values(feature_values_array, nsamples=100, l1_reg="bic")
         return shap_values[0].sum(axis=1)
 
@@ -188,37 +190,40 @@ class SHAPTrust(TrustCalculator):
     def trust_strategy_name(self):
         return 'SHAP Trust Calculator (' + str(self.max_samples) + ')'
 
+
 class NeighborsTrust(TrustCalculator):
 
-    def __init__(self, X_train, X_test, y_train, classifier):
-        self.X_train = X_train
-        self.X_test = X_test
+    def __init__(self, X_train, X_test, y_train):
+        self.X_train = X_train.values
+        self.X_test = X_test.values
         self.y_train = y_train
-        self.classifier = classifier
+        self.n_neighbors = int(np.round(len(self.X_train) / len(self.X_test), 0) * len(self.X_train[0]) + 1)
 
-    def find_neighbors(x_test, neighbors):
+    def trust_strategy_name(self):
+        return 'Trust Calculator on ' + str(self.n_neighbors) + 'Neighbors'
+
+    def find_neighbors(self, x_test, neighbors):
         near_neighbors = NearestNeighbors(n_neighbors=neighbors, algorithm='ball_tree').fit(x_test)
         distances, indices = near_neighbors.kneighbors(x_test)
         return indices
 
-    def neighbours_train(neighbors, X_train):
+    def neighbours_train(self, neighbors, X_train):
         X_train_neighbors = np.empty((0, len(X_train[0])), float)
         for n in range(len(neighbors)):
             X_train_neighbors = np.append(X_train_neighbors, [X_train[neighbors[n]]], axis=0)
         return X_train_neighbors
 
-    def trust_score(self):
-        n_neighbors = int(np.round(len(self.X_train) / len(self.X_test), 0) * len(self.X_train[0]) + 1)
-        for i in range(len(self.X_test)):
+    def trust_scores(self, feature_values, proba, classifier):
+        array_knn = [0 for i in range(len(self.X_test))]
+        for i in tqdm(range(len(self.X_test))):
             find_n = np.vstack([self.X_train, self.X_test[i]])
-            neighbors = self.find_neighbors(find_n, n_neighbors)[len(self.find_neighbors(find_n, n_neighbors)) - 1]
+            neighbors = self.find_neighbors(find_n, self.n_neighbors)[len(self.find_neighbors(find_n, self.n_neighbors)) - 1]
             neighbors = neighbors[1:]  # find indexes neighbors
-            # train_neighbors = self.neighbours_train(neighbors, self.X_train)  # train neighbors
-            # array_class = self.classifier.fit(train_neighbors).predict_class()
-            # for i in range(len(self.classifier)):
-            # array_class = self.classifier[i].predict_class()
-            # for j in range(len(array_class)):
-                # array_knn[j] = array_knn[j] + [array_class[j]]
-        # for i in range(len(self.classifier)):
-            # trust_neighbors = Counter(array_knn[i][0]).most_common(1)
-        # return trust_neighbors
+            train_neighbors = self.neighbours_train(neighbors, self.X_train)  # train neighbors
+            classifier.fit(self.X_train, self.y_train)
+            array_class_number = classifier.predict_class(train_neighbors)
+            array_class_string = np.where(array_class_number == 0, "normal", "anomaly")
+            array_knn[i] = Counter(array_class_string).most_common(2)
+        return array_knn
+
+
