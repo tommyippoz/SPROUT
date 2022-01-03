@@ -193,14 +193,14 @@ class SHAPTrust(TrustCalculator):
 
 class NeighborsTrust(TrustCalculator):
 
-    def __init__(self, X_train, X_test, y_train):
+    def __init__(self, X_train, X_test, y_train, n_neighbors):
         self.X_train = X_train.values
         self.X_test = X_test.values
         self.y_train = y_train
-        self.n_neighbors = int(np.round(len(self.X_train) / len(self.X_test), 0) * len(self.X_train[0]) + 1)
+        self.n_neighbors = n_neighbors
 
     def trust_strategy_name(self):
-        return 'Trust Calculator on ' + str(self.n_neighbors) + 'Neighbors'
+        return 'Trust Calculator on ' + str(self.n_neighbors) + ' Neighbors'
 
     def find_neighbors(self, x_test, neighbors):
         near_neighbors = NearestNeighbors(n_neighbors=neighbors, algorithm='ball_tree').fit(x_test)
@@ -215,12 +215,12 @@ class NeighborsTrust(TrustCalculator):
 
     def trust_scores(self, feature_values, proba, classifier):
         array_knn = [0 for i in range(len(self.X_test))]
+        classifier.fit(self.X_train, self.y_train)
         for i in tqdm(range(len(self.X_test))):
             find_n = np.vstack([self.X_train, self.X_test[i]])
             neighbors = self.find_neighbors(find_n, self.n_neighbors)[len(self.find_neighbors(find_n, self.n_neighbors)) - 1]
             neighbors = neighbors[1:]  # find indexes neighbors
             train_neighbors = self.neighbours_train(neighbors, self.X_train)  # train neighbors
-            classifier.fit(self.X_train, self.y_train)
             array_class_number = classifier.predict_class(train_neighbors)
             array_class_string = np.where(array_class_number == 0, "normal", "anomaly")
             array_knn[i] = Counter(array_class_string).most_common(2)

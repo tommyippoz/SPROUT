@@ -182,7 +182,7 @@ if __name__ == '__main__':
         NativeTrust(),
         LimeTrust(X_train.to_numpy(), y_train, X_train.columns, ['normal', 'attack'], 100),
         SHAPTrust(xt_numpy, 100),
-        NeighborsTrust(X_train, X_test, y_train)
+        NeighborsTrust(X_train, X_test, y_train, n_neighbors=15)
     ]
 
     for classifierModel in classifiers:
