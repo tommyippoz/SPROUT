@@ -192,38 +192,43 @@ class SHAPTrust(TrustCalculator):
 
 
 class NeighborsTrust(TrustCalculator):
+    """
+    Computes Trust via Agreement with label predictions of neighbours.
+    Reports both on the trust and on the details for the neighbours.
+    """
 
-    def __init__(self, X_train, X_test, y_train, n_neighbors):
-        self.X_train = X_train.values
-        self.X_test = X_test.values
+    def __init__(self, x_train, y_train, k):
+        self.x_train = x_train.values
         self.y_train = y_train
-        self.n_neighbors = n_neighbors
+        self.n_neighbors = k
 
     def trust_strategy_name(self):
         return 'Trust Calculator on ' + str(self.n_neighbors) + ' Neighbors'
 
-    def find_neighbors(self, x_test, neighbors):
-        near_neighbors = NearestNeighbors(n_neighbors=neighbors, algorithm='ball_tree').fit(x_test)
-        distances, indices = near_neighbors.kneighbors(x_test)
-        return indices
-
-    def neighbours_train(self, neighbors, X_train):
-        X_train_neighbors = np.empty((0, len(X_train[0])), float)
-        for n in range(len(neighbors)):
-            X_train_neighbors = np.append(X_train_neighbors, [X_train[neighbors[n]]], axis=0)
-        return X_train_neighbors
+    def find_neighbors(self, near_neighbors, item):
+        distances, indices = near_neighbors.kneighbors(item)
+        return self.x_train[indices][0]
 
     def trust_scores(self, feature_values, proba, classifier):
-        array_knn = [0 for i in range(len(self.X_test))]
-        classifier.fit(self.X_train, self.y_train)
-        for i in tqdm(range(len(self.X_test))):
-            find_n = np.vstack([self.X_train, self.X_test[i]])
-            neighbors = self.find_neighbors(find_n, self.n_neighbors)[len(self.find_neighbors(find_n, self.n_neighbors)) - 1]
-            neighbors = neighbors[1:]  # find indexes neighbors
-            train_neighbors = self.neighbours_train(neighbors, self.X_train)  # train neighbors
-            array_class_number = classifier.predict_class(train_neighbors)
-            array_class_string = np.where(array_class_number == 0, "normal", "anomaly")
-            array_knn[i] = Counter(array_class_string).most_common(2)
-        return array_knn
+        """
+        Computes trust by predictng the labels for the k-NN of each data point.
+        Trust score ranges from 0 (complete disagreement) to 1 (complete agreement)
+        :param feature_values: the feature values of the data points in the test set
+        :param proba: the probability arrays assigned by the algorithm to the data points
+        :param classifier: the classifier used for classification
+        :return: dictionary of two arrays: Trust and Detail
+        """
+        neighbour_trust = [0 for i in range(len(feature_values))]
+        neighbour_c = [0 for i in range(len(feature_values))]
+        near_neighbors = NearestNeighbors(n_neighbors=self.n_neighbors, algorithm='ball_tree').fit(self.x_train)
+        for i in tqdm(range(len(feature_values))):
+            item = np.reshape(feature_values[i], (1, -1))
+            predict_item = classifier.predict_class(item)
+            neighbors = self.find_neighbors(near_neighbors, item)
+            predict_neighbours = classifier.predict_class(neighbors)
+            agreements = (predict_neighbours == predict_item).sum()
+            neighbour_trust[i] = agreements / len(predict_neighbours)
+            neighbour_c[i] = Counter(np.where(predict_neighbours == 0, "normal", "anomaly")).most_common(2)
+        return {"Trust": neighbour_trust, "Detail": neighbour_c}
 
 

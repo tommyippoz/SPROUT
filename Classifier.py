@@ -20,7 +20,7 @@ class Classifier:
         self.model = model
 
     def fit(self, x_train, y_train):
-        self.model.fit(x_train, y_train)
+        self.model.fit(x_train.values, y_train)
 
     def predict_class(self, x_test):
         """
