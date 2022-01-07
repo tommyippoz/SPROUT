@@ -1,8 +1,13 @@
 import lime
 import lime.lime_tabular
 import shap
+import scipy.stats
 
 import numpy as np
+
+from sklearn.neighbors import NearestNeighbors
+from collections import Counter
+from tqdm import tqdm
 
 
 class TrustCalculator:
@@ -66,7 +71,7 @@ class LimeTrust(TrustCalculator):
         :return:
         """
         val_exp = self.explainer.explain_instance(data_row=feature_values,
-                                                  predict_fn=classifier.predict_proba,
+                                                  predict_fn=classifier.predict_prob,
                                                   num_features=len(self.column_names),
                                                   num_samples=self.max_samples)
         return {"Sum": sum(x[1] for x in val_exp.local_exp[1]),
@@ -104,7 +109,13 @@ class EntropyTrust(TrustCalculator):
     Higher entropy means low trust / confidence
     """
 
-    def __init__(self):
+    def __init__(self, norm):
+        """
+        Constructor Method
+        :param norm: number of classes for normalization process
+        """
+        norm_array = np.full(norm, 1/norm)
+        self.normalization = (-norm_array * np.log2(norm_array)).sum()
         return
 
     def trust_score(self, feature_values, proba, classifier):
@@ -115,11 +126,10 @@ class EntropyTrust(TrustCalculator):
         :param classifier: the classifier used for classification
         :return: entropy score in the range [0, 1]
         """
-        p = proba / proba.sum()
-        if 0 in p:
-            return 0
-        else:
-            return (-p*np.log2(p)).sum()
+        val = np.delete(proba, np.where(proba == 0))
+        p = val / val.sum()
+        entropy = (-p * np.log2(p)).sum()
+        return (self.normalization - entropy) / self.normalization
 
     def trust_strategy_name(self):
         return 'Entropy Calculator'
@@ -172,7 +182,7 @@ class SHAPTrust(TrustCalculator):
         """
         explainer = shap.KernelExplainer(classifier.predict_prob,
                                          shap.sample(self.x_data, self.max_samples),
-                                         link="logit")
+                                         link="identity")
         shap_values = explainer.shap_values(feature_values_array, nsamples=100, l1_reg="bic")
         return shap_values[0].sum(axis=1)
 
@@ -188,3 +198,185 @@ class SHAPTrust(TrustCalculator):
 
     def trust_strategy_name(self):
         return 'SHAP Trust Calculator (' + str(self.max_samples) + ')'
+
+
+class NeighborsTrust(TrustCalculator):
+    """
+    Computes Trust via Agreement with label predictions of neighbours.
+    Reports both on the trust and on the details for the neighbours.
+    """
+
+    def __init__(self, x_train, y_train, k, labels):
+        self.x_train = x_train.values
+        self.y_train = y_train
+        self.n_neighbors = k
+        self.labels = labels
+
+    def trust_strategy_name(self):
+        return 'Trust Calculator on ' + str(self.n_neighbors) + ' Neighbors'
+
+    def find_neighbors(self, near_neighbors, item):
+        """
+        returns the near_neighbors neighbouring data points of an item
+        :param near_neighbors: number of neigbours
+        :param item: item to calculate neigbours of
+        :return: array of data points
+        """
+        distances, indices = near_neighbors.kneighbors(item)
+        return self.x_train[indices][0]
+
+    def trust_scores(self, feature_values, proba, classifier):
+        """
+        Computes trust by predictng the labels for the k-NN of each data point.
+        Trust score ranges from 0 (complete disagreement) to 1 (complete agreement)
+        :param feature_values: the feature values of the data points in the test set
+        :param proba: the probability arrays assigned by the algorithm to the data points
+        :param classifier: the classifier used for classification
+        :return: dictionary of two arrays: Trust and Detail
+        """
+        neighbour_trust = [0 for i in range(len(feature_values))]
+        neighbour_c = [0 for i in range(len(feature_values))]
+        near_neighbors = NearestNeighbors(n_neighbors=self.n_neighbors, algorithm='ball_tree').fit(self.x_train)
+        for i in tqdm(range(len(feature_values))):
+            item = np.reshape(feature_values[i], (1, -1))
+            predict_item = classifier.predict_class(item)
+            neighbors = self.find_neighbors(near_neighbors, item)
+            predict_neighbours = classifier.predict_class(neighbors)
+            agreements = (predict_neighbours == predict_item).sum()
+            neighbour_trust[i] = agreements / len(predict_neighbours)
+            neighbour_c[i] = Counter(list(map(lambda x: self.labels[x], predict_neighbours))).most_common()
+        return {"Trust": neighbour_trust, "Detail": neighbour_c}
+
+
+class ExternalTrust(TrustCalculator):
+    """
+    Defines a trust strategy that runs an external classifer and calculates its confidence in the result
+    """
+
+    def __init__(self, del_clf, x_train, y_train, norm):
+        self.del_clf = del_clf
+        self.del_clf.fit(x_train, y_train)
+        self.trust_measure = EntropyTrust(norm)
+
+    def trust_score(self, feature_values, proba, classifier):
+        """
+        Returns the entropy trust achieved by the external classifier on a specific data point
+        :param feature_values: the feature values of the data point
+        :param proba: the probability array assigned by the algorithm to the data point
+        :param classifier: the classifier used for classification
+        :return: external confidence score
+        """
+        item = np.reshape(feature_values, (1, -1))
+        return self.trust_measure.trust_score(feature_values, self.del_clf.predict_prob(item), self.del_clf)
+
+    def trust_strategy_name(self):
+        return 'External Calculator (' + self.del_clf.classifier_name() + ')'
+
+
+class CombinedTrust(TrustCalculator):
+    """
+    Defines a trust strategy that uses another classifer and calculates a combined confidence
+    It uses the main classifier plus the additional classifier to calculate an unified confidence score
+    """
+
+    def __init__(self, del_clf, x_train, y_train, norm):
+        self.del_clf = del_clf
+        self.del_clf.fit(x_train, y_train)
+        self.trust_measure = EntropyTrust(norm)
+
+    def trust_score(self, feature_values, proba, classifier):
+        """
+        Returns the combined trust calculated using the main classifier plus the additional classifier
+        Score ranges from
+            -1 (complete and strong disagreement between the two classifiers) -> low confidence
+        to
+            1, which represents the complete agreement between the two classifiers and thus high confidence
+        a score of 0 represents a very uncertain prediction
+        :param feature_values: the feature values of the data point
+        :param proba: the probability array assigned by the algorithm to the data point
+        :param classifier: the classifier used for classification
+        :return: combined confidence score
+        """
+        item = np.reshape(feature_values, (1, -1))
+        pred = classifier.predict_class(item)
+        other_pred = self.del_clf.predict_class(item)
+        entropy = self.trust_measure.trust_score(feature_values,
+                                                 proba,
+                                                 classifier)
+        other_entropy = self.trust_measure.trust_score(feature_values,
+                                                       self.del_clf.predict_prob(item),
+                                                       self.del_clf)
+        if pred == other_pred:
+            return (entropy + other_entropy) / 2
+        else:
+            return - (entropy + other_entropy) / 2
+
+    def trust_strategy_name(self):
+        return 'Combined Calculator (' + self.del_clf.classifier_name() + ')'
+
+
+class MultiCombinedTrust(TrustCalculator):
+    """
+    Defines a trust strategy that uses another classifer and calculates a combined confidence
+    It uses the main classifier plus the additional classifier to calculate an unified confidence score
+    """
+
+    def __init__(self, clf_set, x_train, y_train, norm):
+        self.trust_set = []
+        for clf in clf_set:
+            self.trust_set.append(CombinedTrust(clf, x_train, y_train, norm))
+
+    def trust_score(self, feature_values, proba, classifier):
+        """
+        Returns the combined trust averaged over many combined classifiers
+        Score ranges from
+            -1 (complete and strong disagreement between the two classifiers) -> low confidence
+        to
+            1, which represents the complete agreement between the two classifiers and thus high confidence
+        a score of 0 represents a very uncertain prediction
+        :param feature_values: the feature values of the data point
+        :param proba: the probability array assigned by the algorithm to the data point
+        :param classifier: the classifier used for classification
+        :return: combined confidence score
+        """
+        multi_trust = 0
+        for combined_trust in self.trust_set:
+            multi_trust = multi_trust + combined_trust.trust_score(feature_values, proba, classifier)
+        return multi_trust / len(self.trust_set)
+
+    def trust_strategy_name(self):
+        return 'Multiple Combined Calculator (' + str(len(self.trust_set)) + ' classifiers)'
+
+
+class ConfidenceInterval(TrustCalculator):
+    """
+    Defines a trust strategy that calculates confidence intervals to derive trust
+    """
+
+    def __init__(self, x_train, y_train, confidence_level):
+        self.data = x_train[y_train == 0, :]
+        self.confidence_level = confidence_level
+        self.intervals = []
+        for i in range(0, len(x_train[0])):
+            feature = x_train[:, i]
+            self.intervals.append(scipy.stats.t.interval(confidence_level, len(feature) - 1,
+                                                         loc=np.mean(feature),
+                                                         scale=scipy.stats.sem(feature)))
+
+    def trust_score(self, feature_values, proba, classifier):
+        """
+        Returns the degree to which a data point complies with a confidence interval. Agnostic of the classifier
+        :param feature_values: the feature values of the data point
+        :param proba: the probability array assigned by the algorithm to the data point (UNUSED)
+        :param classifier: the classifier used for classification (UNUSED)
+        :return: trust score using confidence intervals
+        """
+        int_trust = 0
+        for i in range(0, len(feature_values)):
+            if (np.isfinite(self.intervals[i][0])) & (np.isfinite(self.intervals[i][1])):
+                if (feature_values[i] < self.intervals[i][0]) | (feature_values[i] > self.intervals[i][1]):
+                    int_trust = int_trust + 1
+        return int_trust
+
+    def trust_strategy_name(self):
+        return 'Confidence Interval (' + str(self.confidence_level) + '%)'

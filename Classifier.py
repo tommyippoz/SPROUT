@@ -18,9 +18,15 @@ class Classifier:
 
     def __init__(self, model):
         self.model = model
+        self.trained = False
+
 
     def fit(self, x_train, y_train):
-        self.model.fit(x_train, y_train)
+        self.model.fit(x_train.values, y_train)
+        self.trained = True
+
+    def is_trained(self):
+        return self.trained
 
     def predict_class(self, x_test):
         """
@@ -36,11 +42,39 @@ class Classifier:
         """
         return self.model.predict_proba(x_test)
 
+    def predict_confidence(self, x_test):
+        """
+        Method to compute confidence in the predicted class
+        :return: -1 as default, value if algorithm is from framework PYOD
+        """
+        return -1
+
     def classifier_name(self):
         """
         Returns the name of the classifier (as string)
         """
         pass
+
+
+class UnsupervisedClassifier(Classifier):
+
+    def __init__(self, classifier, name):
+        Classifier.__init__(self, classifier)
+        self.name = name
+
+    def fit(self, x_train, y_train):
+        self.model.fit(x_train.values)
+        self.trained = True
+
+    def predict_confidence(self, x_test):
+        """
+        Method to compute confidence in the predicted class
+        :return: -1 as default, value if algorithm is from framework PYOD
+        """
+        return self.model.predict_confidence(x_test)
+
+    def classifier_name(self):
+        return self.name
 
 
 class GBClassifier(Classifier):
@@ -123,31 +157,27 @@ class SupportVectorMachine(Classifier):
 
 class NeuralNetwork(Classifier):
 
-    def __init__(self, X_train, y_train, X_test):
-        self.le = LabelEncoder()
-        self.y_train = self.le.fit_transform(y_train)
-        categorical = to_categorical(self.y_train)
-        num_classes = len(categorical[0])
-        num_input = len(X_test.values[0])
+    def __init__(self, num_input, num_classes):
         self.model = Sequential()
         self.model.add(Dense(num_input, input_shape=(num_input,), activation='relu'))
         self.model.add(Dense(num_input * 10, activation='relu'))
         self.model.add(Dense(num_input * 10, activation='relu'))
         self.model.add(Dense(num_classes, activation='softmax'))
+
+    def fit(self, x_train, y_train):
         self.model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=['accuracy'])
-        self.model.fit(X_train, categorical, batch_size=64, epochs=10, verbose=0)
+        self.model.fit(x_train, to_categorical(y_train), batch_size=64, epochs=10, verbose=0)
         self.model = tf.keras.Sequential([self.model, tf.keras.layers.Softmax()])
-        self.array_proba = np.asarray(self.model.predict(X_test))
-        # super().__init__(X_train, self.y_train, X_test, self.model)
 
-    def predict_class(self):
-        predictions = np.zeros((len(self.array_proba),), dtype=int)
-        for i in range(len(self.array_proba)):
-            predictions[i] = np.argmax(self.array_proba[i], axis=0)
-        return self.le.inverse_transform(predictions)
+    def predict_class(self, x_test):
+        array_proba = np.asarray(self.model.predict(x_test))
+        predictions = np.zeros((len(array_proba),), dtype=int)
+        for i in range(len(array_proba)):
+            predictions[i] = np.argmax(array_proba[i], axis=0)
+        return predictions
 
-    def predict_prob(self):
-        return self.array_proba
+    def predict_prob(self, X_test):
+        return np.asarray(self.model.predict(X_test))
 
     def classifier_name(self):
         return "NeuralNetwork"
