@@ -18,10 +18,33 @@ import configparser
 from TrustCalculator import LimeTrust, EntropyTrust, SHAPTrust, NeighborsTrust, \
     ExternalTrust, CombinedTrust, MultiCombinedTrust, ConfidenceInterval
 
+from sklearn import datasets
+from keras.datasets import mnist
+
+
+def process_image_dataset(dataset_name):
+    if dataset_name == "MNIST":
+        mn = datasets.load_digits(as_frame=True)
+        labels = mn.target_names
+        x_mnist = mn.frame
+        y_mnist = mn.target
+        x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_mnist, y_mnist, test_size=0.5, shuffle=True)
+        return x_mnist, y_mnist, x_tr, x_te, y_tr, y_te, labels
+
+    elif dataset_name == "MNIST-BIG":
+        (x_tr, y_tr), (x_te, y_te) = mnist.load_data()
+        x_tr = [x.flatten() for x in x_tr]
+        x_te = [x.flatten() for x in x_te]
+        labels = np.unique(y_tr)
+        x_mnist = np.concatenate((x_tr, x_te), axis=0)
+        y_mnist = np.concatenate((y_tr, y_te), axis=0)
+        return x_mnist, y_mnist, pd.DataFrame(x_tr), pd.DataFrame(x_te), y_tr, y_te, labels
+
 
 def process_tabular_dataset(dataset_name, label_name, limit_rows):
     """
     Method to process an input dataset as CSV
+    :param limit_rows: integer to cut dataset if needed.
     :param dataset_name: name of the file (CSV) containing the dataset
     :param label_name: name of the feature containing the label
     :return:
@@ -115,7 +138,7 @@ if __name__ == '__main__':
 
     for dataset_file in dataset_files:
 
-        if not os.path.isfile(dataset_file):
+        if (not os.path.isfile(dataset_file)) and (dataset_file != "MNIST") and (dataset_file != "MNIST-BIG"):
             print("Dataset '" + str(dataset_file) + "' does not exist / not reachable")
         else:
             print("Processing Dataset " + dataset_file)
@@ -126,8 +149,8 @@ if __name__ == '__main__':
                                                                                              limit_rows)
             else:
                 # Reading Non-Tabular Dataset (@LEONARDO)
-                X, y, X_train, X_test, y_train, y_test, label_tags = process_tabular_dataset(dataset_file, y_label,
-                                                                                             limit_rows)
+                X, y, X_train, X_test, y_train, y_test, label_tags = process_image_dataset(dataset_file)
+
             xt_numpy = X_test.to_numpy()
 
             classifiers = [
@@ -147,16 +170,13 @@ if __name__ == '__main__':
             # Trust Calculators
             calculators = [
                 EntropyTrust(norm=len(label_tags)),
-                # LimeTrust(X_train.to_numpy(), y_train, X_train.columns, label_tags, 100),
-                # SHAPTrust(xt_numpy, 100),
+                LimeTrust(X_train.to_numpy(), y_train, X_train.columns, label_tags, 100),
+                SHAPTrust(xt_numpy, 100),
                 NeighborsTrust(x_train=X_train, y_train=y_train, k=19, labels=label_tags),
                 ExternalTrust(del_clf=Bayes(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
                 CombinedTrust(del_clf=GBClassifier(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
-                MultiCombinedTrust(clf_set=[
-                    Bayes(),
-                    LDA(),
-                    LogisticReg()],
-                    x_train=X_train, y_train=y_train, norm=len(label_tags)),
+                MultiCombinedTrust(clf_set=[Bayes(), LDA(), LogisticReg()],
+                                   x_train=X_train, y_train=y_train, norm=len(label_tags)),
                 ConfidenceInterval(x_train=X_train.to_numpy(), y_train=y_train, confidence_level=0.9999)
             ]
 
