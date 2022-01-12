@@ -56,6 +56,7 @@ class LimeTrust(TrustCalculator):
     def __init__(self, x_data, y_data, column_names, class_names, max_samples):
         self.max_samples = max_samples
         self.column_names = column_names
+        self.class_names = class_names
         self.explainer = lime.lime_tabular.LimeTabularExplainer(training_data=x_data,
                                                                 training_labels=y_data,
                                                                 feature_names=column_names,
@@ -72,11 +73,19 @@ class LimeTrust(TrustCalculator):
         """
         val_exp = self.explainer.explain_instance(data_row=feature_values,
                                                   predict_fn=classifier.predict_prob,
+                                                  top_labels=len(self.class_names),
                                                   num_features=len(self.column_names),
                                                   num_samples=self.max_samples)
-        return {"Sum": sum(x[1] for x in val_exp.local_exp[1]),
-                "Intercept": val_exp.intercept,
-                "Pred": val_exp.local_pred}
+        sum_arr = []
+        for arr in list(val_exp.local_exp.values()):
+            sum_arr.append(sum(x[1] for x in arr))
+        sum_arr = np.array(sum_arr)
+        sum_pos = sum_arr[sum_arr > 0]/max(sum_arr)
+        return {"Sum": (-sum(sum_pos * np.log(sum_pos))),
+                "Sum_Top": sum_arr[val_exp.top_labels[0]],
+                "Intercept": np.var(list(val_exp.intercept.values())),
+                "Pred": val_exp.local_pred[0],
+                "Score": val_exp.score}
 
     def trust_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -87,17 +96,21 @@ class LimeTrust(TrustCalculator):
         :return: array of trust scores
         """
         trust_sum = []
+        trust_st = []
         trust_int = []
         trust_pred = []
+        trust_score = []
         if len(feature_values_array) == len(proba_array):
             for i in range(0, len(proba_array)):
                 lime_out = self.trust_score(feature_values_array[i], proba_array[i], classifier)
                 trust_sum.append(lime_out["Sum"])
-                trust_int.append(lime_out["Intercept"][1])
-                trust_pred.append(lime_out["Pred"][0])
+                trust_st.append(lime_out["Sum_Top"])
+                trust_int.append(lime_out["Intercept"])
+                trust_pred.append(lime_out["Pred"])
+                trust_score.append(lime_out["Score"])
         else:
             print("Items of the feature set have a different cardinality wrt probabilities")
-        return {"Sum": trust_sum, "Intercept": trust_int, "Pred": trust_pred}
+        return {"Sum": trust_sum, "Sum_Top": trust_st, "Intercept": trust_int, "Pred": trust_pred, "Score": trust_score}
 
     def trust_strategy_name(self):
         return 'LIME Trust Calculator (' + str(self.max_samples) + ')'
@@ -184,7 +197,12 @@ class SHAPTrust(TrustCalculator):
                                          shap.sample(self.x_data, self.max_samples),
                                          link="identity")
         shap_values = explainer.shap_values(feature_values_array, nsamples=100, l1_reg="bic")
-        return shap_values[0].sum(axis=1)
+        probs = np.asarray([x.sum(axis=1) for x in shap_values]).transpose()
+        entr_arr = []
+        for p in probs:
+            vals = p[p > 0] / max(p)
+            entr_arr.append(-sum(vals * np.log(vals)))
+        return {"Max": probs.max(axis=1), "Ent": entr_arr}
 
     def trust_score(self, feature_values, proba, classifier):
         """
@@ -257,6 +275,7 @@ class ExternalTrust(TrustCalculator):
         self.del_clf = del_clf
         self.del_clf.fit(x_train, y_train)
         self.trust_measure = EntropyTrust(norm)
+        print("[ExternalTrust] Fitting of '" + del_clf.classifier_name() + "' Completed")
 
     def trust_score(self, feature_values, proba, classifier):
         """
@@ -283,6 +302,7 @@ class CombinedTrust(TrustCalculator):
         self.del_clf = del_clf
         self.del_clf.fit(x_train, y_train)
         self.trust_measure = EntropyTrust(norm)
+        print("[CombinedTrust] Fitting of '" + del_clf.classifier_name() + "' Completed")
 
     def trust_score(self, feature_values, proba, classifier):
         """
@@ -325,6 +345,7 @@ class MultiCombinedTrust(TrustCalculator):
         self.trust_set = []
         for clf in clf_set:
             self.trust_set.append(CombinedTrust(clf, x_train, y_train, norm))
+            print("[MultiCombinedTrust] Fitting of '" + clf.classifier_name() + "' Completed")
 
     def trust_score(self, feature_values, proba, classifier):
         """
@@ -376,7 +397,7 @@ class ConfidenceInterval(TrustCalculator):
             if (np.isfinite(self.intervals[i][0])) & (np.isfinite(self.intervals[i][1])):
                 if (feature_values[i] < self.intervals[i][0]) | (feature_values[i] > self.intervals[i][1]):
                     int_trust = int_trust + 1
-        return int_trust
+        return int_trust/len(feature_values)
 
     def trust_strategy_name(self):
         return 'Confidence Interval (' + str(self.confidence_level) + '%)'

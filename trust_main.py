@@ -38,7 +38,7 @@ def process_image_dataset(dataset_name):
         labels = np.unique(y_tr)
         x_mnist = np.concatenate((x_tr, x_te), axis=0)
         y_mnist = np.concatenate((y_tr, y_te), axis=0)
-        return x_mnist, y_mnist, pd.DataFrame(x_tr), pd.DataFrame(x_te), y_tr, y_te, labels
+        return x_mnist, y_mnist, pd.DataFrame(x_tr[0:10000]), pd.DataFrame(x_te), y_tr[0:10000], y_te, labels
 
 
 def process_tabular_dataset(dataset_name, label_name, limit_rows):
@@ -157,11 +157,10 @@ if __name__ == '__main__':
                 # GBClassifier(),
                 # DecisionTree(depth=100),
                 # KNeighbors(k=11),
-                # LDA(),
+                LDA(),
                 # LogisticReg(),
                 # Bayes(),
-                RandomForest(trees=10),
-                # SupportVectorMachine(kernel='linear', degree=1),
+                # RandomForest(trees=100),
                 # NeuralNetwork(num_input=len(X_test.values[0]), num_classes=len(label_tags))
             ]
 
@@ -176,6 +175,8 @@ if __name__ == '__main__':
                 ExternalTrust(del_clf=Bayes(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
                 CombinedTrust(del_clf=GBClassifier(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
                 MultiCombinedTrust(clf_set=[Bayes(), LDA(), LogisticReg()],
+                                   x_train=X_train, y_train=y_train, norm=len(label_tags)),
+                MultiCombinedTrust(clf_set=[RandomForest(trees=10), GBClassifier(), DecisionTree(depth=100)],
                                    x_train=X_train, y_train=y_train, norm=len(label_tags)),
                 ConfidenceInterval(x_train=X_train.to_numpy(), y_train=y_train, confidence_level=0.9999)
             ]

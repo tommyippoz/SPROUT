@@ -5,7 +5,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, BaggingClassifier
 from sklearn.svm import SVC
 from keras.models import Sequential
 import tensorflow as tf
@@ -147,7 +147,7 @@ class RandomForest(Classifier):
 class SupportVectorMachine(Classifier):
 
     def __init__(self, kernel, degree):
-        Classifier.__init__(self, SVC(kernel=kernel, degree=degree, probability=True))
+        Classifier.__init__(self, SVC(kernel=kernel, degree=degree, probability=True, max_iter=10000))
         self.kernel = kernel
         self.degree = degree
 
