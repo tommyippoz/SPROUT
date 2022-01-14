@@ -1,17 +1,21 @@
 import numpy as np
+import pandas as pd
 from xgboost import XGBClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
-from sklearn.ensemble import RandomForestClassifier, BaggingClassifier
+from sklearn.ensemble import RandomForestClassifier, BaggingClassifier, AdaBoostClassifier
 from sklearn.svm import SVC
 from keras.models import Sequential
 import tensorflow as tf
 from keras.layers.core import Dense
 from tensorflow.keras.utils import to_categorical
 from sklearn.preprocessing import LabelEncoder
+
+from pytorch_tabnet.tab_model import TabNetClassifier
+from autogluon.tabular import TabularPredictor
 
 
 class Classifier:
@@ -77,10 +81,97 @@ class UnsupervisedClassifier(Classifier):
         return self.name
 
 
-class GBClassifier(Classifier):
+class XGB(Classifier):
 
     def __init__(self):
         Classifier.__init__(self, XGBClassifier(use_label_encoder=False))
+
+    def classifier_name(self):
+        return "XGBoost"
+
+
+class TabNet(Classifier):
+
+    def __init__(self):
+        Classifier.__init__(self, TabNetClassifier())
+
+    def fit(self, x_train, y_train):
+        self.model.fit(X_train=x_train.to_numpy(), y_train=y_train, eval_metric=['auc'])
+        self.trained = True
+
+    def classifier_name(self):
+        return "TabNet"
+
+
+class AutoGluon(Classifier):
+    """
+    clf_name options are
+    ‘GBM’ (LightGBM)
+    ‘CAT’ (CatBoost)
+    ‘XGB’ (XGBoost)
+    ‘RF’ (random forest)
+    ‘XT’ (extremely randomized trees)
+    ‘KNN’ (k-nearest neighbors)
+    ‘LR’ (linear regression)
+    ‘NN’ (neural network with MXNet backend)
+    ‘FASTAI’ (neural network with FastAI backend)
+    """
+
+
+    def __init__(self, feature_names, label_name, clf_name):
+        Classifier.__init__(self, TabularPredictor(label=label_name))
+        self.label_name = label_name
+        self.feature_names = feature_names
+        self.clf_name = clf_name
+
+    def fit(self, x_train, y_train):
+        df = pd.DataFrame(data=x_train, columns=self.feature_names)
+        df[self.label_name] = y_train
+        self.model.fit(train_data=df, hyperparameters={self.clf_name:{}})
+        self.trained = True
+
+    def predict_class(self, x_test):
+        df = pd.DataFrame(data=x_test, columns=self.feature_names)
+        return self.model.predict(df)
+
+    def predict_prob(self, x_test):
+        df = pd.DataFrame(data=x_test, columns=self.feature_names)
+        return self.model.predict_proba(df)
+
+    def classifier_name(self):
+        return "AutoGluon"
+
+
+class FastAI(AutoGluon):
+
+    def __init__(self, feature_names, label_name):
+        AutoGluon.__init__(self, feature_names, label_name, "FASTAI")
+
+    def classifier_name(self):
+        return "FastAI"
+
+
+class GBM(AutoGluon):
+
+    def __init__(self, feature_names, label_name):
+        AutoGluon.__init__(self, feature_names, label_name, "GBM")
+
+    def classifier_name(self):
+        return "GBM"
+
+class MXNet(AutoGluon):
+
+    def __init__(self, feature_names, label_name):
+        AutoGluon.__init__(self, feature_names, label_name, "NN")
+
+    def classifier_name(self):
+        return "MXNet"
+
+
+class ADABoostClassifier(Classifier):
+
+    def __init__(self, n_trees):
+        Classifier.__init__(self, AdaBoostClassifier(n_estimators=n_trees))
 
     def classifier_name(self):
         return "XGBoost"
