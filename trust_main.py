@@ -4,7 +4,7 @@ import numpy as np
 import time
 import os
 
-from Classifier import XGB, TabNet, FastAI, GBM, MXNet
+from Classifier import XGB, TabNet, FastAI, GBM, MXNet, ADABoostClassifier
 from Classifier import DecisionTree
 from Classifier import KNeighbors
 from Classifier import LDA
@@ -12,59 +12,58 @@ from Classifier import LogisticReg
 from Classifier import Bayes
 from Classifier import RandomForest
 from Classifier import SupportVectorMachine
-from Classifier import NeuralNetwork
 
 import configparser
 from TrustCalculator import LimeTrust, EntropyTrust, SHAPTrust, NeighborsTrust, \
     ExternalTrust, CombinedTrust, MultiCombinedTrust, ConfidenceInterval
 
 from sklearn import datasets
-from keras.datasets import mnist
-from tensorflow.keras.datasets import fashion_mnist
+from sklearn.datasets import fetch_openml
+# from keras.datasets import mnist
+# from tensorflow.keras.datasets import fashion_mnist
 
 
-
-def process_image_dataset(dataset_name, limit_rows):
-    if dataset_name == "MNIST":
+def process_image_dataset(dataset_name, limit):
+    if dataset_name == "DIGITS":
         mn = datasets.load_digits(as_frame=True)
-        features = mn.columns
+        feature_list = mn.columns
         labels = mn.target_names
         x_mnist = mn.frame
         y_mnist = mn.target
         x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_mnist, y_mnist, test_size=0.5, shuffle=True)
-        return x_mnist, y_mnist, x_tr, x_te, y_tr, y_te, labels, features
+        return x_mnist, y_mnist, x_tr, x_te, y_tr, y_te, labels, feature_list
 
-    elif dataset_name == "MNIST-BIG":
-        (x_tr, y_tr), (x_te, y_te) = mnist.load_data()
-        x_tr = [x.flatten() for x in x_tr]
-        x_te = [x.flatten() for x in x_te]
-        if (np.isfinite(limit_rows)) & (limit_rows < len(x_tr)):
-            x_tr = x_tr[0:limit_rows]
-            y_tr = y_tr[0:limit_rows]
-        features = np.arange(0, len(x_tr[0]), 1)
-        labels = np.unique(y_tr)
-        x_mnist = np.concatenate((x_tr, x_te), axis=0)
-        y_mnist = np.concatenate((y_tr, y_te), axis=0)
-        return x_mnist, y_mnist, pd.DataFrame(x_tr), pd.DataFrame(x_te), y_tr, y_te, labels, features
+    elif dataset_name == "MNIST":
+        mnist = fetch_openml('mnist_784')
+        y_mnist = np.asarray(list(map(int, mnist.target)), dtype=int)
+        x_mnist = np.stack([x.flatten() for x in mnist.data])
+        if (np.isfinite(limit)) & (limit < len(x_mnist)):
+            x_mnist = x_mnist[0:limit]
+            y_mnist = y_mnist[0:limit]
+        feature_list = np.arange(0, len(x_mnist[0]), 1)
+        labels = pd.Index(np.unique(mnist.target), dtype=object)
+        x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(pd.DataFrame(x_mnist), y_mnist, test_size=0.1429, shuffle=True)
+        return x_mnist, y_mnist, x_tr, x_te, y_tr, y_te, labels, feature_list
 
     elif dataset_name == "FASHION-MNIST":
-        (x_tr, y_tr), (x_te, y_te) = fashion_mnist.load_data()
+        (x_tr, y_tr), (x_te, y_te) = [] # fashion_mnist.load_data()
         x_tr = [x.flatten() for x in x_tr]
         x_te = [x.flatten() for x in x_te]
-        if (np.isfinite(limit_rows)) & (limit_rows < len(x_tr)):
-            x_tr = x_tr[0:limit_rows]
-            y_tr = y_tr[0:limit_rows]
-        features = np.arange(0, len(x_tr[0]), 1)
+        np.concatenate(x_tr, axis=0)
+        if (np.isfinite(limit)) & (limit < len(x_tr)):
+            x_tr = x_tr[0:limit]
+            y_tr = y_tr[0:limit]
+        feature_list = np.arange(0, len(x_tr[0]), 1)
         labels = np.unique(y_tr)
         x_mnist = np.concatenate((x_tr, x_te), axis=0)
         y_mnist = np.concatenate((y_tr, y_te), axis=0)
-        return x_mnist, y_mnist, pd.DataFrame(x_tr), pd.DataFrame(x_te), y_tr, y_te, labels, features
+        return x_mnist, y_mnist, pd.DataFrame(x_tr), pd.DataFrame(x_te), y_tr, y_te, labels, feature_list
 
 
-def process_tabular_dataset(dataset_name, label_name, limit_rows):
+def process_tabular_dataset(dataset_name, label_name, limit):
     """
     Method to process an input dataset as CSV
-    :param limit_rows: integer to cut dataset if needed.
+    :param limit: integer to cut dataset if needed.
     :param dataset_name: name of the file (CSV) containing the dataset
     :param label_name: name of the feature containing the label
     :return:
@@ -73,8 +72,8 @@ def process_tabular_dataset(dataset_name, label_name, limit_rows):
     df = pd.read_csv(dataset_name, sep=",")
 
     # Testing Purposes
-    if (np.isfinite(limit_rows)) & (limit_rows < len(df.index)):
-        df = df[0:limit_rows]
+    if (np.isfinite(limit)) & (limit < len(df.index)):
+        df = df[0:limit]
 
     print("Dataset loaded: " + str(len(df.index)) + " items")
     encoding = pd.factorize(df[label_name])
@@ -89,10 +88,10 @@ def process_tabular_dataset(dataset_name, label_name, limit_rows):
     # Train/Test Split of Classifiers
     x = df.drop(columns=[label_name])
     x_no_cat = x.select_dtypes(exclude=['object'])
-    features = x_no_cat.columns
+    feature_list = x_no_cat.columns
     x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_no_cat, y_enc, test_size=0.5, shuffle=True)
 
-    return x_no_cat, y_enc, x_tr, x_te, y_tr, y_te, labels, features
+    return x_no_cat, y_enc, x_tr, x_te, y_tr, y_te, labels, feature_list
 
 
 def load_config(file_config):
@@ -148,6 +147,10 @@ def clean_name(file):
     return name
 
 
+def is_image_dataset(dataset_name):
+    return (dataset_name == "DIGITS") or (dataset_name != "MNIST") or (dataset_name != "FASHION-MNIST")
+
+
 if __name__ == '__main__':
     """
     Main to calculate trust measures for many datasets using many classifiers.
@@ -159,8 +162,7 @@ if __name__ == '__main__':
 
     for dataset_file in dataset_files:
 
-        if (not os.path.isfile(dataset_file)) and (dataset_file != "MNIST") and (dataset_file != "MNIST-BIG") \
-                and (dataset_file != "FASHION-MNIST"):
+        if (not os.path.isfile(dataset_file)) and not is_image_dataset(dataset_file):
             print("Dataset '" + str(dataset_file) + "' does not exist / not reachable")
         else:
             print("Processing Dataset " + dataset_file)
@@ -171,11 +173,13 @@ if __name__ == '__main__':
                                                                                                        y_label,
                                                                                                        limit_rows)
             else:
-                # Reading Non-Tabular Dataset (@LEONARDO)
                 X, y, X_train, X_test, y_train, y_test, label_tags, features = process_image_dataset(dataset_file,
                                                                                                      limit_rows)
 
-            xt_numpy = X_test.to_numpy()
+            if not isinstance(X_test, np.ndarray):
+                xt_numpy = X_test.to_numpy()
+            else:
+                xt_numpy = X_test
 
             classifiers = [
                 XGB(),
@@ -188,8 +192,8 @@ if __name__ == '__main__':
                 # NeuralNetwork(num_input=len(X_test.values[0]), num_classes=len(label_tags))
                 TabNet(),
                 FastAI(feature_names=features, label_name=y_label),
-                GBM(feature_names=features, label_name=y_label),
-                MXNet(feature_names=features, label_name=y_label)
+                # GBM(feature_names=features, label_name=y_label),
+                # MXNet(feature_names=features, label_name=y_label)
             ]
 
             print("Preparing Trust Calculators...")
@@ -197,18 +201,19 @@ if __name__ == '__main__':
             # Trust Calculators
             calculators = [
                 EntropyTrust(norm=len(label_tags)),
-                # LimeTrust(X_train.to_numpy(), y_train, features, label_tags, 100),
-                # SHAPTrust(xt_numpy, 100),
-                # NeighborsTrust(x_train=X_train, y_train=y_train, k=19, labels=label_tags),
-                # ExternalTrust(del_clf=Bayes(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
-                # CombinedTrust(del_clf=XGB(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
-                # MultiCombinedTrust(clf_set=[Bayes(), LDA(), LogisticReg()],
-                #                x_train=X_train, y_train=y_train, norm=len(label_tags)),
-                # MultiCombinedTrust(clf_set=[RandomForest(trees=10), XGB(), DecisionTree(depth=100), ADABoostClassifier(n_trees=100)],
-                #                    x_train=X_train, y_train=y_train, norm=len(label_tags)),
-                # MultiCombinedTrust(clf_set=[LDA(), XGB(), KNeighbors(k=11)],
-                #                    x_train=X_train, y_train=y_train, norm=len(label_tags)),
-                # ConfidenceInterval(x_train=X_train.to_numpy(), y_train=y_train, confidence_level=0.9999)
+                LimeTrust(X_train, y_train, features, label_tags, 100),
+                SHAPTrust(xt_numpy, 100),
+                NeighborsTrust(x_train=X_train, y_train=y_train, k=19, labels=label_tags),
+                ExternalTrust(del_clf=Bayes(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
+                CombinedTrust(del_clf=XGB(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
+                MultiCombinedTrust(clf_set=[Bayes(), LDA(), LogisticReg()],
+                                   x_train=X_train, y_train=y_train, norm=len(label_tags)),
+                MultiCombinedTrust(clf_set=[RandomForest(trees=10), XGB(), DecisionTree(depth=100),
+                                            ADABoostClassifier(n_trees=100)],
+                                   x_train=X_train, y_train=y_train, norm=len(label_tags)),
+                MultiCombinedTrust(clf_set=[LDA(), XGB(), KNeighbors(k=11)],
+                                   x_train=X_train, y_train=y_train, norm=len(label_tags)),
+                ConfidenceInterval(x_train=X_train.to_numpy(), y_train=y_train, confidence_level=0.9999)
             ]
 
             for classifierModel in classifiers:
@@ -232,7 +237,7 @@ if __name__ == '__main__':
                     + str(sk.metrics.accuracy_score(y_test, y_pred)))
 
                 # Output Dataframe
-                out_df = X_test.copy()
+                out_df = pd.DataFrame()
                 out_df['true_label'] = list(map(lambda x: label_tags[x], y_test))
                 out_df['predicted_label'] = list(map(lambda x: label_tags[x], y_pred))
                 out_df['is_misclassification'] = np.where(out_df['true_label'] != out_df['predicted_label'], 1, 0)

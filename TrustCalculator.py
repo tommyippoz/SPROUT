@@ -2,6 +2,7 @@ import lime
 import lime.lime_tabular
 import shap
 import scipy.stats
+import pandas as pd
 
 import numpy as np
 
@@ -56,8 +57,8 @@ class LimeTrust(TrustCalculator):
     def __init__(self, x_data, y_data, column_names, class_names, max_samples):
         self.max_samples = max_samples
         self.column_names = column_names
-        self.class_names = class_names
-        self.explainer = lime.lime_tabular.LimeTabularExplainer(training_data=x_data,
+        self.class_indexes = np.arange(0, len(class_names), 1)
+        self.explainer = lime.lime_tabular.LimeTabularExplainer(training_data=x_data if isinstance(x_data, np.ndarray) else x_data.to_numpy(),
                                                                 training_labels=y_data,
                                                                 feature_names=column_names,
                                                                 class_names=class_names,
@@ -73,7 +74,7 @@ class LimeTrust(TrustCalculator):
         """
         val_exp = self.explainer.explain_instance(data_row=feature_values,
                                                   predict_fn=classifier.predict_prob,
-                                                  top_labels=len(self.class_names),
+                                                  top_labels=len(self.class_indexes),
                                                   num_features=len(self.column_names),
                                                   num_samples=self.max_samples)
         sum_arr = []
