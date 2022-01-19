@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 from xgboost import XGBClassifier
 from sklearn.tree import DecisionTreeClassifier
@@ -6,13 +5,8 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
-from sklearn.ensemble import RandomForestClassifier, BaggingClassifier, AdaBoostClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.svm import SVC
-from keras.models import Sequential
-import tensorflow as tf
-from keras.layers.core import Dense
-from tensorflow.keras.utils import to_categorical
-from sklearn.preprocessing import LabelEncoder
 
 from pytorch_tabnet.tab_model import TabNetClassifier
 from autogluon.tabular import TabularPredictor
@@ -24,9 +18,8 @@ class Classifier:
         self.model = model
         self.trained = False
 
-
     def fit(self, x_train, y_train):
-        self.model.fit(x_train.values, y_train)
+        self.model.fit(x_train, y_train)
         self.trained = True
 
     def is_trained(self):
@@ -117,7 +110,6 @@ class AutoGluon(Classifier):
     ‘FASTAI’ (neural network with FastAI backend)
     """
 
-
     def __init__(self, feature_names, label_name, clf_name):
         Classifier.__init__(self, TabularPredictor(label=label_name))
         self.label_name = label_name
@@ -132,11 +124,11 @@ class AutoGluon(Classifier):
 
     def predict_class(self, x_test):
         df = pd.DataFrame(data=x_test, columns=self.feature_names)
-        return self.model.predict(df)
+        return self.model.predict(df, as_pandas=False)
 
     def predict_prob(self, x_test):
         df = pd.DataFrame(data=x_test, columns=self.feature_names)
-        return self.model.predict_proba(df)
+        return self.model.predict_proba(df, as_pandas=False)
 
     def classifier_name(self):
         return "AutoGluon"
@@ -158,6 +150,7 @@ class GBM(AutoGluon):
 
     def classifier_name(self):
         return "GBM"
+
 
 class MXNet(AutoGluon):
 
@@ -209,8 +202,12 @@ class LDA(Classifier):
 class LogisticReg(Classifier):
 
     def __init__(self):
-        Classifier.__init__(self,
-                            LogisticRegression(random_state=0, multi_class='ovr', max_iter=10000))
+        Classifier.__init__(self, LogisticRegression(solver='sag',
+                                                     random_state=0,
+                                                     multi_class='ovr',
+                                                     max_iter=10000,
+                                                     n_jobs=10,
+                                                     tol=0.1))
 
     def classifier_name(self):
         return "LogisticRegression"
@@ -245,30 +242,3 @@ class SupportVectorMachine(Classifier):
     def classifier_name(self):
         return "SupportVectorMachine(kernel=" + str(self.kernel) + ")"
 
-
-class NeuralNetwork(Classifier):
-
-    def __init__(self, num_input, num_classes):
-        self.model = Sequential()
-        self.model.add(Dense(num_input, input_shape=(num_input,), activation='relu'))
-        self.model.add(Dense(num_input * 10, activation='relu'))
-        self.model.add(Dense(num_input * 10, activation='relu'))
-        self.model.add(Dense(num_classes, activation='softmax'))
-
-    def fit(self, x_train, y_train):
-        self.model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=['accuracy'])
-        self.model.fit(x_train, to_categorical(y_train), batch_size=64, epochs=10, verbose=0)
-        self.model = tf.keras.Sequential([self.model, tf.keras.layers.Softmax()])
-
-    def predict_class(self, x_test):
-        array_proba = np.asarray(self.model.predict(x_test))
-        predictions = np.zeros((len(array_proba),), dtype=int)
-        for i in range(len(array_proba)):
-            predictions[i] = np.argmax(array_proba[i], axis=0)
-        return predictions
-
-    def predict_prob(self, X_test):
-        return np.asarray(self.model.predict(X_test))
-
-    def classifier_name(self):
-        return "NeuralNetwork"
