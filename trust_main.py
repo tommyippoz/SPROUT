@@ -1,8 +1,8 @@
 import pandas as pd
 import sklearn as sk
 import numpy as np
-import time
 import os
+import utils
 
 from Classifier import XGB, TabNet, FastAI, GBM, MXNet, ADABoostClassifier
 from Classifier import DecisionTree
@@ -13,14 +13,11 @@ from Classifier import Bayes
 from Classifier import RandomForest
 from Classifier import SupportVectorMachine
 
-import configparser
 from TrustCalculator import LimeTrust, EntropyTrust, SHAPTrust, NeighborsTrust, \
     ExternalTrust, CombinedTrust, MultiCombinedTrust, ConfidenceInterval
 
 from sklearn import datasets
 from sklearn.datasets import fetch_openml
-# from keras.datasets import mnist
-# from tensorflow.keras.datasets import fashion_mnist
 
 
 def process_image_dataset(dataset_name, limit):
@@ -94,59 +91,6 @@ def process_tabular_dataset(dataset_name, label_name, limit):
     return x_no_cat, y_enc, x_tr, x_te, y_tr, y_te, labels, feature_list
 
 
-def load_config(file_config):
-    """
-    Method to load configuration parameters from input file
-    :param file_config: name of the config file
-    :return: array with 3 items: [dataset files, label name, max number of rows (if correctly specified, NaN otherwise)]
-    """
-    config = configparser.RawConfigParser()
-    config.read(file_config)
-    config_file = dict(config.items('CONFIGURATION'))
-
-    # Processing paths
-    path_string = config_file['path']
-    if ',' in path_string:
-        path_string = path_string.split(',')
-    else:
-        path_string = [path_string]
-    datasets_path = []
-    for file_string in path_string:
-        if os.path.isdir(file_string):
-            datasets_path.extend([os.path.join(file_string, f) for f in os.listdir(file_string) if
-                                  os.path.isfile(os.path.join(file_string, f))])
-        else:
-            datasets_path.append(file_string)
-
-    # Processing limit to rows
-    lim_rows = config_file['limit_rows']
-    if not lim_rows.isdigit():
-        lim_rows = np.nan
-    else:
-        lim_rows = int(lim_rows)
-    return datasets_path, config_file['label'], lim_rows
-
-
-def current_ms():
-    """
-    Reports the current time in milliseconds
-    :return: long int
-    """
-    return round(time.time() * 1000)
-
-
-def clean_name(file):
-    """
-    Method to get clean name of a file
-    :param file: the original file path
-    :return: the filename with no path and extension
-    """
-    name = os.path.basename(file)
-    if '.' in name:
-        name = name.split('.')[0]
-    return name
-
-
 def is_image_dataset(dataset_name):
     return (dataset_name == "DIGITS") or (dataset_name != "MNIST") or (dataset_name != "FASHION-MNIST")
 
@@ -158,7 +102,7 @@ if __name__ == '__main__':
     """
 
     # Loading Configuration
-    dataset_files, y_label, limit_rows = load_config("config.cfg")
+    dataset_files, y_label, limit_rows = utils.load_config("config.cfg")
 
     for dataset_file in dataset_files:
 
@@ -182,15 +126,15 @@ if __name__ == '__main__':
                 xt_numpy = X_test
 
             classifiers = [
-                XGB(),
+                # XGB(),
                 # DecisionTree(depth=100),
                 # KNeighbors(k=11),
                 # LDA(),
                 # LogisticReg(),
                 # Bayes(),
-                RandomForest(trees=10),
+                # RandomForest(trees=10),
                 # NeuralNetwork(num_input=len(X_test.values[0]), num_classes=len(label_tags))
-                TabNet(),
+                # TabNet(),
                 FastAI(feature_names=features, label_name=y_label),
                 # GBM(feature_names=features, label_name=y_label),
                 # MXNet(feature_names=features, label_name=y_label)
@@ -201,8 +145,8 @@ if __name__ == '__main__':
             # Trust Calculators
             calculators = [
                 EntropyTrust(norm=len(label_tags)),
-                LimeTrust(X_train, y_train, features, label_tags, 100),
-                SHAPTrust(xt_numpy, 100),
+                LimeTrust(X_train, y_train, features, label_tags, 20),
+                SHAPTrust(xt_numpy, max_samples=100, items=10, reg="bic"),
                 NeighborsTrust(x_train=X_train, y_train=y_train, k=19, labels=label_tags),
                 ExternalTrust(del_clf=Bayes(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
                 CombinedTrust(del_clf=XGB(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
@@ -221,11 +165,11 @@ if __name__ == '__main__':
                 print("\n-----------------------------------------------------------------------------------------"
                       "\nProcessing Dataset '" + dataset_file + "' with classifier: " + classifierName + "\n")
 
-                start_ms = current_ms()
+                start_ms = utils.current_ms()
                 classifierModel.fit(X_train, y_train)
-                train_ms = current_ms()
+                train_ms = utils.current_ms()
                 y_pred = classifierModel.predict_class(xt_numpy)
-                test_time = current_ms() - train_ms
+                test_time = utils.current_ms() - train_ms
                 y_proba = classifierModel.predict_prob(xt_numpy)
                 if isinstance(y_proba, pd.DataFrame):
                     y_proba = y_proba.to_numpy()
@@ -245,16 +189,17 @@ if __name__ == '__main__':
 
                 for calculator in calculators:
                     print("Calculating Trust Strategy: " + calculator.trust_strategy_name())
-                    start_ms = current_ms()
+                    start_ms = utils.current_ms()
                     trust_scores = calculator.trust_scores(xt_numpy, y_proba, classifierModel)
                     if type(trust_scores) is dict:
                         for key in trust_scores:
-                            out_df[calculator.trust_strategy_name() + ' - ' + str(key)] = trust_scores[key]
+                            out_df[calculator.trust_strategy_name() + "_" + str(utils.current_ms() - start_ms)
+                                   + ' - ' + str(key)] = trust_scores[key]
                     else:
                         out_df[calculator.trust_strategy_name()] = trust_scores
-                    print("Completed in " + str(current_ms() - start_ms) + " ms")
+                    print("Completed in " + str(utils.current_ms() - start_ms) + " ms")
 
-                file_out = 'output_folder/' + clean_name(dataset_file) + "_" + classifierName + '.csv'
+                file_out = 'output_folder/' + utils.clean_name(dataset_file) + "_" + classifierName + '.csv'
                 print("Printing File '" + file_out + "'")
                 out_df.to_csv(file_out, index=False)
                 print("Print Completed")

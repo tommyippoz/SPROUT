@@ -19,7 +19,10 @@ class Classifier:
         self.trained = False
 
     def fit(self, x_train, y_train):
-        self.model.fit(x_train, y_train)
+        if isinstance(x_train, pd.DataFrame):
+            self.model.fit(x_train.values, y_train)
+        else :
+            self.model.fit(x_train, y_train)
         self.trained = True
 
     def is_trained(self):
@@ -76,8 +79,11 @@ class UnsupervisedClassifier(Classifier):
 
 class XGB(Classifier):
 
-    def __init__(self):
-        Classifier.__init__(self, XGBClassifier(use_label_encoder=False))
+    def __init__(self, n_trees=None):
+        if n_trees is None:
+            Classifier.__init__(self, XGBClassifier(use_label_encoder=False))
+        else:
+            Classifier.__init__(self, XGBClassifier(n_estimators=n_trees, use_label_encoder=False))
 
     def classifier_name(self):
         return "XGBoost"
@@ -183,7 +189,7 @@ class DecisionTree(Classifier):
 class KNeighbors(Classifier):
 
     def __init__(self, k):
-        Classifier.__init__(self, KNeighborsClassifier(n_neighbors=k))
+        Classifier.__init__(self, KNeighborsClassifier(n_neighbors=k, n_jobs=-1, algorithm="kd_tree"))
         self.k = k
 
     def classifier_name(self):
