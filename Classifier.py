@@ -173,7 +173,7 @@ class ADABoostClassifier(Classifier):
         Classifier.__init__(self, AdaBoostClassifier(n_estimators=n_trees))
 
     def classifier_name(self):
-        return "XGBoost"
+        return "ADABoost"
 
 
 class DecisionTree(Classifier):
