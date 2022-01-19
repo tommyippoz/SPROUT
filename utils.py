@@ -15,10 +15,17 @@ def load_config(file_config):
     config.read(file_config)
     config_file = dict(config.items('CONFIGURATION'))
 
+    # Processing classifiers
+    classifiers = config_file['classifiers']
+    if ',' in classifiers:
+        classifiers = [x.strip() for x in classifiers.split(',')]
+    else:
+        classifiers = [classifiers]
+
     # Processing paths
-    path_string = config_file['path']
+    path_string = config_file['datasets']
     if ',' in path_string:
-        path_string = path_string.split(',')
+        path_string = [x.strip() for x in path_string.split(',')]
     else:
         path_string = [path_string]
     datasets_path = []
@@ -35,7 +42,7 @@ def load_config(file_config):
         lim_rows = np.nan
     else:
         lim_rows = int(lim_rows)
-    return datasets_path, config_file['label_tabular'], lim_rows
+    return datasets_path, classifiers, config_file['label_tabular'], lim_rows
 
 
 def current_ms():

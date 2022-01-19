@@ -179,7 +179,9 @@ class SHAPTrust(TrustCalculator):
         explainer = shap.KernelExplainer(classifier.predict_prob,
                                          shap.sample(self.x_data, self.max_samples),
                                          link="identity")
-        shap_values = explainer.shap_values(feature_values_array, nsamples=self.items, l1_reg=self.reg, silent=True)
+        shap_values = explainer.shap_values(feature_values_array,
+                                            nsamples=self.items,
+                                            l1_reg=self.reg)
         probs = np.asarray([x.sum(axis=1) for x in shap_values]).transpose()
         entr_arr = []
         for p in probs:

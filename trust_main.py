@@ -33,7 +33,7 @@ def process_image_dataset(dataset_name, limit):
     elif dataset_name == "MNIST":
         mnist = fetch_openml('mnist_784')
         y_mnist = np.asarray(list(map(int, mnist.target)), dtype=int)
-        x_mnist = np.stack([x.flatten() for x in mnist.data])
+        x_mnist = np.stack([x.flatten() for x in mnist.data.values])
         if (np.isfinite(limit)) & (limit < len(x_mnist)):
             x_mnist = x_mnist[0:limit]
             y_mnist = y_mnist[0:limit]
@@ -95,6 +95,31 @@ def is_image_dataset(dataset_name):
     return (dataset_name == "DIGITS") or (dataset_name != "MNIST") or (dataset_name != "FASHION-MNIST")
 
 
+def choose_classifier(clf_name, feature_names, class_label):
+    if clf_name in {"XGB", "XGBoost"}:
+        return XGB()
+    elif clf_name in {"DTree", "DecisionTree"}:
+        return DecisionTree(depth=100)
+    elif clf_name in {"KNN", "knn", "kNN", "KNeighbours"}:
+        return KNeighbors(k=11)
+    elif clf_name in {"LDA"}:
+        return LDA()
+    elif clf_name in {"NaiveBayes", "Bayes"}:
+        return Bayes()
+    elif clf_name in {"Regression", "LogisticRegression", "LR"}:
+        return LogisticReg()
+    elif clf_name in {"RF", "RandomForest"}:
+        return RandomForest(trees=10)
+    elif clf_name in {"TabNet", "Tabnet"}:
+        return TabNet()
+    elif clf_name in {"FastAI", "FASTAI", "fastai"}:
+        return FastAI(feature_names=features, label_name=y_label)
+    elif clf_name in {"GBM", "LightGBM"}:
+        return GBM(feature_names=features, label_name=y_label)
+    else:
+        pass
+
+
 if __name__ == '__main__':
     """
     Main to calculate trust measures for many datasets using many classifiers.
@@ -102,7 +127,7 @@ if __name__ == '__main__':
     """
 
     # Loading Configuration
-    dataset_files, y_label, limit_rows = utils.load_config("config.cfg")
+    dataset_files, classifier_list, y_label, limit_rows = utils.load_config("config.cfg")
 
     for dataset_file in dataset_files:
 
@@ -125,42 +150,29 @@ if __name__ == '__main__':
             else:
                 xt_numpy = X_test
 
-            classifiers = [
-                # XGB(),
-                # DecisionTree(depth=100),
-                # KNeighbors(k=11),
-                # LDA(),
-                # LogisticReg(),
-                # Bayes(),
-                # RandomForest(trees=10),
-                # NeuralNetwork(num_input=len(X_test.values[0]), num_classes=len(label_tags))
-                # TabNet(),
-                FastAI(feature_names=features, label_name=y_label),
-                # GBM(feature_names=features, label_name=y_label),
-                # MXNet(feature_names=features, label_name=y_label)
-            ]
 
             print("Preparing Trust Calculators...")
 
             # Trust Calculators
             calculators = [
-                EntropyTrust(norm=len(label_tags)),
-                LimeTrust(X_train, y_train, features, label_tags, 20),
+                # EntropyTrust(norm=len(label_tags)),
+                # LimeTrust(X_train, y_train, features, label_tags, 20),
                 SHAPTrust(xt_numpy, max_samples=100, items=10, reg="bic"),
-                NeighborsTrust(x_train=X_train, y_train=y_train, k=19, labels=label_tags),
-                ExternalTrust(del_clf=Bayes(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
-                CombinedTrust(del_clf=XGB(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
-                MultiCombinedTrust(clf_set=[Bayes(), LDA(), LogisticReg()],
-                                   x_train=X_train, y_train=y_train, norm=len(label_tags)),
-                MultiCombinedTrust(clf_set=[RandomForest(trees=10), XGB(), DecisionTree(depth=100),
-                                            ADABoostClassifier(n_trees=100)],
-                                   x_train=X_train, y_train=y_train, norm=len(label_tags)),
-                MultiCombinedTrust(clf_set=[LDA(), XGB(), KNeighbors(k=11)],
-                                   x_train=X_train, y_train=y_train, norm=len(label_tags)),
-                ConfidenceInterval(x_train=X_train.to_numpy(), y_train=y_train, confidence_level=0.9999)
+                # NeighborsTrust(x_train=X_train, y_train=y_train, k=19, labels=label_tags),
+                # ExternalTrust(del_clf=Bayes(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
+                # CombinedTrust(del_clf=XGB(), x_train=X_train, y_train=y_train, norm=len(label_tags)),
+                # MultiCombinedTrust(clf_set=[Bayes(), LDA(), LogisticReg()],
+                #                    x_train=X_train, y_train=y_train, norm=len(label_tags)),
+                # MultiCombinedTrust(clf_set=[RandomForest(trees=10), XGB(), DecisionTree(depth=100),
+                #                             ADABoostClassifier(n_trees=100)],
+                #                   x_train=X_train, y_train=y_train, norm=len(label_tags)),
+                # MultiCombinedTrust(clf_set=[LDA(), XGB(), KNeighbors(k=11)],
+                #                    x_train=X_train, y_train=y_train, norm=len(label_tags)),
+                # ConfidenceInterval(x_train=X_train.to_numpy(), y_train=y_train, confidence_level=0.9999)
             ]
 
-            for classifierModel in classifiers:
+            for classifierString in classifier_list:
+                classifierModel = choose_classifier(classifierString, features, y_label)
                 classifierName = classifierModel.classifier_name()
                 print("\n-----------------------------------------------------------------------------------------"
                       "\nProcessing Dataset '" + dataset_file + "' with classifier: " + classifierName + "\n")
