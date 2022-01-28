@@ -13,29 +13,47 @@ from autogluon.tabular import TabularPredictor
 
 
 class Classifier:
+    """
+    Basic Abstract Class for Classifiers.
+    Abstract methods are only the classifier_name, with many degrees of freedom in implementing them.
+    Wraps implementations from different frameworks (if needed), sklearn and many deep learning utilities
+    """
 
     def __init__(self, model):
+        """
+        Constructor of a generic Classifier
+        :param model: model to be used as Classifier
+        """
         self.model = model
         self.trained = False
 
     def fit(self, x_train, y_train):
+        """
+        Fits a Classifier
+        :param x_train: feature set
+        :param y_train: labels
+        """
         if isinstance(x_train, pd.DataFrame):
             self.model.fit(x_train.values, y_train)
-        else :
+        else:
             self.model.fit(x_train, y_train)
         self.trained = True
 
     def is_trained(self):
+        """
+        Flags if train was executed
+        :return: True if trained, False otherwise
+        """
         return self.trained
 
-    def predict_class(self, x_test):
+    def predict(self, x_test):
         """
         Method to compute predict of a classifier
         :return: array of predicted class
         """
         return self.model.predict(x_test)
 
-    def predict_prob(self, x_test):
+    def predict_proba(self, x_test):
         """
         Method to compute probabilities of predicted classes
         :return: array of probabilities for each classes
@@ -49,6 +67,13 @@ class Classifier:
         """
         return -1
 
+    def feature_importances(self):
+        """
+        Outputs feature ranking in building a Classifier
+        :return: ndarray containing feature ranks
+        """
+        return self.model.feature_importances_
+
     def classifier_name(self):
         """
         Returns the name of the classifier (as string)
@@ -57,6 +82,9 @@ class Classifier:
 
 
 class UnsupervisedClassifier(Classifier):
+    """
+    Wrapper for unsupervised classifiers belonging to the library PYOD
+    """
 
     def __init__(self, classifier, name):
         Classifier.__init__(self, classifier)
@@ -78,24 +106,42 @@ class UnsupervisedClassifier(Classifier):
 
 
 class XGB(Classifier):
+    """
+    Wrapper for the XGBoost  algorithm from xgboost library
+    """
 
-    def __init__(self, n_trees=None):
+    def __init__(self, n_trees=None, metric=None):
+        self.metric = metric
         if n_trees is None:
             Classifier.__init__(self, XGBClassifier(use_label_encoder=False))
         else:
             Classifier.__init__(self, XGBClassifier(n_estimators=n_trees, use_label_encoder=False))
+
+    def fit(self, x_train, y_train):
+        if isinstance(x_train, pd.DataFrame):
+            self.model.fit(x_train.values, y_train, eval_metric=(self.metric if self.metric is not None else "logloss"))
+        else:
+            self.model.fit(x_train, y_train, eval_metric=(self.metric if self.metric is not None else "logloss"))
+        self.trained = True
 
     def classifier_name(self):
         return "XGBoost"
 
 
 class TabNet(Classifier):
+    """
+    Wrapper for the torch.tabnet algorithm
+    """
 
-    def __init__(self):
+    def __init__(self, metric=None):
         Classifier.__init__(self, TabNetClassifier())
+        self.metric = metric
 
     def fit(self, x_train, y_train):
-        self.model.fit(X_train=x_train.to_numpy(), y_train=y_train, eval_metric=['auc'])
+        if self.metric is None:
+            self.model.fit(X_train=x_train.to_numpy(), y_train=y_train, eval_metric=['auc'])
+        else:
+            self.model.fit(X_train=x_train.to_numpy(), y_train=y_train, eval_metric=[self.metric])
         self.trained = True
 
     def classifier_name(self):
@@ -104,6 +150,7 @@ class TabNet(Classifier):
 
 class AutoGluon(Classifier):
     """
+    Wrapper for classifiers taken from Gluon library
     clf_name options are
     ‘GBM’ (LightGBM)
     ‘CAT’ (CatBoost)
@@ -116,23 +163,28 @@ class AutoGluon(Classifier):
     ‘FASTAI’ (neural network with FastAI backend)
     """
 
-    def __init__(self, feature_names, label_name, clf_name):
-        Classifier.__init__(self, TabularPredictor(label=label_name))
+    def __init__(self, feature_names, label_name, clf_name, metric):
+        Classifier.__init__(self, TabularPredictor(label=label_name, eval_metric=metric))
         self.label_name = label_name
         self.feature_names = feature_names
         self.clf_name = clf_name
+        self.feature_importance = []
 
     def fit(self, x_train, y_train):
-        df = pd.DataFrame(data=x_train, columns=self.feature_names)
+        df = pd.DataFrame(data=x_train.copy(), columns=self.feature_names)
         df[self.label_name] = y_train
         self.model.fit(train_data=df, hyperparameters={self.clf_name:{}})
+        self.feature_importance = self.model.feature_importance(df)
         self.trained = True
 
-    def predict_class(self, x_test):
+    def feature_importances(self):
+        return self.feature_importance
+
+    def predict(self, x_test):
         df = pd.DataFrame(data=x_test, columns=self.feature_names)
         return self.model.predict(df, as_pandas=False)
 
-    def predict_prob(self, x_test):
+    def predict_proba(self, x_test):
         df = pd.DataFrame(data=x_test, columns=self.feature_names)
         return self.model.predict_proba(df, as_pandas=False)
 
@@ -141,24 +193,33 @@ class AutoGluon(Classifier):
 
 
 class FastAI(AutoGluon):
+    """
+    Wrapper for the gluon.FastAI algorithm
+    """
 
-    def __init__(self, feature_names, label_name):
-        AutoGluon.__init__(self, feature_names, label_name, "FASTAI")
+    def __init__(self, feature_names, label_name, metric):
+        AutoGluon.__init__(self, feature_names, label_name, "FASTAI", metric)
 
     def classifier_name(self):
         return "FastAI"
 
 
 class GBM(AutoGluon):
+    """
+    Wrapper for the gluon.LightGBM algorithm
+    """
 
-    def __init__(self, feature_names, label_name):
-        AutoGluon.__init__(self, feature_names, label_name, "GBM")
+    def __init__(self, feature_names, label_name, metric):
+        AutoGluon.__init__(self, feature_names, label_name, "GBM", metric)
 
     def classifier_name(self):
         return "GBM"
 
 
 class MXNet(AutoGluon):
+    """
+    Wrapper for the gluon.MXNet algorithm (to be debugged)
+    """
 
     def __init__(self, feature_names, label_name):
         AutoGluon.__init__(self, feature_names, label_name, "NN")
@@ -167,26 +228,10 @@ class MXNet(AutoGluon):
         return "MXNet"
 
 
-class ADABoostClassifier(Classifier):
-
-    def __init__(self, n_trees):
-        Classifier.__init__(self, AdaBoostClassifier(n_estimators=n_trees))
-
-    def classifier_name(self):
-        return "ADABoost"
-
-
-class DecisionTree(Classifier):
-
-    def __init__(self, depth):
-        Classifier.__init__(self, DecisionTreeClassifier(max_depth=depth))
-        self.depth = depth
-
-    def classifier_name(self):
-        return "DecisionTree(depth=" + str(self.depth) + ")"
-
-
 class KNeighbors(Classifier):
+    """
+    Wrapper for the sklearn.kNN algorithm
+    """
 
     def __init__(self, k):
         Classifier.__init__(self, KNeighborsClassifier(n_neighbors=k, n_jobs=-1, algorithm="kd_tree"))
@@ -196,16 +241,10 @@ class KNeighbors(Classifier):
         return str(self.k) + "NearestNeighbors"
 
 
-class LDA(Classifier):
-
-    def __init__(self):
-        Classifier.__init__(self, LinearDiscriminantAnalysis())
-
-    def classifier_name(self):
-        return "LDA"
-
-
 class LogisticReg(Classifier):
+    """
+    Wrapper for the sklearn.LogisticRegression algorithm
+    """
 
     def __init__(self):
         Classifier.__init__(self, LogisticRegression(solver='sag',
@@ -220,6 +259,9 @@ class LogisticReg(Classifier):
 
 
 class Bayes(Classifier):
+    """
+    Wrapper for the sklearn.GaussianNB algorithm
+    """
 
     def __init__(self):
         Classifier.__init__(self, GaussianNB())
@@ -228,17 +270,10 @@ class Bayes(Classifier):
         return "NaiveBayes"
 
 
-class RandomForest(Classifier):
-
-    def __init__(self, trees):
-        Classifier.__init__(self, RandomForestClassifier(n_estimators=trees))
-        self.trees = trees
-
-    def classifier_name(self):
-        return "RandomForest(trees=" + str(self.trees) + ")"
-
-
 class SupportVectorMachine(Classifier):
+    """
+    Wrapper for the sklearn.SVC algorithm
+    """
 
     def __init__(self, kernel, degree):
         Classifier.__init__(self, SVC(kernel=kernel, degree=degree, probability=True, max_iter=10000))
@@ -247,4 +282,3 @@ class SupportVectorMachine(Classifier):
 
     def classifier_name(self):
         return "SupportVectorMachine(kernel=" + str(self.kernel) + ")"
-

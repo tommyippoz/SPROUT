@@ -13,6 +13,7 @@ from collections import Counter
 from tqdm import tqdm
 
 import utils
+from quail_utils import get_classifier_name
 
 
 class TrustCalculator:
@@ -46,6 +47,7 @@ class LimeTrust(TrustCalculator):
     def __init__(self, x_data, y_data, column_names, class_names, max_samples):
         self.max_samples = max_samples
         self.column_names = column_names
+        self.column_names = column_names
         self.class_indexes = np.arange(0, len(class_names), 1)
         self.explainer = lime.lime_tabular.LimeTabularExplainer(training_data=x_data if isinstance(x_data, np.ndarray) else x_data.to_numpy(),
                                                                 training_labels=y_data,
@@ -62,7 +64,7 @@ class LimeTrust(TrustCalculator):
         :return:
         """
         val_exp = self.explainer.explain_instance(data_row=feature_values,
-                                                  predict_fn=classifier.predict_prob,
+                                                  predict_fn=classifier.predict_proba,
                                                   top_labels=len(self.class_indexes),
                                                   num_features=len(self.column_names),
                                                   num_samples=self.max_samples)
@@ -176,7 +178,7 @@ class SHAPTrust(TrustCalculator):
         :param classifier:
         :return:
         """
-        explainer = shap.KernelExplainer(classifier.predict_prob,
+        explainer = shap.KernelExplainer(classifier.predict_proba,
                                          shap.sample(self.x_data, self.max_samples),
                                          link="identity")
         shap_values = explainer.shap_values(feature_values_array,
@@ -226,8 +228,8 @@ class NeighborsTrust(TrustCalculator):
                                           n_jobs=-1).fit(self.x_train)
         distances, indices = near_neighbors.kneighbors(feature_values)
         print("kNN Search completed in " + str(utils.current_ms() - start_time) + " ms")
-        train_classes = classifier.predict_class(self.x_train)
-        predict_classes = classifier.predict_class(feature_values)
+        train_classes = classifier.predict(self.x_train)
+        predict_classes = classifier.predict(feature_values)
         for i in tqdm(range(len(feature_values))):
             predict_neighbours = train_classes[indices[i]]
             agreements = (predict_neighbours == predict_classes[i]).sum()
@@ -245,7 +247,7 @@ class ExternalTrust(TrustCalculator):
         self.del_clf = del_clf
         self.del_clf.fit(x_train, y_train)
         self.trust_measure = EntropyTrust(norm)
-        print("[ExternalTrust] Fitting of '" + del_clf.classifier_name() + "' Completed")
+        print("[ExternalTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
 
     def trust_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -256,11 +258,11 @@ class ExternalTrust(TrustCalculator):
         :return: array of trust scores
         """
         return self.trust_measure.trust_scores(feature_values_array,
-                                               self.del_clf.predict_prob(feature_values_array),
+                                               self.del_clf.predict_proba(feature_values_array),
                                                self.del_clf)
 
     def trust_strategy_name(self):
-        return 'External Calculator (' + self.del_clf.classifier_name() + ')'
+        return 'External Calculator (' + get_classifier_name(self.del_clf) + ')'
 
 
 class CombinedTrust(TrustCalculator):
@@ -273,7 +275,7 @@ class CombinedTrust(TrustCalculator):
         self.del_clf = del_clf
         start_time = utils.current_ms()
         self.del_clf.fit(x_train, y_train)
-        print("[CombinedTrust] Fitting of '" + del_clf.classifier_name() + "' Completed in " +
+        print("[CombinedTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed in " +
               str(utils.current_ms() - start_time) + " ms")
         self.trust_measure = EntropyTrust(norm)
 
@@ -291,16 +293,16 @@ class CombinedTrust(TrustCalculator):
         :param proba_array: the probability arrays assigned by the algorithm to the data points
         :return: array of trust scores
         """
-        pred = classifier.predict_class(feature_values_array)
-        other_pred = self.del_clf.predict_class(feature_values_array)
+        pred = classifier.predict(feature_values_array)
+        other_pred = self.del_clf.predict(feature_values_array)
         entropy = self.trust_measure.trust_scores(feature_values_array, proba_array, classifier)
         other_entropy = self.trust_measure.trust_scores(feature_values_array,
-                                                        self.del_clf.predict_prob(feature_values_array),
+                                                        self.del_clf.predict_proba(feature_values_array),
                                                         self.del_clf)
         return np.where(pred == other_pred, (entropy + other_entropy) / 2, -(entropy + other_entropy) / 2)
 
     def trust_strategy_name(self):
-        return 'Combined Calculator (' + self.del_clf.classifier_name() + ')'
+        return 'Combined Calculator (' + get_classifier_name(self.del_clf) + ')'
 
 
 class MultiCombinedTrust(TrustCalculator):
