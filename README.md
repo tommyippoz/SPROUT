@@ -11,7 +11,7 @@ While designing, implementing and testing such library we made sure it would wor
 ## Dependencies
 
 QUAIL needs the following libraries:
-- NumPy
+- <a href="">NumPy<\a>
 - SciPy
 - Pandas
 - SKLearn
