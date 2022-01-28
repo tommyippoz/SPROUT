@@ -11,12 +11,12 @@ While designing, implementing and testing such library we made sure it would wor
 ## Dependencies
 
 QUAIL needs the following libraries:
-- <a href="">NumPy<\a>
-- SciPy
-- Pandas
-- SKLearn
-- SHAP
-- LIME
+- <a href="https://numpy.org/">NumPy</a>
+- <a href="https://scipy.org/">SciPy</a>
+- <a href="https://pandas.pydata.org/">Pandas</a>
+- <a href="https://scikit-learn.org/stable/">SKLearn</a>
+- <a href="https://github.com/slundberg/shap">SHAP</a>
+- <a href="https://github.com/marcotcr/lime">LIME</a>
 
 ## Credits
 
