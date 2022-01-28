@@ -2,7 +2,7 @@
 
 Python Framework to Compute Trust/Confidence in Predictions of Machine Learners
 
-# Credits
+## Credits
 
 Developed @ University of Florence, Florence, Italy
 
