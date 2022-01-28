@@ -7,7 +7,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 import dataset_utils
 import quail_utils
 import utils
-from Classifier import XGB, RandomForest, GBM, Bayes, LDA, LogisticReg
+from Classifier import XGB, GBM, Bayes, LogisticReg
 from QuailInstance import QuailInstance
 
 if __name__ == '__main__':
