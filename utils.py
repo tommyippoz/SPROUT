@@ -3,14 +3,14 @@ import os
 import time
 
 import numpy as np
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
 
-from Classifier import XGB, TabNet, FastAI, GBM, MXNet, ADABoostClassifier
-from Classifier import DecisionTree
+from Classifier import XGB, TabNet, FastAI, GBM, MXNet
 from Classifier import KNeighbors
-from Classifier import LDA
 from Classifier import LogisticReg
 from Classifier import Bayes
-from Classifier import RandomForest
 
 
 def load_config(file_config):
@@ -86,17 +86,17 @@ def choose_classifier(clf_name, features, y_label, metric):
     if clf_name in {"XGB", "XGBoost"}:
         return XGB()
     elif clf_name in {"DTree", "DecisionTree"}:
-        return DecisionTree(depth=100)
+        return DecisionTreeClassifier(depth=100)
     elif clf_name in {"KNN", "knn", "kNN", "KNeighbours"}:
         return KNeighbors(k=11)
     elif clf_name in {"LDA"}:
-        return LDA()
+        return LinearDiscriminantAnalysis()
     elif clf_name in {"NaiveBayes", "Bayes"}:
         return Bayes()
     elif clf_name in {"Regression", "LogisticRegression", "LR"}:
         return LogisticReg()
     elif clf_name in {"RF", "RandomForest"}:
-        return RandomForest(trees=10)
+        return RandomForestClassifier(trees=10)
     elif clf_name in {"TabNet", "Tabnet"}:
         return TabNet(metric)
     elif clf_name in {"FastAI", "FASTAI", "fastai"}:
