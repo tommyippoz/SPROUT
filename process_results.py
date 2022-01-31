@@ -5,7 +5,6 @@ import pandas as pd
 import sklearn as sk
 
 import utils
-from trust_main import choose_classifier
 
 INPUT_FOLDER = "G:/My Drive/Documents/22-02-14 (SAFECOMP) Trust Score/datasets/raw/"
 SCORES_FILENAME = "out.csv"

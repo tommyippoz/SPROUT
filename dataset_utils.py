@@ -1,4 +1,6 @@
 import os
+import shutil
+import urllib
 
 import numpy as np
 import pandas as pd
@@ -28,14 +30,14 @@ def process_image_dataset(dataset_name, limit):
         if not os.path.isdir(mnist_folder):
             print("Downloading MNIST ...")
             os.makedirs(mnist_folder)
-            wget.download("http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz",
-                          out=mnist_folder)
-            wget.download("http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz",
-                          out=mnist_folder)
-            wget.download("http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz",
-                          out=mnist_folder)
-            wget.download("http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz",
-                          out=mnist_folder)
+            download_file("http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz",
+                          "train-images-idx3-ubyte.gz", mnist_folder)
+            download_file("http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz",
+                          "train-labels-idx1-ubyte.gz", mnist_folder)
+            download_file("http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz",
+                          "t10k-images-idx3-ubyte.gz", mnist_folder)
+            download_file("http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz",
+                          "t10k-labels-idx1-ubyte.gz", mnist_folder)
         return format_mnist(mnist_folder, limit)
 
     elif dataset_name == "FASHION-MNIST":
@@ -43,15 +45,20 @@ def process_image_dataset(dataset_name, limit):
         if not os.path.isdir(f_mnist_folder):
             print("Downloading FASHION-MNIST ...")
             os.makedirs(f_mnist_folder)
-            wget.download("http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-images-idx3-ubyte.gz",
-                          out=f_mnist_folder)
-            wget.download("http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-labels-idx1-ubyte.gz",
-                          out=f_mnist_folder)
-            wget.download("http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-images-idx3-ubyte.gz",
-                          out=f_mnist_folder)
-            wget.download("http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-labels-idx1-ubyte.gz",
-                          out=f_mnist_folder)
+            download_file("http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-images-idx3-ubyte.gz",
+                          "train-images-idx3-ubyte.gz", f_mnist_folder)
+            download_file("http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-labels-idx1-ubyte.gz",
+                          "train-labels-idx1-ubyte.gz", f_mnist_folder)
+            download_file("http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-images-idx3-ubyte.gz",
+                          "t10k-images-idx3-ubyte.gz", f_mnist_folder)
+            download_file("http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-labels-idx1-ubyte.gz",
+                          "t10k-labels-idx1-ubyte.gz", f_mnist_folder)
         return format_mnist(f_mnist_folder, limit)
+
+
+def download_file(file_url, file_name, folder_name):
+    with urllib.request.urlopen(file_url) as response, open(folder_name + "/" + file_name, 'wb') as out_file:
+        shutil.copyfileobj(response, out_file)
 
 
 def process_tabular_dataset(dataset_name, label_name, limit):
@@ -86,6 +93,8 @@ def process_tabular_dataset(dataset_name, label_name, limit):
     x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_no_cat, y_enc, test_size=0.5, shuffle=True)
 
     return x_no_cat, y_enc, x_tr, x_te, y_tr, y_te, labels, feature_list
+
+
 
 
 def is_image_dataset(dataset_name):

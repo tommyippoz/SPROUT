@@ -202,7 +202,10 @@ class NeighborsTrust(TrustCalculator):
     """
 
     def __init__(self, x_train, y_train, k, labels):
-        self.x_train = x_train.values
+        if not isinstance(x_train, np.ndarray):
+            self.x_train = x_train.values
+        else:
+            self.x_train = x_train
         self.y_train = y_train
         self.n_neighbors = k
         self.labels = labels
