@@ -26,6 +26,8 @@ QUAIL can be piggy-backed after any classifier you may want to use, provided tha
 
 Assuming the classifier has such a structure, a QUAIL analysis can be set up as follows:
 
+Other examples, using ther well-known frameworks for machine learning, can be found in the 'examples' folder
+
 ## Credits
 
 Developed @ University of Florence, Florence, Italy
