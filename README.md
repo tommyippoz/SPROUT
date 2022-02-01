@@ -18,6 +18,14 @@ QUAIL needs the following libraries:
 - <a href="https://github.com/slundberg/shap">SHAP</a>
 - <a href="https://github.com/marcotcr/lime">LIME</a>
 
+## Usage
+
+QUAIL can be piggy-backed after any classifier you may want to use, provided that the classifier implements scikit-learn like interfaces, namely
+- classifier.predict(test_set): takes a 2D ndarray and returns an array of predictions for each item of test_set
+- classifier.predict_proba(test_set): takes a 2D ndarray and returns a 2D ndarray where each line contains probabilities for a given data point in the test_set
+
+Assuming the classifier has such a structure, a QUAIL analysis can be set up as follows:
+
 ## Credits
 
 Developed @ University of Florence, Florence, Italy
