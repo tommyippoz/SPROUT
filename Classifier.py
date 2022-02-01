@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from xgboost import XGBClassifier
 from sklearn.tree import DecisionTreeClassifier
@@ -178,7 +179,13 @@ class AutoGluon(Classifier):
         self.trained = True
 
     def feature_importances(self):
-        return self.feature_importance
+        importances = []
+        for feature in self.feature_names:
+            if feature in self.feature_importance.importance.index.tolist():
+                importances.append(abs(self.feature_importance.importance.get(feature)))
+            else:
+                importances.append(0.0)
+        return np.asarray(importances)
 
     def predict(self, x_test):
         df = pd.DataFrame(data=x_test, columns=self.feature_names)

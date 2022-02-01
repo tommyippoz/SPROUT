@@ -68,4 +68,9 @@ def get_classifier_name(clf):
     else:
         return clf.__class__.__name__
 
-    pass
+
+def get_feature_importance(clf):
+    if isinstance(clf, Classifier.Classifier):
+        return clf.feature_importances()
+    else:
+        return clf.feature_importances_

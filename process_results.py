@@ -2,15 +2,19 @@ import os
 
 import numpy as np
 import pandas as pd
+import scipy
+import sklearn
 import sklearn as sk
 
 import utils
+from quail_utils import get_classifier_name, get_feature_importance
 
 INPUT_FOLDER = "G:/My Drive/Documents/22-02-14 (SAFECOMP) Trust Score/datasets/raw/"
-SCORES_FILENAME = "out.csv"
+SCORES_FILENAME = "out_tabnet.csv"
+CORR_FILENAME = "corr2.csv"
 RATIOS = [0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, None]
-CLASSIFIER_LIST = ["RF"]
-FILTERS = ["NSLKDD", "Baidu", "CIDDS", "RandomForest", "XGBoost", "FastAI", "TabNet", "BackBlaze", None]
+CLASSIFIER_LIST = ["TabNet"]
+FILTERS = ["NSLKDD", "MNIST", "Baidu", "CIDDS", "RandomForest", "XGBoost", "FastAI", "TabNet", "BackBlaze", None]
 
 
 def read_dataset(dataset_name):
@@ -21,10 +25,6 @@ def read_dataset(dataset_name):
     """
     df = pd.read_csv(dataset_name, sep=",")
     df = df.fillna(0)
-
-    # print("Dataset '" + dataset_name + "' loaded: " + str(len(df.index)) + " items and " + str(len(df.columns)) + " columns")
-    # normal_frame = df.loc[df["is_misclassification"] == 0]
-    # print("Dataset loaded: " + str(len(df.index)) + " items, " + str(len(normal_frame.index)) + " normal")
 
     return df
 
@@ -73,6 +73,40 @@ def sample_data(x, y, ratio):
     return df, y
 
 
+def r_squared(x, y):
+    """ Return R^2 where x and y are array-like."""
+
+    slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, y)
+    return r_value**2
+
+
+
+
+def evaluate_corr(df, x, y, features, filter_string):
+
+    corr_array = []
+
+    for feat in features:
+        feat_array = []
+        feat_values = x[feat].values
+        scaled_feat_values = sklearn.preprocessing.MinMaxScaler().fit_transform(feat_values.reshape(-1, 1))
+        feat_array.append(r_squared(feat_values, y))
+        feat_array.append(abs(scipy.stats.pearsonr(feat_values, y)[0]))
+        feat_array.append(abs(scipy.stats.spearmanr(feat_values, y)[0]))
+        feat_array.append(1 - scipy.spatial.distance.cosine(feat_values, y))
+        feat_array.append(sklearn.feature_selection.chi2(scaled_feat_values, y)[0][0])
+        feat_array.append(sklearn.feature_selection.mutual_info_classif(feat_values.reshape(-1, 1), y)[0])
+        corr_array.append(feat_array)
+        print(filter_string + " / " + feat + " processed.")
+
+    # Write file
+    with open(CORR_FILENAME, "a") as myfile:
+        myfile.write(str(filter_string) + ",")
+        for line in corr_array:
+            myfile.write((",". join([str(i) for i in line])) + ",")
+        myfile.write("\n")
+
+
 def evaluate_dataset(df, x, y, features, filter_string):
 
     for ratio in RATIOS:
@@ -86,17 +120,17 @@ def evaluate_dataset(df, x, y, features, filter_string):
             x_tr, y_tr = sample_data(x_tr, y_tr, ratio)
 
         for classifierString in CLASSIFIER_LIST:
-            classifierModel = choose_classifier(classifierString, features, "is_misclassification", "recall")
-            classifierName = classifierModel.classifier_name()
+            classifierModel = utils.choose_classifier(classifierString, features, "is_misclassification", "recall")
+            classifierName = get_classifier_name(classifierModel)
 
             print("\nTraining classifier: " + classifierName + "\n")
 
             start_ms = utils.current_ms()
             classifierModel.fit(x_tr, y_tr)
             train_ms = utils.current_ms()
-            y_pred = classifierModel.predict_class(x_te)
+            y_pred = classifierModel.predict(x_te.to_numpy())
             test_time = utils.current_ms() - train_ms
-            feat_imp = classifierModel.feature_importances()
+            feat_imp = get_feature_importance(classifierModel)
             # print(feat_imp)
 
             # Classifier Evaluation
@@ -147,10 +181,20 @@ if __name__ == '__main__':
             with open(SCORES_FILENAME, "w") as myfile:
                 # Print Header
                 myfile.write("filter,ratio,classifier_name,train_len,test_len,train_misc,test_misc," +
-                             "tp,tn,fp,fn,accuracy,mcc," + (",".join(features)) + "\n")
+                             "tp,tn,fp,fn,accuracy,mcc," + (",".join(feature.replace(",", ";") for feature in features)) + "\n")
+            with open(CORR_FILENAME, "w") as myfile:
+                # Print Header
+                myfile.write("dataset_name,")
+                for feature in features:
+                    myfile.write(",".join([feature.replace(",", ";") + "_" + corr for corr in ["R2", "P", "SP", "COS", "CHI", "INFO"]])
+                                 + ",")
+                myfile.write("\n")
 
+        # evaluate_corr(df, x, y, features, filter_string)
         evaluate_dataset(df, x, y, features, filter_string)
 
+
+def other():
     # Processing individual Files
     for dataset_file in os.listdir(INPUT_FOLDER):
 
@@ -164,4 +208,5 @@ if __name__ == '__main__':
             x = x.drop(["is_misclassification"], axis=1)
             features = x.columns
 
-            evaluate_dataset(df, x, y, features, filter_string)
+            evaluate_corr(df, x, y, features, dataset_file)
+            #evaluate_dataset(df, x, y, features, dataset_file)

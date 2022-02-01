@@ -22,7 +22,7 @@ def process_image_dataset(dataset_name, limit):
         x_mnist = mn.frame
         y_mnist = mn.target
         x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_mnist, y_mnist, test_size=0.5, shuffle=True)
-        return x_mnist, y_mnist, x_tr, x_te, y_tr, y_te, labels, feature_list
+        return x_tr, x_te, y_tr, y_te, labels, feature_list
 
     elif dataset_name == "MNIST":
         mnist_folder = "input_folder/mnist"
@@ -91,9 +91,7 @@ def process_tabular_dataset(dataset_name, label_name, limit):
     feature_list = x_no_cat.columns
     x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_no_cat, y_enc, test_size=0.5, shuffle=True)
 
-    return x_no_cat, y_enc, x_tr, x_te, y_tr, y_te, labels, feature_list
-
-
+    return x_tr, x_te, y_tr, y_te, labels, feature_list
 
 
 def is_image_dataset(dataset_name):
@@ -162,4 +160,4 @@ def format_mnist(mnist_folder, limit):
     feature_list = ["pixel_" + str(i) for i in np.arange(0, len(x_fmnist[0]), 1)]
     labels = pd.Index(np.unique(y_fmnist), dtype=object)
 
-    return x_fmnist, y_fmnist, x_tr, x_te, y_tr, y_te, labels, feature_list
+    return x_tr, x_te, y_tr, y_te, labels, feature_list

@@ -96,7 +96,7 @@ def choose_classifier(clf_name, features, y_label, metric):
     elif clf_name in {"Regression", "LogisticRegression", "LR"}:
         return LogisticReg()
     elif clf_name in {"RF", "RandomForest"}:
-        return RandomForestClassifier(trees=10)
+        return RandomForestClassifier(n_estimators=10)
     elif clf_name in {"TabNet", "Tabnet"}:
         return TabNet(metric)
     elif clf_name in {"FastAI", "FASTAI", "fastai"}:

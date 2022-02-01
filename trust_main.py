@@ -33,11 +33,11 @@ if __name__ == '__main__':
             # Reading Dataset
             if dataset_file.endswith('.csv'):
                 # Reading Tabular Dataset
-                X, y, x_train, x_test, y_train, y_test, label_tags, features = \
+                x_train, x_test, y_train, y_test, label_tags, features = \
                     dataset_utils.process_tabular_dataset(dataset_file, y_label, limit_rows)
             else:
                 # Other / Image Dataset
-                X, y, x_train, x_test, y_train, y_test, label_tags, features = \
+                x_train, x_test, y_train, y_test, label_tags, features = \
                     dataset_utils.process_image_dataset(dataset_file, limit_rows)
 
             print("Preparing Trust Calculators...")
