@@ -27,6 +27,14 @@ QUAIL can be piggy-backed after any classifier you may want to use, provided tha
 Assuming the classifier has such a structure, a QUAIL analysis with three calculators can be set up as follows:
 
 ```
+import pandas
+import sklearn
+from sklearn.ensemble import RandomForestClassifier
+
+from quail import quail_utils
+from quail.QuailInstance import QuailInstance
+from utils.dataset_utils import load_MNIST
+
 # Reading sample dataset (MNIST)
 x_train, x_test, y_train, y_test, label_names, feature_names = load_MNIST()
 
@@ -56,6 +64,9 @@ out_df = pandas.concat([out_df, q_df], axis=1)
 out_df.to_csv('my_quail_df.csv', index=False)
 print(out_df.head())
 ```
+Output (run on subpar laptop with limited memory and no GPUs):
+
+![SKLearn_Out](https://github.com/tommyippoz/QUAIL/blob/master/doc/README_SKLearn_Out.png)
 
 Other examples, using ther well-known frameworks for machine learning, can be found in the `examples` folder
 
