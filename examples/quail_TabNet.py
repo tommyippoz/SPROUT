@@ -1,29 +1,29 @@
 import pandas
 import sklearn
-from sklearn.ensemble import RandomForestClassifier
+from pytorch_tabnet.tab_model import TabNetClassifier
 
 from quail import quail_utils
 from quail.QuailInstance import QuailInstance
-from utils.dataset_utils import load_MNIST
+from utils.dataset_utils import load_FASHIONMNIST
 
 if __name__ == '__main__':
     """
-    Main to calculate confidence measures for SKLearn classifiers using MNIST dataset
+    Main to calculate confidence measures for classifier TabNet using FASHION-MNIST dataset
     """
 
     # Reading sample dataset (MNIST)
-    x_train, x_test, y_train, y_test, label_names, feature_names = load_MNIST()
+    x_train, x_test, y_train, y_test, label_names, feature_names = load_FASHIONMNIST(as_pandas=False)
 
     print("Preparing Trust Calculators...")
 
     # Building QUAIL instance and adding Entropy, Bayesian and Neighbour-based Calculators
     quail = QuailInstance()
     quail.add_calculator_entropy(n_classes=len(label_names))
-    quail.add_calculator_neighbour(x_train=x_train, y_train=y_train, label_names=label_names)
+    quail.add_calculator_bayes(x_train=x_train, y_train=y_train, n_classes=len(label_names))
 
     # Building and exercising SKLearn classifier
-    classifier = RandomForestClassifier(n_estimators=10)
-    classifier.fit(x_train, y_train)
+    classifier = TabNetClassifier()
+    classifier.fit(X_train=x_train, y_train=y_train, eval_metric=['auc'])
     y_pred = classifier.predict(x_test)
     y_proba = classifier.predict_proba(x_test)
     print("Fit and Prediction completed with Accuracy: " + str(sklearn.metrics.accuracy_score(y_test, y_pred)))

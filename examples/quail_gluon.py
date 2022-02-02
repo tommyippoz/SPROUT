@@ -1,20 +1,15 @@
-import numpy
 import pandas
-import pandas as pd
 import sklearn
-from autogluon.tabular import TabularPredictor
-from sklearn.ensemble import RandomForestClassifier
 
 from examples.AutoGluonClassifier import AutoGluonClassifier
 from quail import quail_utils
 from quail.QuailInstance import QuailInstance
-from utils.dataset_utils import load_MNIST, load_DIGITS
+from utils.dataset_utils import load_DIGITS
 
 
 if __name__ == '__main__':
     """
-    Main to calculate trust measures for many datasets using many classifiers.
-    Reads preferences from file 'config.cfg'
+    Main to calculate confidence measures for AutoGluon classifiers using DIGITS dataset
     """
 
     # Reading sample dataset (DIGITS)
