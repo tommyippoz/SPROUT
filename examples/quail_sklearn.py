@@ -39,4 +39,3 @@ if __name__ == '__main__':
 
     # Printing Dataframe
     out_df.to_csv('my_quail_df.csv', index=False)
-    print(out_df.head())

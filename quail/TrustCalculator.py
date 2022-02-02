@@ -1,5 +1,6 @@
 import lime
 import lime.lime_tabular
+import pandas as pd
 import shap
 import scipy.stats
 
@@ -41,11 +42,12 @@ class LimeTrust(TrustCalculator):
     Reports on 3 different trust metrics: Sum, Intercept, Pred
     """
 
-    def __init__(self, x_data, y_data, column_names, class_names, max_samples):
+    def __init__(self, x_data, y_data, column_names, class_names, max_samples, full_features=False):
         self.max_samples = max_samples
         self.column_names = column_names
         self.column_names = column_names
         self.class_indexes = np.arange(0, len(class_names), 1)
+        self.full_features = full_features
         self.explainer = lime.lime_tabular.LimeTabularExplainer(training_data=x_data if isinstance(x_data, np.ndarray) else x_data.to_numpy(),
                                                                 training_labels=y_data,
                                                                 feature_names=column_names,
@@ -66,15 +68,28 @@ class LimeTrust(TrustCalculator):
                                                   num_features=len(self.column_names),
                                                   num_samples=self.max_samples)
         sum_arr = []
-        for arr in list(val_exp.local_exp.values()):
+        lime_exp = list(val_exp.local_exp.values())
+        for arr in lime_exp:
             sum_arr.append(sum(x[1] for x in arr))
         sum_arr = np.array(sum_arr)
         sum_pos = sum_arr[sum_arr > 0]/max(sum_arr)
-        return {"Sum": (-sum(sum_pos * np.log(sum_pos))),
-                "Sum_Top": sum_arr[val_exp.top_labels[0]],
-                "Intercept": np.var(list(val_exp.intercept.values())),
-                "Pred": val_exp.local_pred[0],
-                "Score": val_exp.score}
+        out_dict = {"Sum": (-sum(sum_pos * np.log(sum_pos))),
+                    "Sum_Top": sum_arr[val_exp.top_labels[0]],
+                    "Intercept": np.var(list(val_exp.intercept.values())),
+                    "Pred": val_exp.local_pred[0],
+                    "Score": val_exp.score}
+        if self.full_features:
+            if len(self.column_names) == len(lime_exp[0]):
+                full_values = dict([(str(self.column_names[i]) + "_c" + str(j), dict(lime_exp[j])[i])
+                                    for i in range(0, len(lime_exp[0]))
+                                    for j in range(0, len(lime_exp))])
+            else:
+                full_values = dict([("f" + str(i) + "_c" + str(j), dict(lime_exp[j])[i])
+                                    for i in range(0, len(lime_exp[0]))
+                                    for j in range(0, len(lime_exp))])
+            out_dict.update(full_values)
+
+        return out_dict
 
     def trust_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -84,22 +99,19 @@ class LimeTrust(TrustCalculator):
         :param classifier: the classifier used for classification
         :return: array of trust scores
         """
-        trust_sum = []
-        trust_st = []
-        trust_int = []
-        trust_pred = []
-        trust_score = []
+        trust_dict = []
+        if not isinstance(feature_values_array, np.ndarray):
+            feature_values_array = feature_values_array.to_numpy()
         if len(feature_values_array) == len(proba_array):
             for i in range(0, len(proba_array)):
                 lime_out = self.trust_score(feature_values_array[i], proba_array[i], classifier)
-                trust_sum.append(lime_out["Sum"])
-                trust_st.append(lime_out["Sum_Top"])
-                trust_int.append(lime_out["Intercept"])
-                trust_pred.append(lime_out["Pred"])
-                trust_score.append(lime_out["Score"])
+                if i == 0:
+                    trust_dict = {k:[] for k in lime_out}
+                for key in lime_out:
+                    trust_dict[key].append(lime_out[key])
         else:
             print("Items of the feature set have a different cardinality wrt probabilities")
-        return {"Sum": trust_sum, "Sum_Top": trust_st, "Intercept": trust_int, "Pred": trust_pred, "Score": trust_score}
+        return trust_dict
 
     def trust_strategy_name(self):
         return 'LIMECalculator(' + str(self.max_samples) + ')'
@@ -143,6 +155,8 @@ class EntropyTrust(TrustCalculator):
         :return: array of trust scores
         """
         trust = []
+        if not isinstance(feature_values_array, np.ndarray):
+            feature_values_array = feature_values_array.to_numpy()
         if len(feature_values_array) == len(proba_array):
             for i in range(0, len(proba_array)):
                 trust.append(self.trust_score(feature_values_array[i], proba_array[i], classifier))
@@ -157,15 +171,17 @@ class EntropyTrust(TrustCalculator):
 class SHAPTrust(TrustCalculator):
     """
     Computes Trust via SHAP Framework for explainability.
-    Reports on 3 different trust metrics: Sum, Ent
+    Reports on 2 different trust metrics: Sum, Ent
     REG could be “num_features(int)”, “auto” (default for now, but deprecated), “aic”, “bic”, or float
     """
 
-    def __init__(self, x_data, max_samples, items, reg):
+    def __init__(self, x_data, max_samples, items, reg, feature_names=[], full_features=False):
         self.x_data = x_data
         self.max_samples = max_samples
         self.items = items
         self.reg = reg
+        self.feature_names = feature_names
+        self.full_features = full_features
 
     def trust_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -178,6 +194,7 @@ class SHAPTrust(TrustCalculator):
         explainer = shap.KernelExplainer(classifier.predict_proba,
                                          shap.sample(self.x_data, self.max_samples),
                                          link="identity")
+        # 3D array, dimensions: number_classes, number_items, number_features
         shap_values = explainer.shap_values(feature_values_array,
                                             nsamples=self.items,
                                             l1_reg=self.reg)
@@ -186,10 +203,22 @@ class SHAPTrust(TrustCalculator):
         for p in probs:
             vals = p[p > 0] / max(p)
             entr_arr.append(-sum(vals * np.log(vals)))
-        return {"Max": probs.max(axis=1), "Ent": entr_arr}
+        out_dict = {"Max": probs.max(axis=1), "Ent": entr_arr}
+        if self.full_features:
+            shap_values = np.asarray(shap_values)
+            if len(self.feature_names) == shap_values[0].shape[1]:
+                full_values = dict([(str(self.feature_names[i]) + "_c" + str(j), shap_values[j, :, i])
+                                    for i in range(0, shap_values.shape[2])
+                                    for j in range(0, shap_values.shape[0])])
+            else:
+                full_values = dict([("f" + str(i) + "_c" + str(j), shap_values[j, :, i])
+                                    for i in range(0, shap_values.shape[2])
+                                    for j in range(0, shap_values.shape[0])])
+            out_dict.update(full_values)
+        return out_dict
 
     def trust_strategy_name(self):
-        return 'SHAPCalculator(' + str(self.max_samples) + ',' + str(self.items) + ',' + str(self.reg) + ')'
+        return 'SHAPCalc(' + str(self.max_samples) + '-' + str(self.items) + '-' + str(self.reg) + ')'
 
 
 class NeighborsTrust(TrustCalculator):
@@ -199,10 +228,7 @@ class NeighborsTrust(TrustCalculator):
     """
 
     def __init__(self, x_train, y_train, k, labels):
-        if not isinstance(x_train, np.ndarray):
-            self.x_train = x_train.values
-        else:
-            self.x_train = x_train
+        self.x_train = x_train
         self.y_train = y_train
         self.n_neighbors = k
         self.labels = labels
@@ -228,8 +254,8 @@ class NeighborsTrust(TrustCalculator):
                                           n_jobs=-1).fit(self.x_train)
         distances, indices = near_neighbors.kneighbors(feature_values)
         print("kNN Search completed in " + str(utils.current_ms() - start_time) + " ms")
-        train_classes = classifier.predict(self.x_train)
-        predict_classes = classifier.predict(feature_values)
+        train_classes = np.asarray(classifier.predict(self.x_train))
+        predict_classes = np.asarray(classifier.predict(feature_values))
         for i in tqdm(range(len(feature_values))):
             predict_neighbours = train_classes[indices[i]]
             agreements = (predict_neighbours == predict_classes[i]).sum()

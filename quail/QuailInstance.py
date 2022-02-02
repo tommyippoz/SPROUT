@@ -39,8 +39,6 @@ class QuailInstance:
         :return:
         """
         out_df = pd.DataFrame()
-        if not isinstance(data_set, np.ndarray):
-            data_set = data_set.to_numpy()
         if y_proba is None:
             y_proba = classifier.predict_proba(data_set)
         for calculator in self.trust_calculators:
@@ -81,7 +79,7 @@ class QuailInstance:
             self.add_calculator_multicombined(clf_set=cc, x_train=x_train, y_train=y_train, n_classes=len(label_names))
         self.add_calculator_neighbour(x_train=x_train, y_train=y_train, label_names=label_names)
         self.add_calculator_LIME(x_train=x_train, y_train=y_train, feature_names=feature_names, label_names=label_names)
-        self.add_calculator_SHAP(x_train=x_train)
+        self.add_calculator_SHAP(x_train=x_train, feature_names=feature_names)
 
     def add_calculator_confidence(self, x_train, y_train, confidence_level=0.9999):
         """
@@ -154,7 +152,19 @@ class QuailInstance:
         """
         self.trust_calculators.append(NeighborsTrust(x_train=x_train, y_train=y_train, k=k, labels=label_names))
 
-    def add_calculator_LIME(self, x_train, y_train, feature_names, label_names):
+    def add_calculator_LIME(self, x_train, y_train, feature_names, label_names, full_features=False):
+        """
+        LIME Trust Calculator (uses framework for XAI, CM7 in the paper)
+        :param full_features: True if all shap value have to be provided as output
+        :param x_train: features in the train set
+        :param y_train: labels in the train set
+        :param feature_names: names of the features
+        :param label_names: unique names in the label
+        """
+        self.trust_calculators.append(LimeTrust(x_data=x_train, y_data=y_train, column_names=feature_names,
+                                                class_names=label_names, max_samples=20, full_features=full_features))
+
+    def add_calculator_LIME_full(self, x_train, y_train, feature_names, label_names):
         """
         LIME Trust Calculator (uses framework for XAI, CM7 in the paper)
         :param x_train: features in the train set
@@ -162,9 +172,23 @@ class QuailInstance:
         :param feature_names: names of the features
         :param label_names: unique names in the label
         """
-        self.trust_calculators.append(LimeTrust(x_train, y_train, feature_names, label_names, 20))
+        self.add_calculator_LIME(x_train=x_train, y_train=y_train, feature_names=feature_names,
+                                 label_names=label_names, full_features=True)
 
-    def add_calculator_SHAP(self, x_train, max_samples=100, items=10, reg_metric='bic'):
+    def add_calculator_SHAP(self, x_train, max_samples=100, items=10, reg_metric='bic', feature_names=[], full_features=False):
+        """
+        SHAP Trust Calculator (uses framework for XAI, CM8 in the paper)
+        :param full_features: True if all shap value have to be provided as output
+        :param x_train: features in the train set
+        :param max_samples: max_samples param of SHAP (the lower, te faster
+        :param items: items param of SHAP
+        :param reg_metric: reg param of SHAP (used for LASSO Regression)
+        """
+        self.trust_calculators.append(
+            SHAPTrust(x_train, max_samples=max_samples, items=items, reg=reg_metric,
+                      feature_names=feature_names, full_features=full_features))
+
+    def add_calculator_SHAP_full(self, x_train, feature_names=[], max_samples=100, items=10, reg_metric='bic'):
         """
         LIME Trust Calculator (uses framework for XAI, CM7 in the paper)
         :param x_train: features in the train set
@@ -172,4 +196,5 @@ class QuailInstance:
         :param items: items param of SHAP
         :param reg_metric: reg param of SHAP (used for LASSO Regression)
         """
-        self.trust_calculators.append(SHAPTrust(x_train, max_samples=max_samples, items=items, reg=reg_metric))
+        self.add_calculator_SHAP(x_train, max_samples=max_samples, items=items, reg_metric=reg_metric,
+                                 feature_names=feature_names, full_features=True)

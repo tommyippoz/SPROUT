@@ -8,44 +8,54 @@ import sklearn as sk
 from sklearn import datasets
 
 
-def load_DIGITS():
+def load_DIGITS(row_limit=np.nan, as_pandas=False):
     """
     Loads DIGITS dataset from SKLearn
+    :param row_limit: int (number of data points) if you want to use a portion of the dataset
+    :param as_pandas: True if output has to be a Pandas Dataframe
     :return: features and labels with train/test split, label names and feature names
     """
-    return process_image_dataset("DIGITS")
+    return process_image_dataset("DIGITS", limit=row_limit, as_pandas=as_pandas)
 
 
-def load_MNIST():
+def load_MNIST(row_limit=np.nan, as_pandas=False):
     """
     Loads MNIST dataset
+    :param row_limit: int (number of data points) if you want to use a portion of the dataset
+    :param as_pandas: True if output has to be a Pandas Dataframe
     :return: features and labels with train/test split, label names and feature names
     """
-    return process_image_dataset("MNIST")
+    return process_image_dataset("MNIST", limit=row_limit, as_pandas=as_pandas)
 
 
-def load_FASHIONMNIST():
+def load_FASHIONMNIST(row_limit=np.nan, as_pandas=False):
     """
     Loads FASHION-MNIST dataset
+    :param row_limit: int (number of data points) if you want to use a portion of the dataset
+    :param as_pandas: True if output has to be a Pandas Dataframe
     :return: features and labels with train/test split, label names and feature names
     """
-    return process_image_dataset("FASHION-MNIST")
+    return process_image_dataset("FASHION-MNIST", limit=row_limit, as_pandas=as_pandas)
 
 
-def process_image_dataset(dataset_name, limit=np.nan):
+def process_image_dataset(dataset_name, limit=np.nan, as_pandas=False):
     """
     Gets data for analysis, provided that the dataset is an image dataset
+    :param as_pandas: True if output has to be a Pandas Dataframe
     :param dataset_name: name of the image dataset
     :param limit: specifies if the number of data points has to be cropped somehow (testing purposes)
     :return: many values for analysis
     """
     if dataset_name == "DIGITS":
         mn = datasets.load_digits(as_frame=True)
-        feature_list = mn.columns
+        feature_list = mn.feature_names
         labels = mn.target_names
-        x_mnist = mn.frame
-        y_mnist = mn.target
-        x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_mnist, y_mnist, test_size=0.5, shuffle=True)
+        x_digits = mn.data
+        y_digits = mn.target
+        if (np.isfinite(limit)) & (limit < len(y_digits)):
+            x_digits = x_digits[0:limit]
+            y_digits = y_digits[0:limit]
+        x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_digits, y_digits, test_size=0.2, shuffle=True)
         return x_tr, x_te, y_tr, y_te, labels, feature_list
 
     elif dataset_name == "MNIST":
@@ -61,7 +71,7 @@ def process_image_dataset(dataset_name, limit=np.nan):
                           "t10k-images-idx3-ubyte.gz", mnist_folder)
             download_file("http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz",
                           "t10k-labels-idx1-ubyte.gz", mnist_folder)
-        return format_mnist(mnist_folder, limit)
+        return format_mnist(mnist_folder, limit, as_pandas)
 
     elif dataset_name == "FASHION-MNIST":
         f_mnist_folder = "input_folder/fashion"
@@ -76,7 +86,7 @@ def process_image_dataset(dataset_name, limit=np.nan):
                           "t10k-images-idx3-ubyte.gz", f_mnist_folder)
             download_file("http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-labels-idx1-ubyte.gz",
                           "t10k-labels-idx1-ubyte.gz", f_mnist_folder)
-        return format_mnist(f_mnist_folder, limit)
+        return format_mnist(f_mnist_folder, limit, as_pandas)
 
 
 def download_file(file_url, file_name, folder_name):
@@ -157,9 +167,10 @@ def load_mnist(path, kind='train'):
     return images, labels
 
 
-def format_mnist(mnist_folder, limit):
+def format_mnist(mnist_folder, limit, as_pandas):
     """
     Loads an mnist-like dataset and provides as output the train/test split plus features
+    :param as_pandas: True if output has to be a Pandas Dataframe
     :param mnist_folder: folder to load the mnist-like dataset
     :param limit: specifies if the number of data points has to be cropped somehow (testing purposes)
     :return: many values for analysis
@@ -184,4 +195,10 @@ def format_mnist(mnist_folder, limit):
     feature_list = ["pixel_" + str(i) for i in np.arange(0, len(x_fmnist[0]), 1)]
     labels = pd.Index(np.unique(y_fmnist), dtype=object)
 
-    return x_tr, x_te, y_tr, y_te, labels, feature_list
+    if as_pandas:
+        return pd.DataFrame(data=x_tr, columns=feature_list),\
+               pd.DataFrame(data=x_te, columns=feature_list),\
+               pd.DataFrame(data=y_tr, columns=['label']),\
+               pd.DataFrame(data=y_te, columns=['label']), labels, feature_list
+    else:
+        return x_tr, x_te, y_tr, y_te, labels, feature_list
