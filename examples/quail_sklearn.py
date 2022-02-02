@@ -20,7 +20,6 @@ if __name__ == '__main__':
     # Building QUAIL instance and adding Entropy, Bayesian and Neighbour-based Calculators
     quail = QuailInstance()
     quail.add_calculator_entropy(n_classes=len(label_names))
-    quail.add_calculator_bayes(x_train=x_train, y_train=y_train, n_classes=len(label_names))
     quail.add_calculator_neighbour(x_train=x_train, y_train=y_train, label_names=label_names)
 
     # Building and exercising SKLearn classifier
