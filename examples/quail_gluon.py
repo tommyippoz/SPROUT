@@ -18,7 +18,7 @@ if __name__ == '__main__':
     """
 
     # Reading sample dataset (DIGITS)
-    x_train, x_test, y_train, y_test, label_names, feature_names = load_DIGITS(row_limit=125, as_pandas=True)
+    x_train, x_test, y_train, y_test, label_names, feature_names = load_DIGITS(as_pandas=True)
 
     print("Preparing Trust Calculators...")
 
