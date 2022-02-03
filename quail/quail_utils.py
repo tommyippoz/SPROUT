@@ -19,7 +19,8 @@ def build_QUAIL_dataset(y_proba, y_pred, y_test, label_tags):
     out_df['true_label'] = list(map(lambda x: label_tags[x], y_test))
     out_df['predicted_label'] = list(map(lambda x: label_tags[x], y_pred))
     out_df['is_misclassification'] = np.where(out_df['true_label'] != out_df['predicted_label'], 1, 0)
-    out_df['probabilities'] = [y_proba[i] for i in range(len(y_proba))]
+    out_df['probabilities'] = [np.array2string(y_proba[i], separator=";") for i in range(len(y_proba))]
+    a = y_proba[0]
     return out_df
 
 
