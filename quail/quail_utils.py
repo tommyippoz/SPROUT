@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import scipy
+import sklearn
 import sklearn as sk
 
 from utils.Classifier import Classifier
@@ -75,3 +77,52 @@ def get_feature_importance(clf):
         return clf.feature_importances()
     else:
         return clf.feature_importances_
+
+
+def correlations(trust_df, corr_tag="R2", print_output=True):
+    """
+    Returns Correlations of Trust Measures w.r.t. misclassifications of the classifier
+    :param print_output: True if results have to be printed on screen
+    :param corr_tag: tag that specified the type of correlation analysis
+    :param trust_df: dataframe containing trust measures and label
+    """
+    corr_dict = {}
+    label = trust_df["is_misclassification"]
+    for feature_name in trust_df.columns:
+        if feature_name not in ["true_label", "predicted_label", "is_misclassification", "probabilities"]:
+            corr_dict[feature_name] = compute_correlation(trust_df[feature_name], label, corr_tag)
+            if print_output:
+                print("'" + corr_tag + "' Correlation of '" + feature_name + "' with label: " +
+                      str(corr_dict[feature_name]))
+    return corr_dict
+
+
+def compute_correlation(feature, label, corr_tag="R2"):
+    """
+    Computes correlation (double value) between two arrays
+    :param feature: first array
+    :param label:  second array (reference)
+    :param corr_tag: type of correlation analysis
+    :return: double value
+    """
+    if (feature is not None) & (label is not None) & (len(feature) == len(label)):
+        if corr_tag is not None:
+            if corr_tag.upper() in ["R2", "R-SQUARED", "R-SQ"]:
+                slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(feature, label)
+                return r_value ** 2
+            elif corr_tag.upper() in ["P", "PEARSON", "PEARSON CORRELATION"]:
+                return abs(scipy.stats.pearsonr(feature, label)[0])
+            elif corr_tag.upper() in ["SP", "SPEARMAN"]:
+                return abs(scipy.stats.spearmanr(feature, label)[0])
+            elif corr_tag.upper() in ["COS", "COSINE"]:
+                return 1 - scipy.spatial.distance.cosine(feature, label)
+            elif corr_tag.upper() in ["CHI", "CHI2", "CHI-2", "CHI-SQUARED", "CHI-SQ"]:
+                scaled_feat_values = sklearn.preprocessing.MinMaxScaler().fit_transform(feature.reshape(-1, 1))
+                return sklearn.feature_selection.chi2(scaled_feat_values, label)[0][0]
+            elif corr_tag.upper() in ["INFO", "MUTUAL INFORMATION", "MI", "MUTUALINFO"]:
+                return sklearn.feature_selection.mutual_info_classif(feature.reshape(-1, 1), label)[0]
+        print("Unable to recognize correlation tag, default R-Squared will be used")
+        return compute_correlation("R2", feature, label)
+    else:
+        print("Features and Label are not arrays of the same size")
+        return 0.0

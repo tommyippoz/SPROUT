@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+from quail.quail_utils import compute_correlation
 from utils import utils
 from utils.Classifier import Bayes
 from quail.TrustCalculator import EntropyTrust, ConfidenceInterval, ExternalTrust, CombinedTrust, MultiCombinedTrust, \
@@ -191,8 +192,9 @@ class QuailInstance:
     def add_calculator_SHAP_full(self, x_train, feature_names=[], max_samples=100, items=10, reg_metric='bic'):
         """
         LIME Trust Calculator (uses framework for XAI, CM7 in the paper)
+        :param feature_names: names of the features in the test set
         :param x_train: features in the train set
-        :param max_samples: max_samples param of SHAP (the lower, te faster
+        :param max_samples: max_samples param of SHAP (the lower, the faster)
         :param items: items param of SHAP
         :param reg_metric: reg param of SHAP (used for LASSO Regression)
         """

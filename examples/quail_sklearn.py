@@ -4,6 +4,7 @@ from sklearn.ensemble import RandomForestClassifier
 
 from quail import quail_utils
 from quail.QuailInstance import QuailInstance
+from quail.quail_utils import correlations
 from utils.dataset_utils import load_MNIST
 
 if __name__ == '__main__':
@@ -34,6 +35,7 @@ if __name__ == '__main__':
     # Calculating Trust Measures with QUAIL
     q_df = quail.compute_set_trust(data_set=x_test, classifier=classifier)
     out_df = pandas.concat([out_df, q_df], axis=1)
+    correlations(out_df)
 
     # Printing Dataframe
     out_df.to_csv('my_quail_df.csv', index=False)
