@@ -114,15 +114,17 @@ class XGB(Classifier):
     def __init__(self, n_trees=None, metric=None):
         self.metric = metric
         if n_trees is None:
-            Classifier.__init__(self, XGBClassifier(use_label_encoder=False))
+            Classifier.__init__(self, XGBClassifier(use_label_encoder=False,
+                                                    eval_metric=(self.metric if self.metric is not None else "logloss")))
         else:
-            Classifier.__init__(self, XGBClassifier(n_estimators=n_trees, use_label_encoder=False))
+            Classifier.__init__(self, XGBClassifier(n_estimators=n_trees, use_label_encoder=False,
+                                                    eval_metric=(self.metric if self.metric is not None else "logloss")))
 
     def fit(self, x_train, y_train):
         if isinstance(x_train, pd.DataFrame):
-            self.model.fit(x_train.values, y_train, eval_metric=(self.metric if self.metric is not None else "logloss"))
+            self.model.fit(x_train.values, y_train)
         else:
-            self.model.fit(x_train, y_train, eval_metric=(self.metric if self.metric is not None else "logloss"))
+            self.model.fit(x_train, y_train)
         self.trained = True
 
     def classifier_name(self):

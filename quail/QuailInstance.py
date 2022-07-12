@@ -5,7 +5,7 @@ from quail.quail_utils import compute_correlation
 from utils import utils
 from utils.Classifier import Bayes
 from quail.TrustCalculator import EntropyTrust, ConfidenceInterval, ExternalTrust, CombinedTrust, MultiCombinedTrust, \
-    NeighborsTrust, LimeTrust, SHAPTrust
+    NeighborsTrust, LimeTrust, SHAPTrust, MonteCarlo, FeatureBagging
 
 
 class QuailInstance:
@@ -81,6 +81,8 @@ class QuailInstance:
         self.add_calculator_neighbour(x_train=x_train, y_train=y_train, label_names=label_names)
         self.add_calculator_LIME(x_train=x_train, y_train=y_train, feature_names=feature_names, label_names=label_names)
         self.add_calculator_SHAP(x_train=x_train, feature_names=feature_names)
+        self.add_calculator_montecarlo(x_train=x_train, y_train=y_train)
+        self.add_calculator_featurebagging(x_train=x_train, y_train=y_train)
 
     def add_calculator_confidence(self, x_train, y_train, confidence_level=0.9999):
         """
@@ -200,3 +202,9 @@ class QuailInstance:
         """
         self.add_calculator_SHAP(x_train, max_samples=max_samples, items=items, reg_metric=reg_metric,
                                  feature_names=feature_names, full_features=True)
+
+    def add_calculator_montecarlo(self, x_train, y_train):
+        self.trust_calculators.append(MonteCarlo(x_train, y_train))
+
+    def add_calculator_featurebagging(self, x_train, y_train, n_remove=1):
+        self.trust_calculators.append(FeatureBagging(x_train, y_train, n_remove))

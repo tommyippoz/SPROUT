@@ -1,5 +1,10 @@
+import math
+import random
+
 import lime
 import lime.lime_tabular
+import numpy
+import pandas
 import pandas as pd
 import shap
 import scipy.stats
@@ -8,6 +13,8 @@ import numpy as np
 
 from sklearn.neighbors import NearestNeighbors
 from collections import Counter
+
+from sklearn.tree import DecisionTreeClassifier
 from tqdm import tqdm
 
 from utils import utils
@@ -48,11 +55,12 @@ class LimeTrust(TrustCalculator):
         self.column_names = column_names
         self.class_indexes = np.arange(0, len(class_names), 1)
         self.full_features = full_features
-        self.explainer = lime.lime_tabular.LimeTabularExplainer(training_data=x_data if isinstance(x_data, np.ndarray) else x_data.to_numpy(),
-                                                                training_labels=y_data,
-                                                                feature_names=column_names,
-                                                                class_names=class_names,
-                                                                verbose=False)
+        self.explainer = lime.lime_tabular.LimeTabularExplainer(
+            training_data=x_data if isinstance(x_data, np.ndarray) else x_data.to_numpy(),
+            training_labels=y_data,
+            feature_names=column_names,
+            class_names=class_names,
+            verbose=False)
 
     def trust_score(self, feature_values, proba, classifier):
         """
@@ -72,7 +80,7 @@ class LimeTrust(TrustCalculator):
         for arr in lime_exp:
             sum_arr.append(sum(x[1] for x in arr))
         sum_arr = np.array(sum_arr)
-        sum_pos = sum_arr[sum_arr > 0]/max(sum_arr)
+        sum_pos = sum_arr[sum_arr > 0] / max(sum_arr)
         out_dict = {"Sum": (-sum(sum_pos * np.log(sum_pos))),
                     "Sum_Top": sum_arr[val_exp.top_labels[0]],
                     "Intercept": np.var(list(val_exp.intercept.values())),
@@ -106,7 +114,7 @@ class LimeTrust(TrustCalculator):
             for i in range(0, len(proba_array)):
                 lime_out = self.trust_score(feature_values_array[i], proba_array[i], classifier)
                 if i == 0:
-                    trust_dict = {k:[] for k in lime_out}
+                    trust_dict = {k: [] for k in lime_out}
                 for key in lime_out:
                     trust_dict[key].append(lime_out[key])
         else:
@@ -128,7 +136,7 @@ class EntropyTrust(TrustCalculator):
         Constructor Method
         :param norm: number of classes for normalization process
         """
-        norm_array = np.full(norm, 1/norm)
+        norm_array = np.full(norm, 1 / norm)
         self.normalization = (-norm_array * np.log2(norm_array)).sum()
         return
 
@@ -305,7 +313,6 @@ class CombinedTrust(TrustCalculator):
               str(utils.current_ms() - start_time) + " ms")
         self.trust_measure = EntropyTrust(norm)
 
-
     def trust_scores(self, feature_values_array, proba_array, classifier):
         """
         Returns the combined trust calculated using the main classifier plus the additional classifier
@@ -372,15 +379,19 @@ class ConfidenceInterval(TrustCalculator):
     Defines a trust strategy that calculates confidence intervals to derive trust
     """
 
-    def __init__(self, x_train, y_train, confidence_level):
-        self.data = x_train[y_train == 0, :]
+    def __init__(self, x_train, y_train, confidence_level=0.9999):
         self.confidence_level = confidence_level
-        self.intervals = []
-        for i in range(0, len(x_train[0])):
-            feature = x_train[:, i]
-            self.intervals.append(scipy.stats.t.interval(confidence_level, len(feature) - 1,
-                                                         loc=np.mean(feature),
-                                                         scale=scipy.stats.sem(feature)))
+        self.intervals = {}
+        self.labels = numpy.unique(y_train)
+        for label in self.labels:
+            self.intervals[label] = []
+            data = x_train[y_train == label, :]
+            for i in range(0, len(x_train[0])):
+                feature = data[:, i]
+                self.intervals[label].append(scipy.stats.t.interval(confidence_level,
+                                                                    len(feature) - 1,
+                                                                    loc=np.mean(feature),
+                                                                    scale=scipy.stats.sem(feature)))
 
     def trust_score(self, feature_values, proba, classifier):
         """
@@ -391,11 +402,14 @@ class ConfidenceInterval(TrustCalculator):
         :return: trust score using confidence intervals
         """
         int_trust = 0
+        predicted_label = numpy.argmax(proba)
         for i in range(0, len(feature_values)):
-            if (np.isfinite(self.intervals[i][0])) & (np.isfinite(self.intervals[i][1])):
-                if (feature_values[i] < self.intervals[i][0]) | (feature_values[i] > self.intervals[i][1]):
+            if (np.isfinite(self.intervals[predicted_label][i][0])) & \
+                    (np.isfinite(self.intervals[predicted_label][i][1])):
+                if (feature_values[i] < self.intervals[predicted_label][i][0]) | \
+                        (feature_values[i] > self.intervals[predicted_label][i][1]):
                     int_trust = int_trust + 1
-        return int_trust/len(feature_values)
+        return int_trust / len(feature_values)
 
     def trust_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -406,6 +420,8 @@ class ConfidenceInterval(TrustCalculator):
         :return: array of trust scores
         """
         trust = []
+        if isinstance(feature_values_array, pandas.DataFrame):
+            feature_values_array = feature_values_array.to_numpy()
         if len(feature_values_array) == len(proba_array):
             for i in range(0, len(proba_array)):
                 trust.append(self.trust_score(feature_values_array[i], proba_array[i], classifier))
@@ -415,3 +431,119 @@ class ConfidenceInterval(TrustCalculator):
 
     def trust_strategy_name(self):
         return 'Confidence Interval (' + str(self.confidence_level) + '%)'
+
+
+class MonteCarlo(TrustCalculator):
+    """
+    Defines a trust strategy that uses a Monte Carlo simulation for each class
+    """
+
+    def __init__(self, x_train, y_train, mc_iterations=10):
+        self.mc_iterations = mc_iterations
+        self.labels = numpy.unique(y_train)
+        self.averages = {}
+        self.stds = {}
+
+        if isinstance(x_train, pd.DataFrame):
+            x_train = x_train.to_numpy()
+        start_time = utils.current_ms()
+        for label in self.labels:
+            data = x_train[numpy.where(y_train == label)[0], :]
+            self.averages[label] = sum(data) / len(data)
+            self.stds[label] = numpy.std(data, axis=0)
+
+        print("MonteCarlo initialized in " + str(utils.current_ms() - start_time) + " ms")
+
+    def trust_scores(self, feature_values_array, proba_array, classifier):
+        """
+        Returns the trust after executing a given amount of simulations around the feature values
+        Score ranges from -1 (likely to be misclassification) to 1 (likely to be correct classification)
+
+        :param classifier: the classifier used for classification
+        :param feature_values_array: the feature values of the data points in the test set
+        :param proba_array: the probability arrays assigned by the algorithm to the data points
+        :return: array of trust scores
+        """
+        predicted_classes = numpy.argmax(proba_array, axis=1)
+        if isinstance(feature_values_array, pd.DataFrame):
+            feature_values_array = feature_values_array.to_numpy()
+
+        # Generating MC Simulations for inputs
+        mc_x = []
+        for i in range(len(feature_values_array)):
+            features = feature_values_array[i]
+            for _ in range(self.mc_iterations):
+                mc_x.append([random.gauss(m, s)
+                             for m, s in zip(features, self.stds[predicted_classes[i]])])
+        mc_x = np.array(mc_x)
+
+        # Calculating predictions
+        mc_predict = classifier.predict_proba(mc_x)
+
+        # Calculating Uncertainty
+        trust = []
+        for i in range(len(feature_values_array)):
+            mc_probas = mc_predict[i * self.mc_iterations:(i + 1) * self.mc_iterations, :]
+            mc_avg = sum(mc_probas) / len(mc_probas)
+            score = 1 - numpy.average(numpy.std(mc_probas, axis=0))
+            if numpy.argmax(mc_avg) != predicted_classes[i]:
+                score = -score
+            trust.append(score)
+
+        return np.asarray(trust)
+
+    def trust_strategy_name(self):
+        return 'Monte Carlo Calculator'
+
+
+class FeatureBagging(TrustCalculator):
+    """
+    Defines a trust strategy that uses a Monte Carlo simulation for each class
+    """
+
+    def __init__(self, x_train, y_train, n_remove=1):
+        self.feature_sets = []
+        self.classifiers = []
+        self.n_remove = n_remove
+
+        if isinstance(x_train, pandas.DataFrame):
+            x_train = x_train.to_numpy()
+        n_features = x_train.shape[1]
+
+        for i in tqdm(range(n_features-n_remove+1), "Building Feature Baggers"):
+            fs = numpy.delete(numpy.arange(n_features), [i, i+n_remove-1])
+            self.feature_sets.append(fs)
+            classifier = DecisionTreeClassifier()
+            classifier.fit(x_train[:, fs], y_train)
+            self.classifiers.append(classifier)
+
+    def trust_scores(self, feature_values_array, proba_array, classifier):
+        """
+        Returns the trust after executing a given amount of simulations around the feature values
+        Score ranges from 0 (no agreement) to 1 (full agreement)
+
+        :param classifier: the classifier used for classification
+        :param feature_values_array: the feature values of the data points in the test set
+        :param proba_array: the probability arrays assigned by the algorithm to the data points
+        :return: array of trust scores
+        """
+        predicted_classes = numpy.argmax(proba_array, axis=1)
+        if isinstance(feature_values_array, pd.DataFrame):
+            feature_values_array = feature_values_array.to_numpy()
+
+        # Testing with all classifiers
+        fs_pred = []
+        for i in range(len(self.feature_sets)):
+            fs_array = feature_values_array[:, self.feature_sets[i]]
+            fs_pred.append(self.classifiers[i].predict(fs_array))
+        fs_pred = numpy.array(fs_pred).transpose()
+
+        # Calculating Uncertainty
+        trust = []
+        for i in range(len(feature_values_array)):
+            trust.append(sum(fs_pred[i] == predicted_classes[i])/len(fs_pred[i]))
+
+        return np.asarray(trust)
+
+    def trust_strategy_name(self):
+        return 'FeatureBagging Calculator (' + str(self.n_remove) + ")"
