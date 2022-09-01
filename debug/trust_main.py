@@ -5,10 +5,10 @@ import pandas as pd
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
 from utils import dataset_utils
-from sprout.utils import quail_utils
+from sprout.utils import sprout_utils
 from sprout.utils.general_utils import load_config, choose_classifier, clean_name
 from utils.Classifier import XGB, Bayes, LogisticReg
-from sprout.QuailInstance import QuailInstance
+from sprout.SPROUTObject import SPROUTObject
 
 if __name__ == '__main__':
     """
@@ -41,7 +41,7 @@ if __name__ == '__main__':
                     dataset_utils.process_image_dataset(dataset_file, limit_rows)
 
             print("Preparing Trust Calculators...")
-            quail = QuailInstance()
+            quail = SPROUTObject()
             quail.add_all_calculators(x_train=x_train,
                                       y_train=y_train,
                                       label_names=label_tags,

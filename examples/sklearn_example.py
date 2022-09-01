@@ -2,9 +2,9 @@ import pandas
 import sklearn
 from sklearn.ensemble import RandomForestClassifier
 
-from sprout.utils import quail_utils
-from sprout.QuailInstance import QuailInstance
-from sprout.utils.quail_utils import correlations
+from sprout.utils import sprout_utils
+from sprout.SPROUTObject import SPROUTObject
+from sprout.utils.sprout_utils import correlations
 from utils.dataset_utils import load_MNIST
 
 if __name__ == '__main__':
@@ -18,7 +18,7 @@ if __name__ == '__main__':
     print("Preparing Trust Calculators...")
 
     # Building SPROUT instance and adding Entropy, Bayesian and Neighbour-based Calculators
-    quail = QuailInstance()
+    quail = SPROUTObject()
     quail.add_calculator_entropy(n_classes=len(label_names))
     quail.add_calculator_neighbour(x_train=x_train, y_train=y_train, label_names=label_names)
 

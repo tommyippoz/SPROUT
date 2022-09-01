@@ -3,11 +3,11 @@ import pandas as pd
 
 from sprout.utils import general_utils
 from utils.Classifier import Bayes
-from sprout.TrustCalculator import EntropyTrust, ConfidenceInterval, ExternalTrust, CombinedTrust, MultiCombinedTrust, \
-    NeighborsTrust, LimeTrust, SHAPTrust, MonteCarlo, FeatureBagging
+from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval, ExternalUncertainty, CombinedUncertainty, MultiCombinedUncertainty, \
+    NeighborsUncertainty, LimeUncertainty, SHAPUncertainty, MonteCarlo, FeatureBagging
 
 
-class QuailInstance:
+class SPROUTObject:
 
     def __init__(self):
         """
@@ -100,7 +100,7 @@ class QuailInstance:
         Entropy Calculator (CM2 from paper)
         :param n_classes: number of classes of the label
         """
-        self.trust_calculators.append(EntropyTrust(norm=n_classes))
+        self.trust_calculators.append(EntropyUncertainty(norm=n_classes))
 
     def add_calculator_bayes(self, x_train, y_train, n_classes):
         """
@@ -120,7 +120,7 @@ class QuailInstance:
         :param n_classes: number of classes of the label
         """
         self.trust_calculators.append(
-            ExternalTrust(del_clf=classifier, x_train=x_train, y_train=y_train, norm=n_classes))
+            ExternalUncertainty(del_clf=classifier, x_train=x_train, y_train=y_train, norm=n_classes))
 
     def add_calculator_combined(self, classifier, x_train, y_train, n_classes):
         """
@@ -131,7 +131,7 @@ class QuailInstance:
         :param n_classes: number of classes of the label
         """
         self.trust_calculators.append(
-            CombinedTrust(del_clf=classifier, x_train=x_train, y_train=y_train, norm=n_classes))
+            CombinedUncertainty(del_clf=classifier, x_train=x_train, y_train=y_train, norm=n_classes))
 
     def add_calculator_multicombined(self, clf_set, x_train, y_train, n_classes):
         """
@@ -142,7 +142,7 @@ class QuailInstance:
         :param n_classes: number of classes of the label
         """
         self.trust_calculators.append(
-            MultiCombinedTrust(clf_set=clf_set, x_train=x_train, y_train=y_train, norm=n_classes))
+            MultiCombinedUncertainty(clf_set=clf_set, x_train=x_train, y_train=y_train, norm=n_classes))
 
     def add_calculator_neighbour(self, x_train, y_train, label_names, k=19):
         """
@@ -152,7 +152,7 @@ class QuailInstance:
         :param label_names: unique names in the label
         :param k: k parameter for kNN search
         """
-        self.trust_calculators.append(NeighborsTrust(x_train=x_train, y_train=y_train, k=k, labels=label_names))
+        self.trust_calculators.append(NeighborsUncertainty(x_train=x_train, y_train=y_train, k=k, labels=label_names))
 
     def add_calculator_LIME(self, x_train, y_train, feature_names, label_names, full_features=False):
         """
@@ -163,8 +163,8 @@ class QuailInstance:
         :param feature_names: names of the features
         :param label_names: unique names in the label
         """
-        self.trust_calculators.append(LimeTrust(x_data=x_train, y_data=y_train, column_names=feature_names,
-                                                class_names=label_names, max_samples=20, full_features=full_features))
+        self.trust_calculators.append(LimeUncertainty(x_data=x_train, y_data=y_train, column_names=feature_names,
+                                                      class_names=label_names, max_samples=20, full_features=full_features))
 
     def add_calculator_LIME_full(self, x_train, y_train, feature_names, label_names):
         """
@@ -187,8 +187,8 @@ class QuailInstance:
         :param reg_metric: reg param of SHAP (used for LASSO Regression)
         """
         self.trust_calculators.append(
-            SHAPTrust(x_train, max_samples=max_samples, items=items, reg=reg_metric,
-                      feature_names=feature_names, full_features=full_features))
+            SHAPUncertainty(x_train, max_samples=max_samples, items=items, reg=reg_metric,
+                            feature_names=feature_names, full_features=full_features))
 
     def add_calculator_SHAP_full(self, x_train, feature_names=[], max_samples=100, items=10, reg_metric='bic'):
         """

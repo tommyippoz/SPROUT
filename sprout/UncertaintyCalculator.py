@@ -16,10 +16,11 @@ from collections import Counter
 from sklearn.tree import DecisionTreeClassifier
 from tqdm import tqdm
 
-from sprout.utils.quail_utils import get_classifier_name
+from sprout.utils.sprout_utils import get_classifier_name
+from sprout.utils.general_utils import current_ms
 
 
-class TrustCalculator:
+class UncertaintyCalculator:
     """
     Abstract Class for trust calculators. Methods to be overridden are trust_strategy_name and trust_scores
     """
@@ -41,7 +42,7 @@ class TrustCalculator:
         pass
 
 
-class LimeTrust(TrustCalculator):
+class LimeUncertainty(UncertaintyCalculator):
     """
     Computes Trust via LIME Framework for explainability.
     Reports on 3 different trust metrics: Sum, Intercept, Pred
@@ -123,7 +124,7 @@ class LimeTrust(TrustCalculator):
         return 'LIMECalculator(' + str(self.max_samples) + ')'
 
 
-class EntropyTrust(TrustCalculator):
+class EntropyUncertainty(UncertaintyCalculator):
     """
     Computes Trust via Entropy of the probability array for a given data point.
     Higher entropy means low trust / confidence
@@ -174,7 +175,7 @@ class EntropyTrust(TrustCalculator):
         return 'Entropy Calculator'
 
 
-class SHAPTrust(TrustCalculator):
+class SHAPUncertainty(UncertaintyCalculator):
     """
     Computes Trust via SHAP Framework for explainability.
     Reports on 2 different trust metrics: Sum, Ent
@@ -227,7 +228,7 @@ class SHAPTrust(TrustCalculator):
         return 'SHAPCalc(' + str(self.max_samples) + '-' + str(self.items) + '-' + str(self.reg) + ')'
 
 
-class NeighborsTrust(TrustCalculator):
+class NeighborsUncertainty(UncertaintyCalculator):
     """
     Computes Trust via Agreement with label predictions of neighbours.
     Reports both on the trust and on the details for the neighbours.
@@ -253,13 +254,13 @@ class NeighborsTrust(TrustCalculator):
         """
         neighbour_trust = [0 for i in range(len(feature_values))]
         neighbour_c = [0 for i in range(len(feature_values))]
-        start_time = utils.current_ms()
+        start_time = current_ms()
         print("Starting kNN search ...")
         near_neighbors = NearestNeighbors(n_neighbors=self.n_neighbors,
                                           algorithm='kd_tree',
                                           n_jobs=-1).fit(self.x_train)
         distances, indices = near_neighbors.kneighbors(feature_values)
-        print("kNN Search completed in " + str(utils.current_ms() - start_time) + " ms")
+        print("kNN Search completed in " + str(current_ms() - start_time) + " ms")
         train_classes = np.asarray(classifier.predict(self.x_train))
         predict_classes = np.asarray(classifier.predict(feature_values))
         for i in tqdm(range(len(feature_values))):
@@ -270,7 +271,7 @@ class NeighborsTrust(TrustCalculator):
         return {"Trust": neighbour_trust, "Detail": neighbour_c}
 
 
-class ExternalTrust(TrustCalculator):
+class ExternalUncertainty(UncertaintyCalculator):
     """
     Defines a trust strategy that runs an external classifer and calculates its confidence in the result
     """
@@ -278,7 +279,7 @@ class ExternalTrust(TrustCalculator):
     def __init__(self, del_clf, x_train, y_train, norm):
         self.del_clf = del_clf
         self.del_clf.fit(x_train, y_train)
-        self.trust_measure = EntropyTrust(norm)
+        self.trust_measure = EntropyUncertainty(norm)
         print("[ExternalTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
 
     def trust_scores(self, feature_values_array, proba_array, classifier):
@@ -297,7 +298,7 @@ class ExternalTrust(TrustCalculator):
         return 'External Calculator (' + get_classifier_name(self.del_clf) + ')'
 
 
-class CombinedTrust(TrustCalculator):
+class CombinedUncertainty(UncertaintyCalculator):
     """
     Defines a trust strategy that uses another classifer and calculates a combined confidence
     It uses the main classifier plus the additional classifier to calculate an unified confidence score
@@ -305,11 +306,11 @@ class CombinedTrust(TrustCalculator):
 
     def __init__(self, del_clf, x_train, y_train, norm):
         self.del_clf = del_clf
-        start_time = utils.current_ms()
+        start_time = current_ms()
         self.del_clf.fit(x_train, y_train)
         print("[CombinedTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed in " +
-              str(utils.current_ms() - start_time) + " ms")
-        self.trust_measure = EntropyTrust(norm)
+              str(current_ms() - start_time) + " ms")
+        self.trust_measure = EntropyUncertainty(norm)
 
     def trust_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -336,7 +337,7 @@ class CombinedTrust(TrustCalculator):
         return 'Combined Calculator (' + get_classifier_name(self.del_clf) + ')'
 
 
-class MultiCombinedTrust(TrustCalculator):
+class MultiCombinedUncertainty(UncertaintyCalculator):
     """
     Defines a trust strategy that uses another classifer and calculates a combined confidence
     It uses the main classifier plus the additional classifier to calculate an unified confidence score
@@ -344,11 +345,11 @@ class MultiCombinedTrust(TrustCalculator):
 
     def __init__(self, clf_set, x_train, y_train, norm):
         self.trust_set = []
-        start_time = utils.current_ms()
+        start_time = current_ms()
         for clf in clf_set:
-            self.trust_set.append(CombinedTrust(clf, x_train, y_train, norm))
+            self.trust_set.append(CombinedUncertainty(clf, x_train, y_train, norm))
         print("[MultiCombinedTrust] Fitting of " + str(len(clf_set)) + " classifiers completed in "
-              + str(utils.current_ms() - start_time) + " ms")
+              + str(current_ms() - start_time) + " ms")
 
     def trust_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -372,7 +373,7 @@ class MultiCombinedTrust(TrustCalculator):
         return 'Multiple Combined Calculator (' + str(len(self.trust_set)) + ' classifiers)'
 
 
-class ConfidenceInterval(TrustCalculator):
+class ConfidenceInterval(UncertaintyCalculator):
     """
     Defines a trust strategy that calculates confidence intervals to derive trust
     """
@@ -431,7 +432,7 @@ class ConfidenceInterval(TrustCalculator):
         return 'Confidence Interval (' + str(self.confidence_level) + '%)'
 
 
-class MonteCarlo(TrustCalculator):
+class MonteCarlo(UncertaintyCalculator):
     """
     Defines a trust strategy that uses a Monte Carlo simulation for each class
     """
@@ -444,13 +445,13 @@ class MonteCarlo(TrustCalculator):
 
         if isinstance(x_train, pd.DataFrame):
             x_train = x_train.to_numpy()
-        start_time = utils.current_ms()
+        start_time = current_ms()
         for label in self.labels:
             data = x_train[numpy.where(y_train == label)[0], :]
             self.averages[label] = sum(data) / len(data)
             self.stds[label] = numpy.std(data, axis=0)
 
-        print("MonteCarlo initialized in " + str(utils.current_ms() - start_time) + " ms")
+        print("MonteCarlo initialized in " + str(current_ms() - start_time) + " ms")
 
     def trust_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -494,7 +495,7 @@ class MonteCarlo(TrustCalculator):
         return 'Monte Carlo Calculator'
 
 
-class FeatureBagging(TrustCalculator):
+class FeatureBagging(UncertaintyCalculator):
     """
     Defines a trust strategy that uses a Monte Carlo simulation for each class
     """
