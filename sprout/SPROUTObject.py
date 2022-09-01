@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
+from sklearn.naive_bayes import GaussianNB
 
 from sprout.utils import general_utils
-from utils.Classifier import Bayes
-from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval, ExternalUncertainty, CombinedUncertainty, MultiCombinedUncertainty, \
-    NeighborsUncertainty, LimeUncertainty, SHAPUncertainty, MonteCarlo, FeatureBagging
+from sprout.utils.Classifier import LogisticReg
+from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval, ExternalUncertainty, \
+    CombinedUncertainty, MultiCombinedUncertainty, NeighborsUncertainty, MonteCarlo, FeatureBagging
 
 
 class SPROUTObject:
@@ -14,7 +15,6 @@ class SPROUTObject:
         Constructor for the SPROUT object
         """
         self.trust_calculators = []
-
 
     def compute_data_trust(self, data_point, classifier, verbose=False, as_pandas=True):
         """
@@ -61,27 +61,24 @@ class SPROUTObject:
         else:
             return out_df.to_numpy()
 
-    def add_all_calculators(self, x_train, y_train, label_names, feature_names, combined_clf, combined_clfs):
+    def add_all_calculators(self, x_train, y_train, label_names, combined_clf, combined_clfs):
         """
         Adds all trust calculators to the SPROUT object
         :param x_train: features in the train set
         :param y_train: labels in the train set
         :param label_names: unique names in the label
-        :param feature_names: names of the features
         :param combined_clf: classifier used for CM4
         :param combined_clfs: classifier sets used for CM5
         """
         self.add_calculator_confidence(x_train=x_train, y_train=y_train)
         self.add_calculator_entropy(n_classes=len(label_names))
-        self.add_calculator_external(classifier=Bayes(), x_train=x_train, y_train=y_train, n_classes=len(label_names))
+        self.add_calculator_external(classifier=LogisticReg(), x_train=x_train, y_train=y_train, n_classes=len(label_names))
         self.add_calculator_combined(classifier=combined_clf, x_train=x_train, y_train=y_train, n_classes=len(label_names))
         for cc in combined_clfs:
             self.add_calculator_multicombined(clf_set=cc, x_train=x_train, y_train=y_train, n_classes=len(label_names))
         self.add_calculator_neighbour(x_train=x_train, y_train=y_train, label_names=label_names)
-        self.add_calculator_LIME(x_train=x_train, y_train=y_train, feature_names=feature_names, label_names=label_names)
-        self.add_calculator_SHAP(x_train=x_train, feature_names=feature_names)
         self.add_calculator_montecarlo(x_train=x_train, y_train=y_train)
-        self.add_calculator_featurebagging(x_train=x_train, y_train=y_train)
+        self.add_calculator_featurebagging(x_train=x_train, y_train=y_train, n_baggers=50)
 
     def add_calculator_confidence(self, x_train, y_train, confidence_level=0.9999):
         """
@@ -109,7 +106,7 @@ class SPROUTObject:
         :param y_train: labels in the train set
         :param n_classes: number of classes of the label
         """
-        self.add_calculator_external(classifier=Bayes(), x_train=x_train, y_train=y_train, n_classes=n_classes)
+        self.add_calculator_external(classifier=GaussianNB(), x_train=x_train, y_train=y_train, n_classes=n_classes)
 
     def add_calculator_external(self, classifier, x_train, y_train, n_classes):
         """
@@ -154,56 +151,8 @@ class SPROUTObject:
         """
         self.trust_calculators.append(NeighborsUncertainty(x_train=x_train, y_train=y_train, k=k, labels=label_names))
 
-    def add_calculator_LIME(self, x_train, y_train, feature_names, label_names, full_features=False):
-        """
-        LIME Trust Calculator (uses framework for XAI, CM7 in the paper)
-        :param full_features: True if all shap value have to be provided as output
-        :param x_train: features in the train set
-        :param y_train: labels in the train set
-        :param feature_names: names of the features
-        :param label_names: unique names in the label
-        """
-        self.trust_calculators.append(LimeUncertainty(x_data=x_train, y_data=y_train, column_names=feature_names,
-                                                      class_names=label_names, max_samples=20, full_features=full_features))
-
-    def add_calculator_LIME_full(self, x_train, y_train, feature_names, label_names):
-        """
-        LIME Trust Calculator (uses framework for XAI, CM7 in the paper)
-        :param x_train: features in the train set
-        :param y_train: labels in the train set
-        :param feature_names: names of the features
-        :param label_names: unique names in the label
-        """
-        self.add_calculator_LIME(x_train=x_train, y_train=y_train, feature_names=feature_names,
-                                 label_names=label_names, full_features=True)
-
-    def add_calculator_SHAP(self, x_train, max_samples=100, items=10, reg_metric='bic', feature_names=[], full_features=False):
-        """
-        SHAP Trust Calculator (uses framework for XAI, CM8 in the paper)
-        :param full_features: True if all shap value have to be provided as output
-        :param x_train: features in the train set
-        :param max_samples: max_samples param of SHAP (the lower, te faster
-        :param items: items param of SHAP
-        :param reg_metric: reg param of SHAP (used for LASSO Regression)
-        """
-        self.trust_calculators.append(
-            SHAPUncertainty(x_train, max_samples=max_samples, items=items, reg=reg_metric,
-                            feature_names=feature_names, full_features=full_features))
-
-    def add_calculator_SHAP_full(self, x_train, feature_names=[], max_samples=100, items=10, reg_metric='bic'):
-        """
-        LIME Trust Calculator (uses framework for XAI, CM7 in the paper)
-        :param feature_names: names of the features in the test set
-        :param x_train: features in the train set
-        :param max_samples: max_samples param of SHAP (the lower, the faster)
-        :param items: items param of SHAP
-        :param reg_metric: reg param of SHAP (used for LASSO Regression)
-        """
-        self.add_calculator_SHAP(x_train, max_samples=max_samples, items=items, reg_metric=reg_metric,
-                                 feature_names=feature_names, full_features=True)
-
     def add_calculator_montecarlo(self, x_train, y_train):
         self.trust_calculators.append(MonteCarlo(x_train, y_train))
 
-    def add_calculator_featurebagging(self, x_train, y_train, n_remove=1):
-        self.trust_calculators.append(FeatureBagging(x_train, y_train, n_remove))
+    def add_calculator_featurebagging(self, x_train, y_train, n_baggers=50):
+        self.trust_calculators.append(FeatureBagging(x_train, y_train, n_baggers))

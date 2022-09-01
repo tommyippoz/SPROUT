@@ -3,8 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from utils import dataset_utils
-from sprout.utils import sprout_utils
+from sprout.utils import dataset_utils, sprout_utils
 from sprout.utils.general_utils import load_config, choose_classifier, clean_name
 from sprout.SPROUTObject import SPROUTObject
 
@@ -48,10 +47,10 @@ if __name__ == '__main__':
 
                 # Building and exercising classifier
                 classifier = choose_classifier(classifier_string, features, y_label, "accuracy")
-                y_proba, y_pred = quail_utils.build_classifier(classifier, x_train, y_train, x_test, y_test)
+                y_proba, y_pred = sprout_utils.build_classifier(classifier, x_train, y_train, x_test, y_test)
 
                 # Initializing SPROUT dataset for output
-                out_df = quail_utils.build_QUAIL_dataset(y_proba, y_pred, y_test, label_tags)
+                out_df = sprout_utils.build_QUAIL_dataset(y_proba, y_pred, y_test, label_tags)
 
                 # Calculating Trust Measures with SPROUT
                 q_df = quail.compute_set_trust(data_set=x_test, classifier=classifier)
@@ -59,6 +58,6 @@ if __name__ == '__main__':
 
                 # Printing Dataframe
                 file_out = 'output_folder/' + clean_name(dataset_file) + "_" + \
-                           quail_utils.get_classifier_name(classifier) + '.csv'
+                           sprout_utils.get_classifier_name(classifier) + '.csv'
                 out_df.to_csv(file_out, index=False)
                 print("File '" + file_out + "' Printed")

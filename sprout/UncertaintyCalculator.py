@@ -1,11 +1,8 @@
 import random
 
-import lime
-import lime.lime_tabular
 import numpy
 import pandas
 import pandas as pd
-import shap
 import scipy.stats
 
 import numpy as np
@@ -40,88 +37,6 @@ class UncertaintyCalculator:
         :return: array of trust scores
         """
         pass
-
-
-class LimeUncertainty(UncertaintyCalculator):
-    """
-    Computes Trust via LIME Framework for explainability.
-    Reports on 3 different trust metrics: Sum, Intercept, Pred
-    """
-
-    def __init__(self, x_data, y_data, column_names, class_names, max_samples, full_features=False):
-        self.max_samples = max_samples
-        self.column_names = column_names
-        self.column_names = column_names
-        self.class_indexes = np.arange(0, len(class_names), 1)
-        self.full_features = full_features
-        self.explainer = lime.lime_tabular.LimeTabularExplainer(
-            training_data=x_data if isinstance(x_data, np.ndarray) else x_data.to_numpy(),
-            training_labels=y_data,
-            feature_names=column_names,
-            class_names=class_names,
-            verbose=False)
-
-    def trust_score(self, feature_values, proba, classifier):
-        """
-        Outputs an array of three items for each data point, containing Sum, Intercept, Pred
-        :param feature_values:
-        :param proba:
-        :param classifier:
-        :return:
-        """
-        val_exp = self.explainer.explain_instance(data_row=feature_values,
-                                                  predict_fn=classifier.predict_proba,
-                                                  top_labels=len(self.class_indexes),
-                                                  num_features=len(self.column_names),
-                                                  num_samples=self.max_samples)
-        sum_arr = []
-        lime_exp = list(val_exp.local_exp.values())
-        for arr in lime_exp:
-            sum_arr.append(sum(x[1] for x in arr))
-        sum_arr = np.array(sum_arr)
-        sum_pos = sum_arr[sum_arr > 0] / max(sum_arr)
-        out_dict = {"Sum": (-sum(sum_pos * np.log(sum_pos))),
-                    "Sum_Top": sum_arr[val_exp.top_labels[0]],
-                    "Intercept": np.var(list(val_exp.intercept.values())),
-                    "Pred": val_exp.local_pred[0],
-                    "Score": val_exp.score}
-        if self.full_features:
-            if len(self.column_names) == len(lime_exp[0]):
-                full_values = dict([(str(self.column_names[i]) + "_c" + str(j), dict(lime_exp[j])[i])
-                                    for i in range(0, len(lime_exp[0]))
-                                    for j in range(0, len(lime_exp))])
-            else:
-                full_values = dict([("f" + str(i) + "_c" + str(j), dict(lime_exp[j])[i])
-                                    for i in range(0, len(lime_exp[0]))
-                                    for j in range(0, len(lime_exp))])
-            out_dict.update(full_values)
-
-        return out_dict
-
-    def trust_scores(self, feature_values_array, proba_array, classifier):
-        """
-        Method to compute trust score for a set of data points
-        :param feature_values_array: the feature values of the data points in the test set
-        :param proba_array: the probability arrays assigned by the algorithm to the data points
-        :param classifier: the classifier used for classification
-        :return: array of trust scores
-        """
-        trust_dict = []
-        if not isinstance(feature_values_array, np.ndarray):
-            feature_values_array = feature_values_array.to_numpy()
-        if len(feature_values_array) == len(proba_array):
-            for i in range(0, len(proba_array)):
-                lime_out = self.trust_score(feature_values_array[i], proba_array[i], classifier)
-                if i == 0:
-                    trust_dict = {k: [] for k in lime_out}
-                for key in lime_out:
-                    trust_dict[key].append(lime_out[key])
-        else:
-            print("Items of the feature set have a different cardinality wrt probabilities")
-        return trust_dict
-
-    def trust_strategy_name(self):
-        return 'LIMECalculator(' + str(self.max_samples) + ')'
 
 
 class EntropyUncertainty(UncertaintyCalculator):
@@ -173,59 +88,6 @@ class EntropyUncertainty(UncertaintyCalculator):
 
     def trust_strategy_name(self):
         return 'Entropy Calculator'
-
-
-class SHAPUncertainty(UncertaintyCalculator):
-    """
-    Computes Trust via SHAP Framework for explainability.
-    Reports on 2 different trust metrics: Sum, Ent
-    REG could be “num_features(int)”, “auto” (default for now, but deprecated), “aic”, “bic”, or float
-    """
-
-    def __init__(self, x_data, max_samples, items, reg, feature_names=[], full_features=False):
-        self.x_data = x_data
-        self.max_samples = max_samples
-        self.items = items
-        self.reg = reg
-        self.feature_names = feature_names
-        self.full_features = full_features
-
-    def trust_scores(self, feature_values_array, proba_array, classifier):
-        """
-        Gets SHAP explanations scores for a test set
-        :param feature_values_array:
-        :param proba_array:
-        :param classifier:
-        :return:
-        """
-        explainer = shap.KernelExplainer(classifier.predict_proba,
-                                         shap.sample(self.x_data, self.max_samples),
-                                         link="identity")
-        # 3D array, dimensions: number_classes, number_items, number_features
-        shap_values = explainer.shap_values(feature_values_array,
-                                            nsamples=self.items,
-                                            l1_reg=self.reg)
-        probs = np.asarray([x.sum(axis=1) for x in shap_values]).transpose()
-        entr_arr = []
-        for p in probs:
-            vals = p[p > 0] / max(p)
-            entr_arr.append(-sum(vals * np.log(vals)))
-        out_dict = {"Max": probs.max(axis=1), "Ent": entr_arr}
-        if self.full_features:
-            shap_values = np.asarray(shap_values)
-            if len(self.feature_names) == shap_values[0].shape[1]:
-                full_values = dict([(str(self.feature_names[i]) + "_c" + str(j), shap_values[j, :, i])
-                                    for i in range(0, shap_values.shape[2])
-                                    for j in range(0, shap_values.shape[0])])
-            else:
-                full_values = dict([("f" + str(i) + "_c" + str(j), shap_values[j, :, i])
-                                    for i in range(0, shap_values.shape[2])
-                                    for j in range(0, shap_values.shape[0])])
-            out_dict.update(full_values)
-        return out_dict
-
-    def trust_strategy_name(self):
-        return 'SHAPCalc(' + str(self.max_samples) + '-' + str(self.items) + '-' + str(self.reg) + ')'
 
 
 class NeighborsUncertainty(UncertaintyCalculator):
@@ -345,9 +207,12 @@ class MultiCombinedUncertainty(UncertaintyCalculator):
 
     def __init__(self, clf_set, x_train, y_train, norm):
         self.trust_set = []
+        self.tag = ""
         start_time = current_ms()
         for clf in clf_set:
             self.trust_set.append(CombinedUncertainty(clf, x_train, y_train, norm))
+            self.tag = self.tag + get_classifier_name(clf)[0] + get_classifier_name(clf)[-1]
+        self.tag = str(len(self.trust_set)) + " - " + self.tag
         print("[MultiCombinedTrust] Fitting of " + str(len(clf_set)) + " classifiers completed in "
               + str(current_ms() - start_time) + " ms")
 
@@ -370,7 +235,7 @@ class MultiCombinedUncertainty(UncertaintyCalculator):
         return multi_trust / len(self.trust_set)
 
     def trust_strategy_name(self):
-        return 'Multiple Combined Calculator (' + str(len(self.trust_set)) + ' classifiers)'
+        return 'Multiple Combined Calculator (' + str(self.tag) + ' classifiers)'
 
 
 class ConfidenceInterval(UncertaintyCalculator):
@@ -492,7 +357,7 @@ class MonteCarlo(UncertaintyCalculator):
         return np.asarray(trust)
 
     def trust_strategy_name(self):
-        return 'Monte Carlo Calculator'
+        return 'MonteCarlo Uncertainty'
 
 
 class FeatureBagging(UncertaintyCalculator):
@@ -500,17 +365,31 @@ class FeatureBagging(UncertaintyCalculator):
     Defines a trust strategy that uses a Monte Carlo simulation for each class
     """
 
-    def __init__(self, x_train, y_train, n_remove=1):
+    def __init__(self, x_train, y_train, n_baggers=10):
         self.feature_sets = []
         self.classifiers = []
-        self.n_remove = n_remove
+        if isinstance(n_baggers, int):
+            self.n_baggers = n_baggers
+        else:
+            self.n_baggers = 10
 
         if isinstance(x_train, pandas.DataFrame):
             x_train = x_train.to_numpy()
         n_features = x_train.shape[1]
 
-        for i in tqdm(range(n_features-n_remove+1), "Building Feature Baggers"):
-            fs = numpy.delete(numpy.arange(n_features), [i, i+n_remove-1])
+        if n_features < 20:
+            bag_rate = 0.8
+        elif n_features < 50:
+            bag_rate = 0.7
+        elif n_features < 100:
+            bag_rate = 0.6
+        else:
+            bag_rate = 0.5
+        bag_features = int(n_features*bag_rate)
+
+        for i in tqdm(range(self.n_baggers), "Building Feature Baggers"):
+            fs = random.sample(range(n_features), bag_features)
+            fs.sort()
             self.feature_sets.append(fs)
             classifier = DecisionTreeClassifier()
             classifier.fit(x_train[:, fs], y_train)
@@ -545,4 +424,4 @@ class FeatureBagging(UncertaintyCalculator):
         return np.asarray(trust)
 
     def trust_strategy_name(self):
-        return 'FeatureBagging Calculator (' + str(self.n_remove) + ")"
+        return 'FeatureBagging Uncertainty (' + str(self.n_baggers) + ")"

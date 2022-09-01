@@ -166,8 +166,8 @@ class AutoGluon(Classifier):
     ‘FASTAI’ (neural network with FastAI backend)
     """
 
-    def __init__(self, feature_names, label_name, clf_name, metric):
-        Classifier.__init__(self, TabularPredictor(label=label_name, eval_metric=metric))
+    def __init__(self, feature_names, label_name, clf_name, metric, verbose=0):
+        Classifier.__init__(self, TabularPredictor(label=label_name, eval_metric=metric, verbosity=verbose))
         self.label_name = label_name
         self.feature_names = feature_names
         self.clf_name = clf_name
@@ -206,8 +206,8 @@ class FastAI(AutoGluon):
     Wrapper for the gluon.FastAI algorithm
     """
 
-    def __init__(self, feature_names, label_name, metric):
-        AutoGluon.__init__(self, feature_names, label_name, "FASTAI", metric)
+    def __init__(self, feature_names, label_name, metric, verbose=0):
+        AutoGluon.__init__(self, feature_names, label_name, "FASTAI", metric, verbose)
 
     def classifier_name(self):
         return "FastAI"
@@ -265,18 +265,6 @@ class LogisticReg(Classifier):
 
     def classifier_name(self):
         return "LogisticRegression"
-
-
-class Bayes(Classifier):
-    """
-    Wrapper for the sklearn.GaussianNB algorithm
-    """
-
-    def __init__(self):
-        Classifier.__init__(self, GaussianNB())
-
-    def classifier_name(self):
-        return "NaiveBayes"
 
 
 class SupportVectorMachine(Classifier):

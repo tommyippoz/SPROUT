@@ -7,10 +7,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 
-from general_utils.Classifier import XGB, TabNet, FastAI, GBM
-from general_utils.Classifier import KNeighbors
-from general_utils.Classifier import LogisticReg
-from general_utils.Classifier import Bayes
+from sprout.utils.Classifier import XGB, TabNet, FastAI, GBM, KNeighbors, LogisticReg
 
 
 def load_config(file_config):
@@ -90,8 +87,6 @@ def choose_classifier(clf_name, features, y_label, metric):
         return KNeighbors(k=11)
     elif clf_name in {"LDA"}:
         return LinearDiscriminantAnalysis()
-    elif clf_name in {"NaiveBayes", "Bayes"}:
-        return Bayes()
     elif clf_name in {"Regression", "LogisticRegression", "LR"}:
         return LogisticReg()
     elif clf_name in {"RF", "RandomForest"}:

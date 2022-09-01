@@ -4,7 +4,8 @@ import scipy
 import sklearn
 import sklearn as sk
 
-from Classifier import Classifier
+from sprout.utils.Classifier import Classifier
+from sprout.utils.general_utils import current_ms
 
 
 def build_QUAIL_dataset(y_proba, y_pred, y_test, label_tags):
@@ -21,7 +22,6 @@ def build_QUAIL_dataset(y_proba, y_pred, y_test, label_tags):
     out_df['predicted_label'] = list(map(lambda x: label_tags[x], y_pred))
     out_df['is_misclassification'] = np.where(out_df['true_label'] != out_df['predicted_label'], 1, 0)
     out_df['probabilities'] = [np.array2string(y_proba[i], separator=";") for i in range(len(y_proba))]
-    a = y_proba[0]
     return out_df
 
 
@@ -40,9 +40,9 @@ def build_classifier(classifier, x_train, y_train, x_test, y_test, verbose=True)
         print("\nBuilding classifier: " + classifier.classifier_name() + "\n")
 
     # Fitting classifier
-    start_ms = utils.current_ms()
+    start_ms = current_ms()
     classifier.fit(x_train, y_train)
-    train_ms = utils.current_ms()
+    train_ms = current_ms()
 
     # Test features have to be a numpy array
     if not isinstance(x_test, np.ndarray):
@@ -50,7 +50,7 @@ def build_classifier(classifier, x_train, y_train, x_test, y_test, verbose=True)
 
     # Predicting labels
     y_pred = classifier.predict(x_test)
-    test_time = utils.current_ms() - train_ms
+    test_time = current_ms() - train_ms
 
     # Predicting probabilities
     y_proba = classifier.predict_proba(x_test)
@@ -78,7 +78,7 @@ def get_feature_importance(clf):
         return clf.feature_importances_
 
 
-def correlations(trust_df, corr_tag="R2", print_output=True):
+def correlations(trust_df, corr_tag="INFO", print_output=True):
     """
     Returns Correlations of Trust Measures w.r.t. misclassifications of the classifier
     :param print_output: True if results have to be printed on screen
@@ -86,17 +86,19 @@ def correlations(trust_df, corr_tag="R2", print_output=True):
     :param trust_df: dataframe containing trust measures and label
     """
     corr_dict = {}
-    label = trust_df["is_misclassification"]
+    label = trust_df["is_misclassification"].to_numpy()
     for feature_name in trust_df.columns:
         if feature_name not in ["true_label", "predicted_label", "is_misclassification", "probabilities"]:
-            corr_dict[feature_name] = compute_correlation(trust_df[feature_name], label, corr_tag)
-            if print_output:
-                print("'" + corr_tag + "' Correlation of '" + feature_name + "' with label: " +
-                      str(corr_dict[feature_name]))
+            feature_values = trust_df[feature_name]
+            if len(feature_values) > 0 and not isinstance(feature_values[0], list):
+                corr_dict[feature_name] = compute_correlation(feature_values.to_numpy(), label, corr_tag)
+                if print_output:
+                    print("'" + corr_tag + "' Correlation of '" + feature_name + "' with label: " +
+                          str(corr_dict[feature_name]))
     return corr_dict
 
 
-def compute_correlation(feature, label, corr_tag="R2"):
+def compute_correlation(feature, label, corr_tag="INFO"):
     """
     Computes correlation (double value) between two arrays
     :param feature: first array
@@ -121,7 +123,7 @@ def compute_correlation(feature, label, corr_tag="R2"):
             elif corr_tag.upper() in ["INFO", "MUTUAL INFORMATION", "MI", "MUTUALINFO"]:
                 return sklearn.feature_selection.mutual_info_classif(feature.reshape(-1, 1), label)[0]
         print("Unable to recognize correlation tag, default R-Squared will be used")
-        return compute_correlation("R2", feature, label)
+        return compute_correlation("INFO", feature, label)
     else:
         print("Features and Label are not arrays of the same size")
         return 0.0
