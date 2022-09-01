@@ -4,13 +4,12 @@ import scipy
 import sklearn
 import sklearn as sk
 
-from utils.Classifier import Classifier
-from utils import utils
+from Classifier import Classifier
 
 
 def build_QUAIL_dataset(y_proba, y_pred, y_test, label_tags):
     """
-    Prepares DataFrame to output QUAIL results
+    Prepares DataFrame to output SPROUT results
     :param y_proba: probabilities assigned by the classifier
     :param y_pred: predictions (classes) of the classifier
     :param y_test: labels of the test set (ground truth)

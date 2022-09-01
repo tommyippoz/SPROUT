@@ -5,8 +5,7 @@ import scipy
 import sklearn
 import sklearn as sk
 
-import utils
-from quail.quail_utils import get_classifier_name, get_feature_importance
+from sprout.utils.quail_utils import get_classifier_name, get_feature_importance
 
 INPUT_FOLDER = "G:/My Drive/Documents/22-02-14 (SAFECOMP) Trust Score/datasets/raw/"
 SCORES_FILENAME = "output_folder/out_rf_detailll.csv"

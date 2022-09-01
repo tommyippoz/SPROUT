@@ -7,10 +7,10 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 
-from utils.Classifier import XGB, TabNet, FastAI, GBM
-from utils.Classifier import KNeighbors
-from utils.Classifier import LogisticReg
-from utils.Classifier import Bayes
+from general_utils.Classifier import XGB, TabNet, FastAI, GBM
+from general_utils.Classifier import KNeighbors
+from general_utils.Classifier import LogisticReg
+from general_utils.Classifier import Bayes
 
 
 def load_config(file_config):
@@ -79,7 +79,6 @@ def clean_name(file):
     if '.' in name:
         name = name.split('.')[0]
     return name
-
 
 
 def choose_classifier(clf_name, features, y_label, metric):

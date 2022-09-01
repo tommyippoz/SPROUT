@@ -2,10 +2,10 @@ import pandas
 import sklearn
 
 from examples.AutoGluonClassifier import AutoGluonClassifier
-from quail import quail_utils
-from quail.QuailInstance import QuailInstance
-from quail.quail_utils import correlations
-from utils.dataset_utils import load_DIGITS
+from sprout.utils import quail_utils
+from sprout.QuailInstance import QuailInstance
+from sprout.utils.quail_utils import correlations
+from sprout.utils.dataset_utils import load_DIGITS
 
 
 if __name__ == '__main__':
@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
     print("Preparing Trust Calculators...")
 
-    # Building QUAIL instance and adding Entropy, Bayesian and Neighbour-based Calculators
+    # Building SPROUT instance and adding Entropy, Bayesian and Neighbour-based Calculators
     quail = QuailInstance()
     quail.add_calculator_entropy(n_classes=len(label_names))
     quail.add_calculator_bayes(x_train=x_train, y_train=y_train, n_classes=len(label_names))
@@ -44,10 +44,10 @@ if __name__ == '__main__':
     y_proba = classifier.predict_proba(x_test=x_test)
     print("Fit and Prediction completed with Accuracy: " + str(sklearn.metrics.accuracy_score(y_test, y_pred)))
 
-    # Initializing QUAIL dataset for output
+    # Initializing SPROUT dataset for output
     out_df = quail_utils.build_QUAIL_dataset(y_proba, y_pred, y_test, label_names)
 
-    # Calculating Trust Measures with QUAIL
+    # Calculating Trust Measures with SPROUT
     q_df = quail.compute_set_trust(data_set=x_test, y_proba=y_proba, classifier=classifier)
     out_df = pandas.concat([out_df, q_df], axis=1)
     correlations(out_df)

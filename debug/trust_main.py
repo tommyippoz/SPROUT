@@ -5,10 +5,10 @@ import pandas as pd
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
 from utils import dataset_utils
-from quail import quail_utils
-from utils.utils import load_config, choose_classifier, clean_name
+from sprout.utils import quail_utils
+from sprout.utils.general_utils import load_config, choose_classifier, clean_name
 from utils.Classifier import XGB, Bayes, LogisticReg
-from quail.QuailInstance import QuailInstance
+from sprout.QuailInstance import QuailInstance
 
 if __name__ == '__main__':
     """
@@ -55,10 +55,10 @@ if __name__ == '__main__':
                 classifier = choose_classifier(classifier_string, features, y_label, "accuracy")
                 y_proba, y_pred = quail_utils.build_classifier(classifier, x_train, y_train, x_test, y_test)
 
-                # Initializing QUAIL dataset for output
+                # Initializing SPROUT dataset for output
                 out_df = quail_utils.build_QUAIL_dataset(y_proba, y_pred, y_test, label_tags)
 
-                # Calculating Trust Measures with QUAIL
+                # Calculating Trust Measures with SPROUT
                 q_df = quail.compute_set_trust(data_set=x_test, classifier=classifier)
                 out_df = pd.concat([out_df, q_df], axis=1)
 

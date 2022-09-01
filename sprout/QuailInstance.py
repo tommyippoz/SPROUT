@@ -1,10 +1,9 @@
 import numpy as np
 import pandas as pd
 
-from quail.quail_utils import compute_correlation
-from utils import utils
+from sprout.utils import general_utils
 from utils.Classifier import Bayes
-from quail.TrustCalculator import EntropyTrust, ConfidenceInterval, ExternalTrust, CombinedTrust, MultiCombinedTrust, \
+from sprout.TrustCalculator import EntropyTrust, ConfidenceInterval, ExternalTrust, CombinedTrust, MultiCombinedTrust, \
     NeighborsTrust, LimeTrust, SHAPTrust, MonteCarlo, FeatureBagging
 
 
@@ -12,7 +11,7 @@ class QuailInstance:
 
     def __init__(self):
         """
-        Constructor for the QUAIL object
+        Constructor for the SPROUT object
         """
         self.trust_calculators = []
 
@@ -45,7 +44,7 @@ class QuailInstance:
         for calculator in self.trust_calculators:
             if verbose:
                 print("Calculating Trust Strategy: " + calculator.trust_strategy_name())
-            start_ms = utils.current_ms()
+            start_ms = general_utils.current_ms()
             trust_scores = calculator.trust_scores(data_set, y_proba, classifier)
             if type(trust_scores) is dict:
                 for key in trust_scores:
@@ -53,8 +52,8 @@ class QuailInstance:
             else:
                 out_df[calculator.trust_strategy_name()] = trust_scores
             if verbose:
-                print("Completed in " + str(utils.current_ms() - start_ms) + " ms for " + str(len(data_set)) +
-                      " items, " + str((utils.current_ms() - start_ms) / len(data_set)) + " ms per item")
+                print("Completed in " + str(general_utils.current_ms() - start_ms) + " ms for " + str(len(data_set)) +
+                      " items, " + str((general_utils.current_ms() - start_ms) / len(data_set)) + " ms per item")
 
         # Chooses output format
         if as_pandas:
@@ -64,7 +63,7 @@ class QuailInstance:
 
     def add_all_calculators(self, x_train, y_train, label_names, feature_names, combined_clf, combined_clfs):
         """
-        Adds all trust calculators to the QUAIL object
+        Adds all trust calculators to the SPROUT object
         :param x_train: features in the train set
         :param y_train: labels in the train set
         :param label_names: unique names in the label

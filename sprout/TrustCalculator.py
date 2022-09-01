@@ -1,4 +1,3 @@
-import math
 import random
 
 import lime
@@ -17,8 +16,7 @@ from collections import Counter
 from sklearn.tree import DecisionTreeClassifier
 from tqdm import tqdm
 
-from utils import utils
-from quail.quail_utils import get_classifier_name
+from sprout.utils.quail_utils import get_classifier_name
 
 
 class TrustCalculator:
