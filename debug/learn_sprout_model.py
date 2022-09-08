@@ -2,6 +2,7 @@ import copy
 import os
 
 import joblib
+import numpy
 import numpy as np
 import pandas
 import pandas as pd
@@ -24,14 +25,14 @@ from sprout.utils.sprout_utils import build_classifier, build_QUAIL_dataset, get
 
 # Vars for Generating Uncertainties
 INTERMEDIATE_FOLDER = "./output_folder"
-GENERATE_UNCERTAINTIES = True
+GENERATE_UNCERTAINTIES = False
 FILE_AVOID_TAG = None
 
 # Vars for Learning Model
-ANALYSIS_AVOID_TAG = []
+ANALYSIS_AVOID_TAGS = {"all": None, "no_xgb": ["XGB"]}
 MODELS_FOLDER = "../models/"
 MODEL_NAME = "big_clf"
-MISC_RATIOS = []
+MISC_RATIOS = [None, 0.05, 0.1, 0.2, 0.5]
 
 
 def compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limit_rows, out_folder):
@@ -101,15 +102,9 @@ def load_uncertainty_datasets(datasets_folder, train_split=0.5, avoid_tags=[],
                               label_name="is_misclassification", clean_data=True):
     big_data = []
     for file in os.listdir(datasets_folder):
-        if file.endswith(".csv") and ((avoid_tags is None) or (len(avoid_tags) == 0)):
-            has_tag = False
-            for tag in avoid_tags:
-                if tag in file:
-                    has_tag = True
-                    break
-            if not has_tag:
-                df = pandas.read_csv(datasets_folder + "/" + file)
-                big_data.append(df)
+        if file.endswith(".csv") and ((avoid_tags is None) or (len(avoid_tags) == 0) or not any(x in file for x in avoid_tags)):
+            df = pandas.read_csv(datasets_folder + "/" + file)
+            big_data.append(df)
     big_data = pandas.concat(big_data)
 
     big_data = big_data.sample(frac=1.0)
@@ -132,24 +127,24 @@ def load_uncertainty_datasets(datasets_folder, train_split=0.5, avoid_tags=[],
 
     return x_tr, y_tr, x_te, y_te, features, misc_frac
 
+
 def sample_data(x, y, ratio):
+
+    # Creating DataFrame
     df = pd.DataFrame(x.copy())
     df["is_misclassification"] = y
-    df = sample_df(df, ratio)
-    df = df.sample(frac=1.0)
-    y = df["is_misclassification"].to_numpy()
-    df = df.drop(["is_misclassification"], axis=1)
-    return df.to_numpy(), y
-
-def sample_df(df, ratio):
     normal_frame = df.loc[df["is_misclassification"] == 0]
     misc_frame = df.loc[df["is_misclassification"] == 1]
 
+    # Scaling to 'ratio'
     df_ratio = len(misc_frame.index) / len(normal_frame.index)
     if df_ratio < ratio:
-        normal_frame = normal_frame.sample(frac=(df_ratio / (2*ratio)))
+        normal_frame = normal_frame.sample(frac=(df_ratio / (2 * ratio)))
+    df = pd.concat([normal_frame, misc_frame])
+    df = df.sample(frac=1.0)
 
-    return pd.concat([normal_frame, misc_frame])
+    return df.drop(["is_misclassification"], axis=1).to_numpy(), df["is_misclassification"].to_numpy()
+
 
 if __name__ == '__main__':
     """
@@ -166,58 +161,82 @@ if __name__ == '__main__':
     if GENERATE_UNCERTAINTIES or len(os.listdir(INTERMEDIATE_FOLDER)) == 0:
         compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limit_rows, INTERMEDIATE_FOLDER)
 
-    # Merging data into a unique Dataset for training Misclassification Predictors
-    x_train, y_train, x_test, y_test, features, m_frac = \
-        load_uncertainty_datasets(INTERMEDIATE_FOLDER, avoid_tags=ANALYSIS_AVOID_TAG, train_split=0.5)
+    for analysis_desc in ANALYSIS_AVOID_TAGS:
 
-    # Classifiers for Detection
-    m_frac = 0.5 if m_frac > 0.5 else m_frac
-    CLASSIFIERS = [XGB(),
-                   RandomForestClassifier(),
-                   COPOD(contamination=m_frac),
-                   CBLOF(contamination=m_frac),
-                   TabNet(metric="auc"),
-                   FastAI(feature_names=features, label_name="is_misclassification", verbose=0, metric="roc_auc")]
+        print("---------------------------------------------------------\n"
+              "Analysis using tag:" + analysis_desc + "\n"
+              "---------------------------------------------------------\n")
 
-    # Training Binary Classifiers to Predict Misclassifications
-    best_clf = None
-    best_ratio = None
-    best_mcc = -1
+        # Merging data into a unique Dataset for training Misclassification Predictors
+        x_train, y_train, x_test, y_test, features, m_frac = \
+            load_uncertainty_datasets(INTERMEDIATE_FOLDER,
+                                      avoid_tags=ANALYSIS_AVOID_TAGS[analysis_desc],
+                                      train_split=0.5)
 
-    # Formatting MISC_RATIOS
-    if MISC_RATIOS is None or len(MISC_RATIOS) == 0:
-        MISC_RATIOS = [None]
+        # Classifiers for Detection
+        m_frac = 0.5 if m_frac > 0.5 else m_frac
+        CLASSIFIERS = [XGB(),
+                       RandomForestClassifier(),
+                       # COPOD(contamination=m_frac),
+                       # CBLOF(contamination=m_frac),
+                       # TabNet(metric="auc"),
+                       # FastAI(feature_names=features, label_name="is_misclassification", verbose=0, metric="roc_auc")
+                       ]
 
-    for clf_base in CLASSIFIERS:
-        clf_name = get_classifier_name(clf_base)
-        for ratio in MISC_RATIOS:
-            clf = copy.deepcopy(clf_base)
-            if ratio is not None:
-                x_tr, y_tr = sample_data(x_train, y_train, ratio)
-            else:
-                x_tr = x_train
-                y_tr = y_train
-            clf.fit(x_tr, y_tr)
-            y_pred = clf.predict(x_test)
-            mcc = sklearn.metrics.matthews_corrcoef(y_test, y_pred)
-            print("[" + clf_name + "][ratio=" + str(ratio) + "] Accuracy: " + str(sklearn.metrics.accuracy_score(y_test, y_pred))
-                  + " and MCC of " + str(mcc))
-            if mcc > best_mcc:
-                best_ratio = ratio
-                best_clf = clf
-                best_mcc = mcc
+        # Training Binary Classifiers to Predict Misclassifications
+        best_clf = None
+        best_ratio = None
+        best_mcc = -1
 
-    print("\nBest classifier is " + get_classifier_name(best_clf) + "/" + str(best_ratio) + " with MCC = " + str(best_mcc))
+        # Formatting MISC_RATIOS
+        if MISC_RATIOS is None or len(MISC_RATIOS) == 0:
+            MISC_RATIOS = [None]
 
-    # Storing the classifier to be used for Predicting Misclassifications of a Generic Classifier.
-    model_file = MODELS_FOLDER + MODEL_NAME + ".joblib"
-    joblib.dump(best_clf, model_file)
+        for clf_base in CLASSIFIERS:
+            clf_name = get_classifier_name(clf_base)
+            for ratio in MISC_RATIOS:
+                clf = copy.deepcopy(clf_base)
+                if ratio is not None:
+                    x_tr, y_tr = sample_data(x_train, y_train, ratio)
+                else:
+                    x_tr = x_train
+                    y_tr = y_train
+                clf.fit(x_tr, y_tr)
+                y_pred = clf.predict(x_test)
+                mcc = sklearn.metrics.matthews_corrcoef(y_test, y_pred)
+                print("[" + clf_name + "][ratio=" + str(ratio) + "] Accuracy: " + str(sklearn.metrics.accuracy_score(y_test, y_pred))
+                      + " and MCC of " + str(mcc))
+                if mcc > best_mcc:
+                    best_ratio = ratio
+                    best_clf = clf
+                    best_mcc = mcc
 
-    # Tests if storing was successful
-    clf_obj = joblib.load(model_file)
-    y_p = clf_obj.predict(x_test)
-    if sklearn.metrics.matthews_corrcoef(y_test, y_p) == best_mcc:
-        print("Model stored successfully at '" + model_file + "'")
-    else:
-        print("Error while storing the model - file corrupted")
-    # TBA
+        print("\nBest classifier is " + get_classifier_name(best_clf) + "/" + str(best_ratio) + " with MCC = " + str(best_mcc))
+
+        # Storing the classifier to be used for Predicting Misclassifications of a Generic Classifier.
+        model_file = MODELS_FOLDER + MODEL_NAME + "_" + analysis_desc + ".joblib"
+        joblib.dump(best_clf, model_file)
+
+        # Tests if storing was successful
+        clf_obj = joblib.load(model_file)
+        y_p = clf_obj.predict(x_test)
+        if sklearn.metrics.matthews_corrcoef(y_test, y_p) == best_mcc:
+            print("Model stored successfully at '" + model_file + "'")
+        else:
+            print("Error while storing the model - file corrupted")
+
+        # Printing files with Details
+        det_dict = {"analysis tag": analysis_desc,
+                    "classifier": get_classifier_name(best_clf),
+                    "train data size": len(y_train),
+                    "train data features": numpy.asarray(features),
+                    "original misclassification ratio": m_frac,
+                    "actual misclassification ratio": best_ratio,
+                    "test_mcc": best_mcc}
+        with open(MODELS_FOLDER + MODEL_NAME + "_" + analysis_desc + ".txt", 'w') as f:
+            for key, value in det_dict.items():
+                f.write('%s:%s\n' % (key, value))
+        f_imp = dict(zip(numpy.asarray(features), best_clf.feature_importances_))
+        with open(MODELS_FOLDER + MODEL_NAME + "_" + analysis_desc + "_feature_importances.csv", 'w') as f:
+            for key, value in f_imp.items():
+                f.write('%s,%s\n' % (key, value))

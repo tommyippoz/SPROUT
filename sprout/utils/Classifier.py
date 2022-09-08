@@ -69,7 +69,7 @@ class Classifier:
         """
         return -1
 
-    def feature_importances(self):
+    def feature_importances_(self):
         """
         Outputs feature ranking in building a Classifier
         :return: ndarray containing feature ranks
