@@ -105,6 +105,11 @@ def process_tabular_dataset(dataset_name, label_name, limit):
     # Loading Dataset
     df = pd.read_csv(dataset_name, sep=",")
 
+    # Shuffle
+    df = df.sample(frac=1.0)
+    df = df.fillna(0)
+    df = df.replace('null', 0)
+
     # Testing Purposes
     if (np.isfinite(limit)) & (limit < len(df.index)):
         df = df[0:limit]

@@ -4,7 +4,8 @@ import time
 
 import numpy as np
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, BaggingClassifier
+from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 
 from sprout.utils.Classifier import XGB, TabNet, FastAI, GBM, KNeighbors, LogisticReg
@@ -81,18 +82,20 @@ def clean_name(file):
 def choose_classifier(clf_name, features, y_label, metric):
     if clf_name in {"XGB", "XGBoost"}:
         return XGB()
-    elif clf_name in {"DTree", "DecisionTree"}:
-        return DecisionTreeClassifier(depth=100)
+    elif clf_name in {"DT", "DTree", "DecisionTree"}:
+        return DecisionTreeClassifier()
     elif clf_name in {"KNN", "knn", "kNN", "KNeighbours"}:
         return KNeighbors(k=11)
+    elif clf_name in {"SVM"}:
+        return BaggingClassifier(SVC(gamma='auto', probability=True), max_samples=0.1, n_estimators=10)
     elif clf_name in {"LDA"}:
         return LinearDiscriminantAnalysis()
     elif clf_name in {"Regression", "LogisticRegression", "LR"}:
         return LogisticReg()
     elif clf_name in {"RF", "RandomForest"}:
         return RandomForestClassifier(n_estimators=10)
-    elif clf_name in {"TabNet", "Tabnet"}:
-        return TabNet(metric)
+    elif clf_name in {"TabNet", "Tabnet", "TN"}:
+        return TabNet(metric="auc", verbose=2)
     elif clf_name in {"FastAI", "FASTAI", "fastai"}:
         return FastAI(feature_names=features, label_name=y_label, metric=metric)
     elif clf_name in {"GBM", "LightGBM"}:

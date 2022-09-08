@@ -1,4 +1,5 @@
 import numpy as np
+import pandas
 import pandas as pd
 from xgboost import XGBClassifier
 from sklearn.tree import DecisionTreeClassifier
@@ -136,16 +137,28 @@ class TabNet(Classifier):
     Wrapper for the torch.tabnet algorithm
     """
 
-    def __init__(self, metric=None):
-        Classifier.__init__(self, TabNetClassifier())
+    def __init__(self, metric=None, verbose=0):
+        Classifier.__init__(self, TabNetClassifier(verbose=verbose))
         self.metric = metric
 
     def fit(self, x_train, y_train):
+        if isinstance(x_train, pandas.DataFrame):
+            x_train = x_train.to_numpy()
         if self.metric is None:
-            self.model.fit(X_train=x_train.to_numpy(), y_train=y_train, eval_metric=['auc'])
+            self.model.fit(X_train=x_train, y_train=y_train, eval_metric=['auc'])
         else:
-            self.model.fit(X_train=x_train.to_numpy(), y_train=y_train, eval_metric=[self.metric])
+            self.model.fit(X_train=x_train, y_train=y_train, eval_metric=[self.metric])
         self.trained = True
+
+    def predict(self, x_test):
+        if isinstance(x_test, pandas.DataFrame):
+            x_test = x_test.to_numpy()
+        return self.model.predict(x_test)
+
+    def predict_proba(self, x_test):
+        if isinstance(x_test, pandas.DataFrame):
+            x_test = x_test.to_numpy()
+        return self.model.predict_proba(x_test)
 
     def classifier_name(self):
         return "TabNet"

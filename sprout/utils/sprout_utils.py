@@ -37,7 +37,7 @@ def build_classifier(classifier, x_train, y_train, x_test, y_test, verbose=True)
     :return: probabilities and predictions of the classifier
     """
     if verbose:
-        print("\nBuilding classifier: " + classifier.classifier_name() + "\n")
+        print("\nBuilding classifier: " + get_classifier_name(classifier) + "\n")
 
     # Fitting classifier
     start_ms = current_ms()
@@ -58,7 +58,7 @@ def build_classifier(classifier, x_train, y_train, x_test, y_test, verbose=True)
         y_proba = y_proba.to_numpy()
 
     if verbose:
-        print(classifier.classifier_name() + " train/test in " + str(train_ms - start_ms) + "/" +
+        print(get_classifier_name(classifier) + " train/test in " + str(train_ms - start_ms) + "/" +
               str(test_time) + " ms with Accuracy: " + str(sk.metrics.accuracy_score(y_test, y_pred)))
 
     return y_proba, y_pred
