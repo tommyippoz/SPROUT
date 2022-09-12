@@ -82,7 +82,11 @@ class Classifier:
         Outputs feature ranking in building a Classifier
         :return: ndarray containing feature ranks
         """
-        return self.model.feature_importances_
+        if hasattr(self.model, 'feature_importances_'):
+            return self.model.feature_importances_
+        elif hasattr(self.model, 'coef_'):
+            return numpy.sum(numpy.absolute(self.model.coef_), axis=0)
+        return []
 
     def classifier_name(self):
         """

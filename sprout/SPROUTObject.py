@@ -163,7 +163,7 @@ class SPROUTObject:
         self.trust_calculators.append(FeatureBagging(x_train, y_train, n_baggers))
 
     def predict_misclassifications(self, model_tag, trust_set):
-        clf = load_model(model_tag)
+        clf = self.load_model(model_tag)
         if clf is not None:
             if isinstance(trust_set, pandas.DataFrame):
                 x_test = trust_set.to_numpy()

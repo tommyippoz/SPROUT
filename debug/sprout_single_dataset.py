@@ -17,7 +17,7 @@ from sprout.SPROUTObject import SPROUTObject
 from sprout.utils.sprout_utils import get_classifier_name
 
 MODELS_FOLDER = "../models/"
-MODEL_TAG = "big_clf"
+MODEL_TAG = "big_clf_all"
 OUTPUT_FOLDER = "./output_folder/"
 
 if __name__ == '__main__':
@@ -52,7 +52,7 @@ if __name__ == '__main__':
                     dataset_utils.process_image_dataset(dataset_file, limit_rows)
 
             print("Preparing Trust Calculators...")
-            sprout_obj = SPROUTObject()
+            sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
             sprout_obj.add_all_calculators(x_train=x_train,
                                            y_train=y_train,
                                            label_names=label_tags,
@@ -77,6 +77,7 @@ if __name__ == '__main__':
 
                 # Calculating Trust Measures with SPROUT
                 sp_df = sprout_obj.compute_set_trust(data_set=x_test, classifier=classifier)
+                sp_df = sp_df.select_dtypes(exclude=['object'])
                 out_df = pd.concat([out_df, sp_df], axis=1)
 
                 # Printing Dataframe
