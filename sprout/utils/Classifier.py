@@ -1,3 +1,4 @@
+import numpy
 import numpy as np
 import pandas
 import pandas as pd
@@ -28,6 +29,11 @@ class Classifier:
         """
         self.model = model
         self.trained = False
+        self._estimator_type = "classifier"
+        self.classes_ = None
+        self.feature_importances_ = None
+        self.X_ = None
+        self.y_ = None
 
     def fit(self, x_train, y_train):
         """
@@ -39,6 +45,8 @@ class Classifier:
             self.model.fit(x_train.values, y_train)
         else:
             self.model.fit(x_train, y_train)
+        self.classes_ = numpy.unique(y_train)
+        self.feature_importances_ = self.compute_feature_importances()
         self.trained = True
 
     def is_trained(self):
@@ -69,7 +77,7 @@ class Classifier:
         """
         return -1
 
-    def feature_importances_(self):
+    def compute_feature_importances(self):
         """
         Outputs feature ranking in building a Classifier
         :return: ndarray containing feature ranks
@@ -94,6 +102,7 @@ class UnsupervisedClassifier(Classifier):
 
     def fit(self, x_train, y_train):
         self.model.fit(x_train.values)
+        self.classes_ = numpy.unique(y_train)
         self.trained = True
 
     def predict_confidence(self, x_test):
@@ -121,13 +130,6 @@ class XGB(Classifier):
             Classifier.__init__(self, XGBClassifier(n_estimators=n_trees, use_label_encoder=False,
                                                     eval_metric=(self.metric if self.metric is not None else "logloss")))
 
-    def fit(self, x_train, y_train):
-        if isinstance(x_train, pd.DataFrame):
-            self.model.fit(x_train.values, y_train)
-        else:
-            self.model.fit(x_train, y_train)
-        self.trained = True
-
     def classifier_name(self):
         return "XGBoost"
 
@@ -145,9 +147,11 @@ class TabNet(Classifier):
         if isinstance(x_train, pandas.DataFrame):
             x_train = x_train.to_numpy()
         if self.metric is None:
-            self.model.fit(X_train=x_train, y_train=y_train, eval_metric=['auc'])
+            self.model.fit(X_train=x_train, y_train=y_train, max_epochs=10, batch_size=4096, eval_metric=['auc'])
         else:
-            self.model.fit(X_train=x_train, y_train=y_train, eval_metric=[self.metric])
+            self.model.fit(X_train=x_train, y_train=y_train, max_epochs=10, batch_size=4096, eval_metric=[self.metric])
+        self.classes_ = numpy.unique(y_train)
+        self.feature_importances_ = self.compute_feature_importances()
         self.trained = True
 
     def predict(self, x_test):
@@ -191,9 +195,11 @@ class AutoGluon(Classifier):
         df[self.label_name] = y_train
         self.model.fit(train_data=df, hyperparameters={self.clf_name:{}})
         self.feature_importance = self.model.feature_importance(df)
+        self.feature_importances_ = self.compute_feature_importances()
+        self.classes_ = numpy.unique(y_train)
         self.trained = True
 
-    def feature_importances(self):
+    def compute_feature_importances(self):
         importances = []
         for feature in self.feature_names:
             if feature in self.feature_importance.importance.index.tolist():

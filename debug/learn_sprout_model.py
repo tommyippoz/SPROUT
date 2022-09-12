@@ -23,16 +23,18 @@ from sprout.utils.general_utils import load_config, choose_classifier, clean_nam
 from sprout.SPROUTObject import SPROUTObject
 from sprout.utils.sprout_utils import build_classifier, build_QUAIL_dataset, get_classifier_name
 
+import matplotlib.pyplot as plt
+
 # Vars for Generating Uncertainties
-INTERMEDIATE_FOLDER = "./output_folder"
+INTERMEDIATE_FOLDER = "./datasets_measures/NIDS/"
 GENERATE_UNCERTAINTIES = False
 FILE_AVOID_TAG = None
 
 # Vars for Learning Model
-ANALYSIS_AVOID_TAGS = {"all": None, "no_xgb": ["XGB"]}
+ANALYSIS_AVOID_TAGS = {"all": None, "no_dt": ["DecisionTree"], "no_dt_lr": ["DecisionTree", "Logistic"]}
 MODELS_FOLDER = "../models/"
-MODEL_NAME = "big_clf"
-MISC_RATIOS = [None, 0.05, 0.1, 0.2, 0.5]
+MODEL_NAME = "nids"
+MISC_RATIOS = [None, 0.05, 0.1, 0.2]
 
 
 def compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limit_rows, out_folder):
@@ -113,6 +115,7 @@ def load_uncertainty_datasets(datasets_folder, train_split=0.5, avoid_tags=[],
 
     # Cleaning Data
     if clean_data:
+        big_data = big_data.drop(columns=["true_label", "predicted_label"])
         big_data = big_data.select_dtypes(exclude=['object'])
 
     # Creating train-test split
@@ -176,17 +179,17 @@ if __name__ == '__main__':
         # Classifiers for Detection
         m_frac = 0.5 if m_frac > 0.5 else m_frac
         CLASSIFIERS = [XGB(),
-                       RandomForestClassifier(),
-                       # COPOD(contamination=m_frac),
-                       # CBLOF(contamination=m_frac),
-                       # TabNet(metric="auc"),
-                       # FastAI(feature_names=features, label_name="is_misclassification", verbose=0, metric="roc_auc")
+                       #RandomForestClassifier(),
+                       #COPOD(contamination=m_frac),
+                       #CBLOF(contamination=m_frac),
+                       TabNet(metric="auc", verbose=0),
+                       #FastAI(feature_names=features, label_name="is_misclassification", verbose=2, metric="roc_auc")
                        ]
 
         # Training Binary Classifiers to Predict Misclassifications
         best_clf = None
         best_ratio = None
-        best_mcc = -1
+        best_metrics = {"MCC": -10}
 
         # Formatting MISC_RATIOS
         if MISC_RATIOS is None or len(MISC_RATIOS) == 0:
@@ -206,12 +209,22 @@ if __name__ == '__main__':
                 mcc = sklearn.metrics.matthews_corrcoef(y_test, y_pred)
                 print("[" + clf_name + "][ratio=" + str(ratio) + "] Accuracy: " + str(sklearn.metrics.accuracy_score(y_test, y_pred))
                       + " and MCC of " + str(mcc))
-                if mcc > best_mcc:
+                if mcc > best_metrics["MCC"]:
                     best_ratio = ratio
                     best_clf = clf
-                    best_mcc = mcc
+                    [tn, fp], [fn, tp] = sklearn.metrics.confusion_matrix(y_test, y_pred)
+                    best_metrics = {"MCC": mcc,
+                                    "Accuracy": sklearn.metrics.accuracy_score(y_test, y_pred),
+                                    "AUC ROC": sklearn.metrics.roc_auc_score(y_test, y_pred),
+                                    "Precision": sklearn.metrics.precision_score(y_test, y_pred),
+                                    "Recall": sklearn.metrics.recall_score(y_test, y_pred),
+                                    "TP": tp,
+                                    "TN": tn,
+                                    "FP": fp,
+                                    "FN": fn}
 
-        print("\nBest classifier is " + get_classifier_name(best_clf) + "/" + str(best_ratio) + " with MCC = " + str(best_mcc))
+        print("\nBest classifier is " + get_classifier_name(best_clf) + "/" + str(best_ratio) +
+              " with MCC = " + str(best_metrics["MCC"]))
 
         # Storing the classifier to be used for Predicting Misclassifications of a Generic Classifier.
         model_file = MODELS_FOLDER + MODEL_NAME + "_" + analysis_desc + ".joblib"
@@ -220,7 +233,7 @@ if __name__ == '__main__':
         # Tests if storing was successful
         clf_obj = joblib.load(model_file)
         y_p = clf_obj.predict(x_test)
-        if sklearn.metrics.matthews_corrcoef(y_test, y_p) == best_mcc:
+        if sklearn.metrics.matthews_corrcoef(y_test, y_p) == best_metrics["MCC"]:
             print("Model stored successfully at '" + model_file + "'")
         else:
             print("Error while storing the model - file corrupted")
@@ -232,10 +245,24 @@ if __name__ == '__main__':
                     "train data features": numpy.asarray(features),
                     "original misclassification ratio": m_frac,
                     "actual misclassification ratio": best_ratio,
-                    "test_mcc": best_mcc}
+                    "test_mcc": best_metrics["MCC"],
+                    "test_acc": best_metrics["Accuracy"],
+                    "test_auc": best_metrics["AUC ROC"],
+                    "test_p": best_metrics["Precision"],
+                    "test_r": best_metrics["Recall"],
+                    "test_tp": best_metrics["TP"],
+                    "test_tn": best_metrics["TN"],
+                    "test_fp": best_metrics["FP"],
+                    "test_fn": best_metrics["FN"],
+                    }
         with open(MODELS_FOLDER + MODEL_NAME + "_" + analysis_desc + ".txt", 'w') as f:
             for key, value in det_dict.items():
                 f.write('%s:%s\n' % (key, value))
+
+        # Plot ROC_AUC
+        sklearn.metrics.plot_roc_curve(best_clf, x_test, y_test)
+        plt.savefig(MODELS_FOLDER + MODEL_NAME + "_" + analysis_desc + "_aucroc.png")
+
         f_imp = dict(zip(numpy.asarray(features), best_clf.feature_importances_))
         with open(MODELS_FOLDER + MODEL_NAME + "_" + analysis_desc + "_feature_importances.csv", 'w') as f:
             for key, value in f_imp.items():

@@ -1,4 +1,8 @@
+import os.path
+
+import joblib
 import numpy as np
+import pandas
 import pandas as pd
 from sklearn.naive_bayes import GaussianNB
 
@@ -10,11 +14,12 @@ from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval,
 
 class SPROUTObject:
 
-    def __init__(self):
+    def __init__(self, models_folder):
         """
         Constructor for the SPROUT object
         """
         self.trust_calculators = []
+        self.models_folder = models_folder
 
     def compute_data_trust(self, data_point, classifier, verbose=False, as_pandas=True):
         """
@@ -156,3 +161,28 @@ class SPROUTObject:
 
     def add_calculator_featurebagging(self, x_train, y_train, n_baggers=50):
         self.trust_calculators.append(FeatureBagging(x_train, y_train, n_baggers))
+
+    def predict_misclassifications(self, model_tag, trust_set):
+        clf = load_model(model_tag)
+        if clf is not None:
+            if isinstance(trust_set, pandas.DataFrame):
+                x_test = trust_set.to_numpy()
+            else:
+                x_test = trust_set
+            predictions = clf.predict(x_test)
+            trust_set["pred"] = predictions
+        else:
+            print("Unable to load model with tag '" + str(model_tag) + "'")
+
+        return trust_set, clf
+
+    def load_model(self, model_tag):
+        clf = None
+        if os.path.exists(self.models_folder):
+            model_file = self.models_folder + str(model_tag) + ".joblib"
+            clf = joblib.load(model_file)
+        else:
+            print("Models folder '" + self.models_folder + "' does not exist")
+
+        return clf
+

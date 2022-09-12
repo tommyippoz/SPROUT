@@ -1,0 +1,22 @@
+analysis tag:all
+classifier:XGBoost
+train data size:1024092
+train data features:['Confidence Interval (0.9999%)' 'Entropy Calculator'
+ 'External Calculator (LogisticRegression)'
+ 'Combined Calculator (XGBoost)'
+ 'Multiple Combined Calculator (3 - GBLsLn classifiers)'
+ 'Multiple Combined Calculator (4 - GBBBPePe classifiers)'
+ 'Multiple Combined Calculator (3 - DrRrXt classifiers)'
+ 'Trust Calculator on 19 Neighbors_Trust' 'MonteCarlo Uncertainty'
+ 'FeatureBagging Uncertainty (50)']
+original misclassification ratio:0.02364045417794495
+actual misclassification ratio:None
+test_mcc:0.7326243593320527
+test_acc:0.9891123063162294
+test_auc:0.8018753454360541
+test_p:0.8984346111179589
+test_r:0.6053986710963455
+test_tp:14578
+test_tn:998364
+test_fp:1648
+test_fn:9502
