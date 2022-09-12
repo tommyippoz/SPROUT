@@ -182,7 +182,7 @@ if __name__ == '__main__':
                        #RandomForestClassifier(),
                        #COPOD(contamination=m_frac),
                        #CBLOF(contamination=m_frac),
-                       TabNet(metric="auc", verbose=0),
+                       #TabNet(metric="auc", verbose=0),
                        #FastAI(feature_names=features, label_name="is_misclassification", verbose=2, metric="roc_auc")
                        ]
 
