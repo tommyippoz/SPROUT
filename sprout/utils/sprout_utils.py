@@ -8,7 +8,7 @@ from sprout.utils.Classifier import Classifier
 from sprout.utils.general_utils import current_ms
 
 
-def build_QUAIL_dataset(y_proba, y_pred, y_test, label_tags):
+def build_SPROUT_dataset(y_proba, y_pred, y_test, label_tags):
     """
     Prepares DataFrame to output SPROUT results
     :param y_proba: probabilities assigned by the classifier
