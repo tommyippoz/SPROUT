@@ -1,6 +1,6 @@
 analysis tag:no_dt_lr
 classifier:RandomForestClassifier
-train data size:19000
+train data size:4452674
 train data features:['Confidence Interval (0.9999%)' 'Entropy Calculator'
  'External Calculator (LogisticRegression)'
  'Combined Calculator (XGBoost)'
@@ -9,14 +9,14 @@ train data features:['Confidence Interval (0.9999%)' 'Entropy Calculator'
  'Multiple Combined Calculator (3 - DrRrXt classifiers)'
  'Trust Calculator on 19 Neighbors_Trust' 'MonteCarlo Uncertainty'
  'FeatureBagging Uncertainty (50)']
-original misclassification ratio:0.010342105263157896
+original misclassification ratio:0.06886648337605672
 actual misclassification ratio:None
-test_mcc:0.6952791823032953
-test_acc:0.9938947368421053
-test_auc:0.8028866196839762
-test_p:0.8024691358024691
-test_r:0.6074766355140186
-test_tp:130
-test_tn:18754
-test_fp:32
-test_fn:84
+test_mcc:0.851798292720882
+test_acc:0.9815879177321313
+test_auc:0.9103671777756803
+test_p:0.8966916873207865
+test_r:0.8277813681138985
+test_tp:253614
+test_tn:4117077
+test_fp:29219
+test_fn:52764
