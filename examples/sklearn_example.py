@@ -37,7 +37,7 @@ if __name__ == '__main__':
     print("Fit and Prediction completed with Accuracy: " + str(sklearn.metrics.accuracy_score(y_test, y_pred)))
 
     # Initializing SPROUT dataset for output
-    out_df = sprout_utils.build_QUAIL_dataset(y_proba, y_pred, y_test, label_names)
+    out_df = sprout_utils.build_SPROUT_dataset(y_proba, y_pred, y_test, label_names)
 
     # Calculating Trust Measures with SPROUT
     q_df = sp_obj.compute_set_trust(data_set=x_test, classifier=classifier)

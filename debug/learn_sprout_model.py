@@ -21,7 +21,7 @@ from sprout.utils.Classifier import FastAI, LogisticReg, XGB, TabNet
 from sprout.utils.dataset_utils import process_tabular_dataset, process_image_dataset, is_image_dataset
 from sprout.utils.general_utils import load_config, choose_classifier, clean_name
 from sprout.SPROUTObject import SPROUTObject
-from sprout.utils.sprout_utils import build_classifier, build_QUAIL_dataset, get_classifier_name
+from sprout.utils.sprout_utils import build_classifier, build_SPROUT_dataset, get_classifier_name
 
 import matplotlib.pyplot as plt
 
@@ -88,7 +88,7 @@ def compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limi
                 y_proba, y_pred = build_classifier(classifier, x_train, y_train, x_test, y_test)
 
                 # Initializing SPROUT dataset for output
-                out_df = build_QUAIL_dataset(y_proba, y_pred, y_test, label_tags)
+                out_df = build_SPROUT_dataset(y_proba, y_pred, y_test, label_tags)
 
                 # Calculating Trust Measures with SPROUT
                 q_df = quail.compute_set_trust(data_set=x_test, classifier=classifier)
