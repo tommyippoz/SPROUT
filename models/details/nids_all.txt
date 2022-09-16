@@ -1,0 +1,22 @@
+analysis tag:all
+classifier:GradientBoostingClassifier
+train data size:3828925
+train data features:['Confidence Interval (0.9999%)' 'Entropy Calculator'
+ 'External Calculator (LogisticRegression)'
+ 'Combined Calculator (XGBoost)'
+ 'Multiple Combined Calculator (3 - GBLsLn classifiers)'
+ 'Multiple Combined Calculator (4 - GBBBPePe classifiers)'
+ 'Multiple Combined Calculator (3 - DrRrXt classifiers)'
+ 'Trust Calculator on 19 Neighbors_Trust' 'MonteCarlo Uncertainty'
+ 'FeatureBagging Uncertainty (50)']
+original misclassification ratio:0.118184216196452
+actual misclassification ratio:None
+test_mcc:0.9060611630424963
+test_acc:0.9808316955803522
+test_auc:0.94104014179169
+test_p:0.945443124633876
+test_r:0.8889476303710667
+test_tp:401871
+test_tn:3353660
+test_fp:23190
+test_fn:50204

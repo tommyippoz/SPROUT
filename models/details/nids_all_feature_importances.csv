@@ -1,0 +1,10 @@
+Confidence Interval (0.9999%),0.005700687776626744
+Entropy Calculator,0.008254009481897211
+External Calculator (LogisticRegression),1.7565425238927924e-05
+Combined Calculator (XGBoost),0.07455878131662821
+Multiple Combined Calculator (3 - GBLsLn classifiers),0.0016592038288880126
+Multiple Combined Calculator (4 - GBBBPePe classifiers),0.00031416229925418246
+Multiple Combined Calculator (3 - DrRrXt classifiers),0.27355986145999484
+Trust Calculator on 19 Neighbors_Trust,0.0004088588781440743
+MonteCarlo Uncertainty,0.0003393469604937429
+FeatureBagging Uncertainty (50),0.6351875225728341

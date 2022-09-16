@@ -1,0 +1,22 @@
+analysis tag:all
+classifier:RandomForestClassifier
+train data size:608032
+train data features:['Confidence Interval (0.9999%)' 'Entropy Calculator'
+ 'External Calculator (LogisticRegression)'
+ 'Combined Calculator (XGBoost)'
+ 'Multiple Combined Calculator (3 - GBLsLn classifiers)'
+ 'Multiple Combined Calculator (4 - GBBBPePe classifiers)'
+ 'Multiple Combined Calculator (3 - DrRrXt classifiers)'
+ 'Trust Calculator on 19 Neighbors_Trust' 'MonteCarlo Uncertainty'
+ 'FeatureBagging Uncertainty (50)']
+original misclassification ratio:0.08389107490142385
+actual misclassification ratio:0.1
+test_mcc:0.9663161239214343
+test_acc:0.9947617974682296
+test_auc:0.9895523502938665
+test_p:0.9552184489264303
+test_r:0.9832998146614614
+test_tp:49871
+test_tn:554977
+test_fp:2338
+test_fn:847
