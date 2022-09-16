@@ -19,7 +19,7 @@ from sprout.SPROUTObject import SPROUTObject
 from sprout.utils.sprout_utils import get_classifier_name
 
 MODELS_FOLDER = "../models/"
-MODEL_TAGS = ["bio_all", "full_all", "image_all", "iot_all", "hw_all"]
+MODEL_TAGS = ["bio_all", "full_all", "image_all", "iot_all", "hw_all", "nids_all"]
 OUTPUT_FOLDER = "./output_folder/"
 OUTPUT_LOG_FILE = "single_sprout.csv"
 
@@ -126,7 +126,7 @@ if __name__ == '__main__':
                           get_classifier_name(classifier) + ": av=" + str(availability) + "%, ACC=" + str(sys_ACC) +
                           ", Regular ACC =" + str(clf_acc))
 
-                    with open(OUTPUT_FOLDER + OUTPUT_LOG_FILE, 'w') as f:
+                    with open(OUTPUT_FOLDER + OUTPUT_LOG_FILE, 'a') as f:
                         f.write(dataset_file + "," + get_classifier_name(classifier) + "," + tag + "," +
                                 get_classifier_name(clf) + "," + str(clf_acc) + "," +
                                 str(best_metrics["Accuracy"]) + "," + str(best_metrics["MCC"]) +
