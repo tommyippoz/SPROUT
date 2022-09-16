@@ -1,3 +1,4 @@
+import copy
 import os.path
 
 import joblib
@@ -164,17 +165,18 @@ class SPROUTObject:
 
     def predict_misclassifications(self, model_tag, trust_set):
         clf = self.load_model(model_tag)
+        sp_df = copy.deepcopy(trust_set)
         if clf is not None:
             if isinstance(trust_set, pandas.DataFrame):
-                x_test = trust_set.to_numpy()
+                x_test = sp_df.to_numpy()
             else:
-                x_test = trust_set
+                x_test = sp_df
             predictions = clf.predict(x_test)
-            trust_set["pred"] = predictions
+            sp_df["pred"] = predictions
         else:
             print("Unable to load model with tag '" + str(model_tag) + "'")
 
-        return trust_set, clf
+        return sp_df, clf
 
     def load_model(self, model_tag):
         clf = None

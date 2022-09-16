@@ -1,4 +1,5 @@
 import os
+import warnings
 
 import numpy
 import numpy as np
@@ -18,8 +19,9 @@ from sprout.SPROUTObject import SPROUTObject
 from sprout.utils.sprout_utils import get_classifier_name
 
 MODELS_FOLDER = "../models/"
-MODEL_TAG = "all_all"
+MODEL_TAGS = ["bio_all", "full_all", "image_all", "iot_all", "hw_all"]
 OUTPUT_FOLDER = "./output_folder/"
+OUTPUT_LOG_FILE = "single_sprout.csv"
 
 if __name__ == '__main__':
     """
@@ -29,6 +31,10 @@ if __name__ == '__main__':
 
     # Loading Configuration
     dataset_files, classifier_list, y_label, limit_rows = load_config("config.cfg")
+
+    with open(OUTPUT_FOLDER + OUTPUT_LOG_FILE, 'w') as f:
+        f.write('dataset,classifier,detector_tag,detector_classifier,classifier_acc,detector_acc,detector_mcc,' +
+                'SPROUT_availability,SPROUT_accuracy\n')
 
     for dataset_file in dataset_files:
 
@@ -72,6 +78,7 @@ if __name__ == '__main__':
                 # Building and exercising classifier
                 classifier = choose_classifier(classifier_string, features, y_label, "accuracy")
                 y_proba, y_pred = sprout_utils.build_classifier(classifier, x_train, y_train, x_test, y_test)
+                clf_acc = sklearn.metrics.accuracy_score(y_test, y_pred)
                 y_misc = numpy.multiply(y_pred != y_test, 1)
 
                 # Initializing SPROUT dataset for output
@@ -88,20 +95,39 @@ if __name__ == '__main__':
                 out_df.to_csv(file_out, index=False)
                 print("File '" + file_out + "' Printed")
 
-                predictions_df, clf = sprout_obj.predict_misclassifications(MODEL_TAG, sp_df)
+                for tag in MODEL_TAGS:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        predictions_df, clf = sprout_obj.predict_misclassifications(tag, sp_df)
 
-                y_pred = predictions_df["pred"]
-                y_true = y_misc
-                [tn, fp], [fn, tp] = sklearn.metrics.confusion_matrix(y_true, y_pred)
-                best_metrics = {"MCC": sklearn.metrics.matthews_corrcoef(y_true, y_pred),
-                                "Accuracy": sklearn.metrics.accuracy_score(y_true, y_pred),
-                                "AUC ROC": sklearn.metrics.roc_auc_score(y_true, y_pred),
-                                "Precision": sklearn.metrics.precision_score(y_true, y_pred),
-                                "Recall": sklearn.metrics.recall_score(y_true, y_pred),
-                                "TP": tp,
-                                "TN": tn,
-                                "FP": fp,
-                                "FN": fn}
+                    y_pred = predictions_df["pred"].to_numpy()
+                    y_true = y_misc
+                    [tn, fp], [fn, tp] = sklearn.metrics.confusion_matrix(y_true, y_pred)
+                    best_metrics = {"MCC": sklearn.metrics.matthews_corrcoef(y_true, y_pred),
+                                    "Accuracy": sklearn.metrics.accuracy_score(y_true, y_pred),
+                                    "AUC ROC": sklearn.metrics.roc_auc_score(y_true, y_pred),
+                                    "Precision": sklearn.metrics.precision_score(y_true, y_pred),
+                                    "Recall": sklearn.metrics.recall_score(y_true, y_pred),
+                                    "TP": tp,
+                                    "TN": tn,
+                                    "FP": fp,
+                                    "FN": fn}
 
-                print("\nMisclassification Detector [" + MODEL_TAG + "]: " + get_classifier_name(clf) +
-                      " has ACC = " + str(best_metrics["Accuracy"]) + ", MCC = " + str(best_metrics["MCC"]))
+                    print("Misclassification Detector [" + tag + "]: " + get_classifier_name(clf) +
+                          " for classifier '" + get_classifier_name(classifier) + "' "
+                                                                                  "has ACC = " + str(
+                        best_metrics["Accuracy"]) + ", MCC = " + str(best_metrics["MCC"]))
+
+                    availability = 100.0 * numpy.count_nonzero(y_pred == 0) / len(y_pred)
+                    avail_y = y_misc[y_pred == 0]
+                    sys_ACC = numpy.count_nonzero(avail_y == 0) / len(avail_y)
+
+                    print("SPROUT Scores with clf = " + get_classifier_name(clf) + " and wrapper = " +
+                          get_classifier_name(classifier) + ": av=" + str(availability) + "%, ACC=" + str(sys_ACC) +
+                          ", Regular ACC =" + str(clf_acc))
+
+                    with open(OUTPUT_FOLDER + OUTPUT_LOG_FILE, 'w') as f:
+                        f.write(dataset_file + "," + get_classifier_name(classifier) + "," + tag + "," +
+                                get_classifier_name(clf) + "," + str(clf_acc) + "," +
+                                str(best_metrics["Accuracy"]) + "," + str(best_metrics["MCC"]) +
+                                "," + str(availability) + "," + str(sys_ACC) + '\n')
