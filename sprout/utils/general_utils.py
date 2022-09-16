@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestClassifier, BaggingClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 
-from sprout.utils.Classifier import XGB, TabNet, FastAI, GBM, KNeighbors, LogisticReg
+from sprout.utils.Classifier import XGB, TabNet, KNeighbors, LogisticReg
 
 
 def load_config(file_config):
@@ -96,9 +96,9 @@ def choose_classifier(clf_name, features, y_label, metric):
         return RandomForestClassifier(n_estimators=10)
     elif clf_name in {"TabNet", "Tabnet", "TN"}:
         return TabNet(metric="auc", verbose=2)
-    elif clf_name in {"FastAI", "FASTAI", "fastai"}:
-        return FastAI(feature_names=features, label_name=y_label, metric=metric)
-    elif clf_name in {"GBM", "LightGBM"}:
-        return GBM(feature_names=features, label_name=y_label, metric=metric)
+    # elif clf_name in {"FastAI", "FASTAI", "fastai"}:
+    #     return FastAI(feature_names=features, label_name=y_label, metric=metric)
+    # elif clf_name in {"GBM", "LightGBM"}:
+    #     return GBM(feature_names=features, label_name=y_label, metric=metric)
     else:
         pass
