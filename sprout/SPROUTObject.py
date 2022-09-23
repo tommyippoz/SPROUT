@@ -49,14 +49,14 @@ class SPROUTObject:
             y_proba = classifier.predict_proba(data_set)
         for calculator in self.trust_calculators:
             if verbose:
-                print("Calculating Trust Strategy: " + calculator.trust_strategy_name())
+                print("Calculating Trust Strategy: " + calculator.strategy_name())
             start_ms = general_utils.current_ms()
-            trust_scores = calculator.trust_scores(data_set, y_proba, classifier)
+            trust_scores = calculator.uncertainty_scores(data_set, y_proba, classifier)
             if type(trust_scores) is dict:
                 for key in trust_scores:
-                    out_df[calculator.trust_strategy_name() + "_" + str(key)] = trust_scores[key]
+                    out_df[calculator.strategy_name() + "_" + str(key)] = trust_scores[key]
             else:
-                out_df[calculator.trust_strategy_name()] = trust_scores
+                out_df[calculator.strategy_name()] = trust_scores
             if verbose:
                 print("Completed in " + str(general_utils.current_ms() - start_ms) + " ms for " + str(len(data_set)) +
                       " items, " + str((general_utils.current_ms() - start_ms) / len(data_set)) + " ms per item")

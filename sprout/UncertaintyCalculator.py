@@ -22,13 +22,13 @@ class UncertaintyCalculator:
     Abstract Class for trust calculators. Methods to be overridden are trust_strategy_name and trust_scores
     """
 
-    def trust_strategy_name(self):
+    def strategy_name(self):
         """
         Returns the name of the strategy to calculate trust score (as string)
         """
         pass
 
-    def trust_scores(self, feature_values_array, proba_array, classifier):
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
         Method to compute trust score for a set of data points
         :param classifier: the classifier used for classification
@@ -54,12 +54,10 @@ class EntropyUncertainty(UncertaintyCalculator):
         self.normalization = (-norm_array * np.log2(norm_array)).sum()
         return
 
-    def trust_score(self, feature_values, proba, classifier):
+    def uncertainty_score(self, proba):
         """
         Returns the entropy for a given prediction array
-        :param feature_values: the feature values of the data point
         :param proba: the probability array assigned by the algorithm to the data point
-        :param classifier: the classifier used for classification
         :return: entropy score in the range [0, 1]
         """
 
@@ -68,7 +66,7 @@ class EntropyUncertainty(UncertaintyCalculator):
         entropy = (-p * np.log2(p)).sum()
         return (self.normalization - entropy) / self.normalization
 
-    def trust_scores(self, feature_values_array, proba_array, classifier):
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
         Method to compute trust score for a set of data points
         :param classifier: the classifier used for classification
@@ -81,12 +79,12 @@ class EntropyUncertainty(UncertaintyCalculator):
             feature_values_array = feature_values_array.to_numpy()
         if len(feature_values_array) == len(proba_array):
             for i in range(0, len(proba_array)):
-                trust.append(self.trust_score(feature_values_array[i], proba_array[i], classifier))
+                trust.append(self.uncertainty_score(proba_array[i]))
         else:
             print("Items of the feature set have a different cardinality wrt probabilities")
         return np.asarray(trust)
 
-    def trust_strategy_name(self):
+    def strategy_name(self):
         return 'Entropy Calculator'
 
 
@@ -102,10 +100,10 @@ class NeighborsUncertainty(UncertaintyCalculator):
         self.n_neighbors = k
         self.labels = labels
 
-    def trust_strategy_name(self):
+    def strategy_name(self):
         return 'Trust Calculator on ' + str(self.n_neighbors) + ' Neighbors'
 
-    def trust_scores(self, feature_values, proba, classifier):
+    def uncertainty_scores(self, feature_values, proba, classifier):
         """
         Computes trust by predictng the labels for the k-NN of each data point.
         Trust score ranges from 0 (complete disagreement) to 1 (complete agreement)
@@ -144,7 +142,7 @@ class ExternalUncertainty(UncertaintyCalculator):
         self.trust_measure = EntropyUncertainty(norm)
         print("[ExternalTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
 
-    def trust_scores(self, feature_values_array, proba_array, classifier):
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
         Method to compute trust score for a set of data points
         :param classifier: the classifier used for classification
@@ -152,11 +150,11 @@ class ExternalUncertainty(UncertaintyCalculator):
         :param proba_array: the probability arrays assigned by the algorithm to the data points
         :return: array of trust scores
         """
-        return self.trust_measure.trust_scores(feature_values_array,
-                                               self.del_clf.predict_proba(feature_values_array),
-                                               self.del_clf)
+        return self.trust_measure.uncertainty_scores(feature_values_array,
+                                                     self.del_clf.predict_proba(feature_values_array),
+                                                     self.del_clf)
 
-    def trust_strategy_name(self):
+    def strategy_name(self):
         return 'External Calculator (' + get_classifier_name(self.del_clf) + ')'
 
 
@@ -174,7 +172,7 @@ class CombinedUncertainty(UncertaintyCalculator):
               str(current_ms() - start_time) + " ms")
         self.trust_measure = EntropyUncertainty(norm)
 
-    def trust_scores(self, feature_values_array, proba_array, classifier):
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
         Returns the combined trust calculated using the main classifier plus the additional classifier
         Score ranges from
@@ -189,13 +187,13 @@ class CombinedUncertainty(UncertaintyCalculator):
         """
         pred = classifier.predict(feature_values_array)
         other_pred = self.del_clf.predict(feature_values_array)
-        entropy = self.trust_measure.trust_scores(feature_values_array, proba_array, classifier)
-        other_entropy = self.trust_measure.trust_scores(feature_values_array,
-                                                        self.del_clf.predict_proba(feature_values_array),
-                                                        self.del_clf)
+        entropy = self.trust_measure.uncertainty_scores(feature_values_array, proba_array, classifier)
+        other_entropy = self.trust_measure.uncertainty_scores(feature_values_array,
+                                                              self.del_clf.predict_proba(feature_values_array),
+                                                              self.del_clf)
         return np.where(pred == other_pred, (entropy + other_entropy) / 2, -(entropy + other_entropy) / 2)
 
-    def trust_strategy_name(self):
+    def strategy_name(self):
         return 'Combined Calculator (' + get_classifier_name(self.del_clf) + ')'
 
 
@@ -216,7 +214,7 @@ class MultiCombinedUncertainty(UncertaintyCalculator):
         print("[MultiCombinedTrust] Fitting of " + str(len(clf_set)) + " classifiers completed in "
               + str(current_ms() - start_time) + " ms")
 
-    def trust_scores(self, feature_values_array, proba_array, classifier):
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
         Returns the combined trust averaged over many combined classifiers
         Score ranges from
@@ -231,10 +229,10 @@ class MultiCombinedUncertainty(UncertaintyCalculator):
         """
         multi_trust = np.zeros(len(feature_values_array))
         for combined_trust in self.trust_set:
-            multi_trust = multi_trust + combined_trust.trust_scores(feature_values_array, proba_array, classifier)
+            multi_trust = multi_trust + combined_trust.uncertainty_scores(feature_values_array, proba_array, classifier)
         return multi_trust / len(self.trust_set)
 
-    def trust_strategy_name(self):
+    def strategy_name(self):
         return 'Multiple Combined Calculator (' + str(self.tag) + ' classifiers)'
 
 
@@ -257,12 +255,10 @@ class ConfidenceInterval(UncertaintyCalculator):
                                                                     loc=np.mean(feature),
                                                                     scale=scipy.stats.sem(feature)))
 
-    def trust_score(self, feature_values, proba, classifier):
+    def uncertainty_score(self, feature_values):
         """
         Returns the degree to which a data point complies with a confidence interval. Agnostic of the classifier
         :param feature_values: the feature values of the data point
-        :param proba: the probability array assigned by the algorithm to the data point (UNUSED)
-        :param classifier: the classifier used for classification (UNUSED)
         :return: trust score using confidence intervals
         """
         int_trust = 0
@@ -275,7 +271,7 @@ class ConfidenceInterval(UncertaintyCalculator):
                     int_trust = int_trust + 1
         return int_trust / len(feature_values)
 
-    def trust_scores(self, feature_values_array, proba_array, classifier):
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
         Method to compute trust score for a set of data points
         :param classifier: the classifier used for classification
@@ -288,12 +284,12 @@ class ConfidenceInterval(UncertaintyCalculator):
             feature_values_array = feature_values_array.to_numpy()
         if len(feature_values_array) == len(proba_array):
             for i in range(0, len(proba_array)):
-                trust.append(self.trust_score(feature_values_array[i], proba_array[i], classifier))
+                trust.append(self.trust_score(feature_values_array[i]))
         else:
             print("Items of the feature set have a different cardinality wrt probabilities")
         return np.asarray(trust)
 
-    def trust_strategy_name(self):
+    def strategy_name(self):
         return 'Confidence Interval (' + str(self.confidence_level) + '%)'
 
 
@@ -318,7 +314,7 @@ class MonteCarlo(UncertaintyCalculator):
 
         print("MonteCarlo initialized in " + str(current_ms() - start_time) + " ms")
 
-    def trust_scores(self, feature_values_array, proba_array, classifier):
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
         Returns the trust after executing a given amount of simulations around the feature values
         Score ranges from -1 (likely to be misclassification) to 1 (likely to be correct classification)
@@ -356,7 +352,7 @@ class MonteCarlo(UncertaintyCalculator):
 
         return np.asarray(trust)
 
-    def trust_strategy_name(self):
+    def strategy_name(self):
         return 'MonteCarlo Uncertainty'
 
 
@@ -395,7 +391,7 @@ class FeatureBagging(UncertaintyCalculator):
             classifier.fit(x_train[:, fs], y_train)
             self.classifiers.append(classifier)
 
-    def trust_scores(self, feature_values_array, proba_array, classifier):
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
         Returns the trust after executing a given amount of simulations around the feature values
         Score ranges from 0 (no agreement) to 1 (full agreement)
@@ -423,5 +419,5 @@ class FeatureBagging(UncertaintyCalculator):
 
         return np.asarray(trust)
 
-    def trust_strategy_name(self):
+    def strategy_name(self):
         return 'FeatureBagging Uncertainty (' + str(self.n_baggers) + ")"
