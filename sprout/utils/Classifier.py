@@ -154,9 +154,9 @@ class TabNet(Classifier):
         if isinstance(x_train, pandas.DataFrame):
             x_train = x_train.to_numpy()
         if self.metric is None:
-            self.model.fit(X_train=x_train, y_train=y_train, max_epochs=10, batch_size=4096, eval_metric=['auc'], patience=2)
+            self.model.fit(X_train=x_train, y_train=y_train, max_epochs=20, batch_size=4096, eval_metric=['auc'], patience=2)
         else:
-            self.model.fit(X_train=x_train, y_train=y_train, max_epochs=10, batch_size=4096, eval_metric=[self.metric], patience=2)
+            self.model.fit(X_train=x_train, y_train=y_train, max_epochs=20, batch_size=4096, eval_metric=[self.metric], patience=2)
         self.classes_ = numpy.unique(y_train)
         self.feature_importances_ = self.compute_feature_importances()
         self.trained = True
