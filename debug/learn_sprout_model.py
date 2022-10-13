@@ -8,8 +8,11 @@ import pandas
 import pandas as pd
 import sklearn
 import xgboost
+from pyod.models.auto_encoder import AutoEncoder
 from pyod.models.cblof import CBLOF
 from pyod.models.copod import COPOD
+from pyod.models.hbos import HBOS
+from pyod.models.pca import PCA
 from pytorch_tabnet.tab_model import TabNetClassifier
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
@@ -28,19 +31,19 @@ from sprout.utils.sprout_utils import build_classifier, build_SPROUT_dataset, ge
 import matplotlib.pyplot as plt
 
 # Vars for Generating Uncertainties
-GENERATE_UNCERTAINTIES = False
+GENERATE_UNCERTAINTIES = True
 FILE_AVOID_TAG = None
 
 # Vars for Learning Model
 ANALYSIS_AVOID_TAGS = {"all": None}
 MODELS_FOLDER = "../models/"
-STUDY_TAG = {"iot": "./datasets_measures/IoT/",
-             "hw": "./datasets_measures/HW/",
-             "bio": "./datasets_measures/Biometry/",
-             "image": "./datasets_measures/MNIST/",
-             "nids": "./datasets_measures/NIDS/",
-             "full": "./datasets_measures/all/"}
-MISC_RATIOS = [None, 0.1, 0.2]
+STUDY_TAG = {"iot": "./datasets_measures/IoT",}
+             # "hw": "./datasets_measures/HW/",
+             # "bio": "./datasets_measures/Biometry/",
+             # "image": "./datasets_measures/MNIST/",
+             # "nids": "./datasets_measures/NIDS/",
+             # "full": "./datasets_measures/all/"}
+MISC_RATIOS = [None, 0.1, 0.2, 0.3]
 
 
 def compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limit_rows, out_folder):

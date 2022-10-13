@@ -1,3 +1,4 @@
+import copy
 import random
 
 import numpy
@@ -6,6 +7,7 @@ import pandas as pd
 import scipy.stats
 
 import numpy as np
+from pyod.models.copod import COPOD
 
 from sklearn.neighbors import NearestNeighbors
 from collections import Counter
@@ -13,6 +15,7 @@ from collections import Counter
 from sklearn.tree import DecisionTreeClassifier
 from tqdm import tqdm
 
+from sprout.utils.AutoEncoder import DeepAutoEncoder, SingleAutoEncoder, SingleSparseAutoEncoder
 from sprout.utils.sprout_utils import get_classifier_name
 from sprout.utils.general_utils import current_ms
 
@@ -37,6 +40,35 @@ class UncertaintyCalculator:
         :return: array of trust scores
         """
         pass
+
+
+class MaxProbUncertainty(UncertaintyCalculator):
+    """
+    Computes Trust via Maximum probability assigned to a class for a given data point.
+    Higher probability means high trust / confidence
+    """
+
+    def __init__(self):
+        """
+        Constructor Method
+        """
+        return
+
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
+        """
+        Method to compute trust score for a set of data points
+        :param classifier: the classifier used for classification
+        :param feature_values_array: the feature values of the data points in the test set
+        :param proba_array: the probability arrays assigned by the algorithm to the data points
+        :return: array of trust scores
+        """
+        if proba_array is None:
+            proba_array = classifier.predict_proba(feature_values_array)
+        max_p = numpy.max(proba_array, axis=1)
+        return np.asarray(max_p)
+
+    def strategy_name(self):
+        return 'MaxProb Calculator'
 
 
 class EntropyUncertainty(UncertaintyCalculator):
@@ -131,16 +163,21 @@ class NeighborsUncertainty(UncertaintyCalculator):
         return {"Trust": neighbour_trust, "Detail": neighbour_c}
 
 
-class ExternalUncertainty(UncertaintyCalculator):
+class ExternalSupervisedUncertainty(UncertaintyCalculator):
     """
     Defines a trust strategy that runs an external classifer and calculates its confidence in the result
     """
 
-    def __init__(self, del_clf, x_train, y_train, norm):
+    def __init__(self, del_clf, x_train, y_train, norm, unc_measure='entropy'):
         self.del_clf = del_clf
         self.del_clf.fit(x_train, y_train)
-        self.trust_measure = EntropyUncertainty(norm)
-        print("[ExternalTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
+        if unc_measure == 'entropy':
+            self.trust_measure = EntropyUncertainty(norm)
+        else:
+            self.trust_measure = MaxProbUncertainty()
+            unc_measure = 'max_prob'
+        self.unc_measure = unc_measure
+        print("[ExternalSupTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -155,7 +192,51 @@ class ExternalUncertainty(UncertaintyCalculator):
                                                      self.del_clf)
 
     def strategy_name(self):
-        return 'External Calculator (' + get_classifier_name(self.del_clf) + ')'
+        return 'External Supervised Calculator (' + get_classifier_name(self.del_clf) + '/' \
+               + str(self.unc_measure) + ')'
+
+
+class ExternalUnsupervisedUncertainty(UncertaintyCalculator):
+    """
+    Defines a trust strategy that runs an external classifer and calculates its confidence in the result
+    """
+
+    def __init__(self, del_clf, x_train, norm, unc_measure='entropy'):
+        self.del_clf = del_clf
+        self.del_clf.fit(x_train)
+        if unc_measure == 'entropy':
+            self.trust_measure = EntropyUncertainty(norm)
+        else:
+            self.trust_measure = MaxProbUncertainty()
+            unc_measure = 'max_prob'
+        self.unc_measure = unc_measure
+        print("[ExternalUnsTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
+
+    def unsupervised_predict_proba(self, test_features):
+        proba = self.del_clf.predict_proba(test_features)
+        pred = self.del_clf.predict(test_features)
+        for i in range(len(pred)):
+            min_p = min(proba[i])
+            max_p = max(proba[i])
+            proba[i][pred[i]] = max_p
+            proba[i][1-pred[i]] = min_p
+        return proba
+
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
+        """
+        Method to compute trust score for a set of data points
+        :param classifier: the classifier used for classification
+        :param feature_values_array: the feature values of the data points in the test set
+        :param proba_array: the probability arrays assigned by the algorithm to the data points
+        :return: array of trust scores
+        """
+        return self.trust_measure.uncertainty_scores(feature_values_array,
+                                                     self.unsupervised_predict_proba(feature_values_array),
+                                                     self.del_clf)
+
+    def strategy_name(self):
+        return 'External Unsupervised Calculator (' + get_classifier_name(self.del_clf) + '/' \
+               + str(self.unc_measure) + ')'
 
 
 class CombinedUncertainty(UncertaintyCalculator):
@@ -255,7 +336,7 @@ class ConfidenceInterval(UncertaintyCalculator):
                                                                     loc=np.mean(feature),
                                                                     scale=scipy.stats.sem(feature)))
 
-    def uncertainty_score(self, feature_values):
+    def uncertainty_score(self, feature_values, proba):
         """
         Returns the degree to which a data point complies with a confidence interval. Agnostic of the classifier
         :param feature_values: the feature values of the data point
@@ -284,7 +365,7 @@ class ConfidenceInterval(UncertaintyCalculator):
             feature_values_array = feature_values_array.to_numpy()
         if len(feature_values_array) == len(proba_array):
             for i in range(0, len(proba_array)):
-                trust.append(self.trust_score(feature_values_array[i]))
+                trust.append(self.uncertainty_score(feature_values_array[i], proba_array[i]))
         else:
             print("Items of the feature set have a different cardinality wrt probabilities")
         return np.asarray(trust)
@@ -293,26 +374,23 @@ class ConfidenceInterval(UncertaintyCalculator):
         return 'Confidence Interval (' + str(self.confidence_level) + '%)'
 
 
-class MonteCarlo(UncertaintyCalculator):
+class Proximity_Uncertainty(UncertaintyCalculator):
     """
-    Defines a trust strategy that uses a Monte Carlo simulation for each class
+    Defines a trust strategy that creates artificial neighbours of a data point
+    and checks if the classifier has a unified answer to all of those data points
     """
 
-    def __init__(self, x_train, y_train, mc_iterations=10):
-        self.mc_iterations = mc_iterations
-        self.labels = numpy.unique(y_train)
-        self.averages = {}
-        self.stds = {}
+    def __init__(self, x_train, artificial_points=10, range_wideness=1, weighted=False):
+        self.n_artificial = artificial_points
+        self.range = range_wideness
+        self.weighted = weighted
 
+        start_time = current_ms()
         if isinstance(x_train, pd.DataFrame):
             x_train = x_train.to_numpy()
-        start_time = current_ms()
-        for label in self.labels:
-            data = x_train[numpy.where(y_train == label)[0], :]
-            self.averages[label] = sum(data) / len(data)
-            self.stds[label] = numpy.std(data, axis=0)
+        self.stds = numpy.std(x_train, axis=0)
 
-        print("MonteCarlo initialized in " + str(current_ms() - start_time) + " ms")
+        print("Proximity Uncertainty initialized in " + str(current_ms() - start_time) + " ms")
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -328,32 +406,36 @@ class MonteCarlo(UncertaintyCalculator):
         if isinstance(feature_values_array, pd.DataFrame):
             feature_values_array = feature_values_array.to_numpy()
 
-        # Generating MC Simulations for inputs
+        # Generating MC Artificial inputs
         mc_x = []
         for i in range(len(feature_values_array)):
             features = feature_values_array[i]
-            for _ in range(self.mc_iterations):
-                mc_x.append([random.gauss(m, s)
-                             for m, s in zip(features, self.stds[predicted_classes[i]])])
+            for _ in range(self.n_artificial):
+                mc_x.append([random.gauss(m, s) for m, s in zip(features, self.range*self.stds)])
         mc_x = np.array(mc_x)
 
         # Calculating predictions
-        mc_predict = classifier.predict_proba(mc_x)
+        mc_predict = classifier.predict(mc_x)
 
         # Calculating Uncertainty
         trust = []
         for i in range(len(feature_values_array)):
-            mc_probas = mc_predict[i * self.mc_iterations:(i + 1) * self.mc_iterations, :]
-            mc_avg = sum(mc_probas) / len(mc_probas)
-            score = 1 - numpy.average(numpy.std(mc_probas, axis=0))
-            if numpy.argmax(mc_avg) != predicted_classes[i]:
-                score = -score
+            mc_preds = mc_predict[i * self.n_artificial:(i + 1) * self.n_artificial]
+            if self.weighted:
+                artificial_features = mc_x[i * self.n_artificial:(i + 1) * self.n_artificial, :]
+                distances = [numpy.linalg.norm(af - feature_values_array[i]) for af in artificial_features]
+                relevance = (max(distances) - distances) + 0.1 * max(distances)
+                relevance = relevance / sum(relevance)
+                score = sum((mc_preds == predicted_classes[i]) * relevance)
+            else:
+                score = sum(mc_preds == predicted_classes[i]) / self.n_artificial
             trust.append(score)
 
         return np.asarray(trust)
 
     def strategy_name(self):
-        return 'MonteCarlo Uncertainty'
+        return 'Proximity Uncertainty (' + str(self.n_artificial) + '/' + str(self.range) \
+               + ('/W' if self.weighted else '') + ')'
 
 
 class FeatureBagging(UncertaintyCalculator):
@@ -361,7 +443,7 @@ class FeatureBagging(UncertaintyCalculator):
     Defines a trust strategy that uses a Monte Carlo simulation for each class
     """
 
-    def __init__(self, x_train, y_train, n_baggers=10):
+    def __init__(self, x_train, y_train, n_baggers=10, bag_type='sup'):
         self.feature_sets = []
         self.classifiers = []
         if isinstance(n_baggers, int):
@@ -387,9 +469,16 @@ class FeatureBagging(UncertaintyCalculator):
             fs = random.sample(range(n_features), bag_features)
             fs.sort()
             self.feature_sets.append(fs)
-            classifier = DecisionTreeClassifier()
-            classifier.fit(x_train[:, fs], y_train)
+            if bag_type == 'uns':
+                classifier = COPOD()
+                classifier.fit(x_train[:, fs])
+            else:
+                classifier = DecisionTreeClassifier()
+                classifier.fit(x_train[:, fs], y_train)
+                bag_type = 'sup'
             self.classifiers.append(classifier)
+
+        self.bag_type = bag_type
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -420,4 +509,55 @@ class FeatureBagging(UncertaintyCalculator):
         return np.asarray(trust)
 
     def strategy_name(self):
-        return 'FeatureBagging Uncertainty (' + str(self.n_baggers) + ")"
+        return 'FeatureBagging Uncertainty (' + str(self.n_baggers) + '/' + str(self.bag_type) + ')'
+
+
+class ReconstructionLoss(UncertaintyCalculator):
+    """
+    Defines a trust strategy that uses the reconstruction error of an autoencoder as uncertainty measure
+    """
+
+    def __init__(self, x_train, enc_tag=None):
+        self.ae = None
+        self.enc_tag = enc_tag
+        bottleneck = int(x_train.shape[1] / 4) if x_train.shape[1] > 8 else 2
+        if enc_tag == 'deep':
+            self.ae = DeepAutoEncoder(x_train.shape[1], bottleneck)
+        elif enc_tag == 'sparse':
+            self.ae = SingleSparseAutoEncoder(x_train.shape[1], bottleneck)
+        else:
+            self.enc_tag = 'simple'
+            self.ae = SingleAutoEncoder(x_train.shape[1], bottleneck)
+        norm_tr = copy.deepcopy(x_train)
+        if isinstance(norm_tr, pandas.DataFrame):
+            norm_tr = norm_tr.to_numpy()
+        self.maxmin = []
+        for i in range(0, norm_tr.shape[1]):
+            self.maxmin.append({'min': min(norm_tr[:, i]), 'max': max(norm_tr[:, i])})
+            if self.maxmin[i]['max'] - self.maxmin[i]['min'] != 0:
+                norm_tr[:, i] = (norm_tr[:, i] - self.maxmin[i]['min']) / \
+                                (self.maxmin[i]['max'] - self.maxmin[i]['min'])
+        self.ae.fit(norm_tr, 50, 256, verbose=0)
+
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
+        """
+        Returns the trust after executing a given amount of simulations around the feature values
+        Score ranges from 0 (no agreement) to 1 (full agreement)
+
+        :param classifier: the classifier used for classification
+        :param feature_values_array: the feature values of the data points in the test set
+        :param proba_array: the probability arrays assigned by the algorithm to the data points
+        :return: array of trust scores
+        """
+        norm_te = copy.deepcopy(feature_values_array)
+        if isinstance(norm_te, pandas.DataFrame):
+            norm_te = norm_te.to_numpy()
+        for i in range(0, len(self.maxmin)):
+            if self.maxmin[i]['max'] - self.maxmin[i]['min'] != 0:
+                norm_te[:, i] = (norm_te[:, i] - self.maxmin[i]['min']) / \
+                                (self.maxmin[i]['max'] - self.maxmin[i]['min'])
+        decoded_tr, loss_tr = self.ae.predict(norm_te)
+        return np.asarray(loss_tr)
+
+    def strategy_name(self):
+        return 'AutoEncoder Loss (' + str(self.enc_tag) + ')'
