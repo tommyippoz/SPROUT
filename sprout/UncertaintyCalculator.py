@@ -219,7 +219,7 @@ class ExternalUnsupervisedUncertainty(UncertaintyCalculator):
             min_p = min(proba[i])
             max_p = max(proba[i])
             proba[i][pred[i]] = max_p
-            proba[i][1-pred[i]] = min_p
+            proba[i][1 - pred[i]] = min_p
         return proba
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
@@ -324,33 +324,22 @@ class ConfidenceInterval(UncertaintyCalculator):
 
     def __init__(self, x_train, y_train, confidence_level=0.9999):
         self.confidence_level = confidence_level
-        self.intervals = {}
+        self.intervals_min = {}
+        self.intervals_max = {}
         self.labels = numpy.unique(y_train)
+
         for label in self.labels:
-            self.intervals[label] = []
+            intervals = []
             data = x_train[y_train == label, :]
             for i in range(0, len(x_train[0])):
                 feature = data[:, i]
-                self.intervals[label].append(scipy.stats.t.interval(confidence_level,
-                                                                    len(feature) - 1,
-                                                                    loc=np.mean(feature),
-                                                                    scale=scipy.stats.sem(feature)))
-
-    def uncertainty_score(self, feature_values, proba):
-        """
-        Returns the degree to which a data point complies with a confidence interval. Agnostic of the classifier
-        :param feature_values: the feature values of the data point
-        :return: trust score using confidence intervals
-        """
-        int_trust = 0
-        predicted_label = numpy.argmax(proba)
-        for i in range(0, len(feature_values)):
-            if (np.isfinite(self.intervals[predicted_label][i][0])) & \
-                    (np.isfinite(self.intervals[predicted_label][i][1])):
-                if (feature_values[i] < self.intervals[predicted_label][i][0]) | \
-                        (feature_values[i] > self.intervals[predicted_label][i][1]):
-                    int_trust = int_trust + 1
-        return int_trust / len(feature_values)
+                intervals.append(scipy.stats.t.interval(confidence_level,
+                                                        len(feature) - 1,
+                                                        loc=np.median(feature),
+                                                        scale=scipy.stats.sem(feature)))
+            intervals = numpy.asarray(intervals)
+            self.intervals_min[label] = numpy.asarray(intervals[:, 0])
+            self.intervals_max[label] = numpy.asarray(intervals[:, 1])
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -361,11 +350,14 @@ class ConfidenceInterval(UncertaintyCalculator):
         :return: array of trust scores
         """
         trust = []
+        predicted_labels = numpy.argmax(proba_array, axis=1)
         if isinstance(feature_values_array, pandas.DataFrame):
             feature_values_array = feature_values_array.to_numpy()
         if len(feature_values_array) == len(proba_array):
             for i in range(0, len(proba_array)):
-                trust.append(self.uncertainty_score(feature_values_array[i], proba_array[i]))
+                in_left = (self.intervals_min[predicted_labels[i]] <= feature_values_array[i])
+                in_right = (feature_values_array[i] <= self.intervals_max[predicted_labels[i]])
+                trust.append(numpy.average(in_left*in_right))
         else:
             print("Items of the feature set have a different cardinality wrt probabilities")
         return np.asarray(trust)
@@ -411,7 +403,7 @@ class Proximity_Uncertainty(UncertaintyCalculator):
         for i in range(len(feature_values_array)):
             features = feature_values_array[i]
             for _ in range(self.n_artificial):
-                mc_x.append([random.gauss(m, s) for m, s in zip(features, self.range*self.stds)])
+                mc_x.append([random.gauss(m, s) for m, s in zip(features, self.range * self.stds)])
         mc_x = np.array(mc_x)
 
         # Calculating predictions
@@ -463,7 +455,7 @@ class FeatureBagging(UncertaintyCalculator):
             bag_rate = 0.6
         else:
             bag_rate = 0.5
-        bag_features = int(n_features*bag_rate)
+        bag_features = int(n_features * bag_rate)
 
         for i in tqdm(range(self.n_baggers), "Building Feature Baggers"):
             fs = random.sample(range(n_features), bag_features)
@@ -504,7 +496,7 @@ class FeatureBagging(UncertaintyCalculator):
         # Calculating Uncertainty
         trust = []
         for i in range(len(feature_values_array)):
-            trust.append(sum(fs_pred[i] == predicted_classes[i])/len(fs_pred[i]))
+            trust.append(sum(fs_pred[i] == predicted_classes[i]) / len(fs_pred[i]))
 
         return np.asarray(trust)
 
