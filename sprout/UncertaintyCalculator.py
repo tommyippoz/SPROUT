@@ -4,10 +4,12 @@ import random
 import numpy
 import pandas
 import pandas as pd
+import pyod.models.base
 import scipy.stats
 
 import numpy as np
 from pyod.models.copod import COPOD
+from scipy.stats import stats
 
 from sklearn.neighbors import NearestNeighbors
 from collections import Counter
@@ -317,6 +319,52 @@ class MultiCombinedUncertainty(UncertaintyCalculator):
         return 'Multiple Combined Calculator (' + str(self.tag) + ' classifiers)'
 
 
+class AgreementUncertainty(UncertaintyCalculator):
+    """
+    Defines a trust strategy that measures agreement between a set of classifiers
+    It uses the main classifier plus the additional classifier to calculate an unified confidence score
+    """
+
+    def __init__(self, clf_set, x_train, y_train=None):
+        self.clfs = []
+        self.tag = ""
+        start_time = current_ms()
+        for clf in clf_set:
+            if isinstance(clf, pyod.models.base.BaseDetector):
+                model = clf.fit(x_train)
+            else:
+                model = clf.fit(x_train, y_train)
+            self.clfs.append(model)
+            self.tag = self.tag + get_classifier_name(clf)[0] + get_classifier_name(clf)[-1]
+        self.tag = str(len(self.clfs)) + " - " + self.tag
+        print("[AgreementTrust] Fitting of " + str(len(clf_set)) + " classifiers completed in "
+              + str(current_ms() - start_time) + " ms")
+
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
+        """
+        Returns the combined trust averaged over many combined classifiers
+        Score ranges from
+            0 (complete and strong disagreement between the classifiers) -> low confidence
+        to
+            1, which represents the complete agreement between the classifiers and thus high confidence
+        :param classifier: the classifier used for classification
+        :param feature_values_array: the feature values of the data points in the test set
+        :param proba_array: the probability arrays assigned by the algorithm to the data points
+        :return: array of trust scores
+        """
+        multi_trust = []
+        for clf_model in self.clfs:
+            predictions = numpy.asarray(clf_model.predict(feature_values_array))
+            multi_trust.append(predictions)
+        multi_trust = numpy.asarray(multi_trust)
+        mode_value = stats.mode(multi_trust)
+        scores = numpy.where(multi_trust == mode_value, 1, 0)
+        return numpy.average(scores, axis=1)[0]
+
+    def strategy_name(self):
+        return 'Multiple Combined Calculator (' + str(self.tag) + ' classifiers)'
+
+
 class ConfidenceInterval(UncertaintyCalculator):
     """
     Defines a trust strategy that calculates confidence intervals to derive trust
@@ -324,33 +372,22 @@ class ConfidenceInterval(UncertaintyCalculator):
 
     def __init__(self, x_train, y_train, confidence_level=0.9999):
         self.confidence_level = confidence_level
-        self.intervals = {}
+        self.intervals_min = {}
+        self.intervals_max = {}
         self.labels = numpy.unique(y_train)
+
         for label in self.labels:
-            self.intervals[label] = []
+            intervals = []
             data = x_train[y_train == label, :]
             for i in range(0, len(x_train[0])):
                 feature = data[:, i]
-                self.intervals[label].append(scipy.stats.t.interval(confidence_level,
-                                                                    len(feature) - 1,
-                                                                    loc=np.mean(feature),
-                                                                    scale=scipy.stats.sem(feature)))
-
-    def uncertainty_score(self, feature_values, proba):
-        """
-        Returns the degree to which a data point complies with a confidence interval. Agnostic of the classifier
-        :param feature_values: the feature values of the data point
-        :return: trust score using confidence intervals
-        """
-        int_trust = 0
-        predicted_label = numpy.argmax(proba)
-        for i in range(0, len(feature_values)):
-            if (np.isfinite(self.intervals[predicted_label][i][0])) & \
-                    (np.isfinite(self.intervals[predicted_label][i][1])):
-                if (feature_values[i] < self.intervals[predicted_label][i][0]) | \
-                        (feature_values[i] > self.intervals[predicted_label][i][1]):
-                    int_trust = int_trust + 1
-        return int_trust / len(feature_values)
+                intervals.append(scipy.stats.t.interval(confidence_level,
+                                                        len(feature) - 1,
+                                                        loc=np.median(feature),
+                                                        scale=scipy.stats.sem(feature)))
+            intervals = numpy.asarray(intervals)
+            self.intervals_min[label] = numpy.asarray(intervals[:, 0])
+            self.intervals_max[label] = numpy.asarray(intervals[:, 1])
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -361,11 +398,14 @@ class ConfidenceInterval(UncertaintyCalculator):
         :return: array of trust scores
         """
         trust = []
+        predicted_labels = numpy.argmax(proba_array, axis=1)
         if isinstance(feature_values_array, pandas.DataFrame):
             feature_values_array = feature_values_array.to_numpy()
         if len(feature_values_array) == len(proba_array):
             for i in range(0, len(proba_array)):
-                trust.append(self.uncertainty_score(feature_values_array[i], proba_array[i]))
+                in_left = (self.intervals_min[predicted_labels[i]] <= feature_values_array[i])
+                in_right = (feature_values_array[i] <= self.intervals_max[predicted_labels[i]])
+                trust.append(numpy.average(in_left * in_right))
         else:
             print("Items of the feature set have a different cardinality wrt probabilities")
         return np.asarray(trust)
@@ -374,7 +414,7 @@ class ConfidenceInterval(UncertaintyCalculator):
         return 'Confidence Interval (' + str(self.confidence_level) + '%)'
 
 
-class Proximity_Uncertainty(UncertaintyCalculator):
+class ProximityUncertainty(UncertaintyCalculator):
     """
     Defines a trust strategy that creates artificial neighbours of a data point
     and checks if the classifier has a unified answer to all of those data points

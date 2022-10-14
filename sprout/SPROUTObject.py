@@ -13,8 +13,9 @@ from sklearn.naive_bayes import GaussianNB
 from sprout.utils import general_utils
 from sprout.utils.Classifier import LogisticReg
 from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval, ExternalSupervisedUncertainty, \
-    CombinedUncertainty, MultiCombinedUncertainty, NeighborsUncertainty, Proximity_Uncertainty, FeatureBagging, ReconstructionLoss, \
-    ExternalUnsupervisedUncertainty, MaxProbUncertainty
+    CombinedUncertainty, MultiCombinedUncertainty, NeighborsUncertainty, ProximityUncertainty, FeatureBagging, \
+    ReconstructionLoss, \
+    ExternalUnsupervisedUncertainty, MaxProbUncertainty, AgreementUncertainty
 
 
 class SPROUTObject:
@@ -71,7 +72,7 @@ class SPROUTObject:
         else:
             return out_df.to_numpy()
 
-    def add_all_calculators(self, x_train, y_train, label_names, combined_clf, combined_clfs):
+    def add_all_calculators(self, x_train, y_train, label_names, combined_clf, combined_clfs, agr_clfs):
         """
         Adds all trust calculators to the SPROUT object
         :param x_train: features in the train set
@@ -84,10 +85,11 @@ class SPROUTObject:
         self.add_calculator_maxprob()
         self.add_calculator_entropy(n_classes=len(label_names))
         self.add_calculator_external(classifier=LogisticReg(), x_train=x_train, y_train=y_train, n_classes=len(label_names))
-        self.add_calculator_external(classifier=PCA(), x_train=x_train, n_classes=len(label_names))
         self.add_calculator_combined(classifier=combined_clf, x_train=x_train, y_train=y_train, n_classes=len(label_names))
         for cc in combined_clfs:
             self.add_calculator_multicombined(clf_set=cc, x_train=x_train, y_train=y_train, n_classes=len(label_names))
+        for cc in agr_clfs:
+            self.add_calculator_agreement(clf_set=cc, x_train=x_train, y_train=y_train)
         self.add_calculator_neighbour(x_train=x_train, y_train=y_train, label_names=label_names)
         self.add_calculator_proximity(x_train=x_train)
         self.add_calculator_featurebagging(x_train=x_train, y_train=y_train, n_baggers=50, bag_type='sup')
@@ -175,8 +177,11 @@ class SPROUTObject:
         """
         self.trust_calculators.append(NeighborsUncertainty(x_train=x_train, y_train=y_train, k=k, labels=label_names))
 
+    def add_calculator_agreement(self, clf_set, x_train, y_train=None):
+        self.trust_calculators.append(AgreementUncertainty(clf_set=clf_set, x_train=x_train, y_train=y_train))
+
     def add_calculator_proximity(self, x_train, n_iterations=10, range=0.1, weighted=False):
-        self.trust_calculators.append(Proximity_Uncertainty(x_train, n_iterations, range, weighted))
+        self.trust_calculators.append(ProximityUncertainty(x_train, n_iterations, range, weighted))
 
     def add_calculator_featurebagging(self, x_train, y_train, n_baggers=50, bag_type='sup'):
         self.trust_calculators.append(FeatureBagging(x_train, y_train, n_baggers, bag_type))
