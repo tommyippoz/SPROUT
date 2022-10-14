@@ -7,13 +7,11 @@ import numpy as np
 import pandas
 import pandas as pd
 import sklearn
-import xgboost
-from pyod.models.auto_encoder import AutoEncoder
 from pyod.models.cblof import CBLOF
 from pyod.models.copod import COPOD
 from pyod.models.hbos import HBOS
+from pyod.models.iforest import IForest
 from pyod.models.pca import PCA
-from pytorch_tabnet.tab_model import TabNetClassifier
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB, ComplementNB
@@ -79,6 +77,9 @@ def compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limi
 
             print("Preparing Trust Calculators...")
             quail = SPROUTObject(models_folder=MODELS_FOLDER)
+            quail.add_calculator_maxprob()
+            quail.add_calculator_agreement(x_train=x_train,
+                                           clf_set=[COPOD(), PCA(), HBOS(n_bins=len(features)*2), CBLOF(), IForest()])
             quail.add_all_calculators(x_train=x_train,
                                       y_train=y_train,
                                       label_names=label_tags,
@@ -87,9 +88,8 @@ def compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limi
                                                      [GaussianNB(), BernoulliNB(),
                                                       Pipeline([("norm", MinMaxScaler()), ("clf", MultinomialNB())]),
                                                       Pipeline([("norm", MinMaxScaler()), ("clf", ComplementNB())])],
-                                                     [DecisionTreeClassifier(), RandomForestClassifier(), XGB()],
-                                                     # [FastAI(), TabNetClassifier()]
-                                                     ])
+                                                     [DecisionTreeClassifier(), RandomForestClassifier(), XGB()]],
+                                      agr_clfs=[[COPOD(), PCA(), HBOS(n_bins=len(features)*2), CBLOF(), IForest()]])
 
             for classifier_string in classifier_list:
                 # Building and exercising classifier
