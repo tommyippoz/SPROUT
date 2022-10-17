@@ -1,4 +1,6 @@
 import copy
+import fnmatch
+import glob
 import os.path
 
 import joblib
@@ -16,6 +18,8 @@ from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval,
     CombinedUncertainty, MultiCombinedUncertainty, NeighborsUncertainty, ProximityUncertainty, FeatureBagging, \
     ReconstructionLoss, \
     ExternalUnsupervisedUncertainty, MaxProbUncertainty, AgreementUncertainty
+from sprout.utils.general_utils import get_full_class_name
+from sprout.utils.sprout_utils import get_classifier_name, read_calculators
 
 
 class SPROUTObject:
@@ -26,6 +30,7 @@ class SPROUTObject:
         """
         self.trust_calculators = []
         self.models_folder = models_folder
+        self.binary_adjudicator = None
 
     def compute_data_trust(self, data_point, classifier, verbose=False, as_pandas=True):
         """
@@ -54,14 +59,14 @@ class SPROUTObject:
             y_proba = classifier.predict_proba(data_set)
         for calculator in self.trust_calculators:
             if verbose:
-                print("Calculating Trust Strategy: " + calculator.strategy_name())
+                print("Calculating Trust Strategy: " + calculator.uncertainty_calculator_name())
             start_ms = general_utils.current_ms()
             trust_scores = calculator.uncertainty_scores(data_set, y_proba, classifier)
             if type(trust_scores) is dict:
                 for key in trust_scores:
-                    out_df[calculator.strategy_name() + "_" + str(key)] = trust_scores[key]
+                    out_df[calculator.uncertainty_calculator_name() + "_" + str(key)] = trust_scores[key]
             else:
-                out_df[calculator.strategy_name()] = trust_scores
+                out_df[calculator.uncertainty_calculator_name()] = trust_scores
             if verbose:
                 print("Completed in " + str(general_utils.current_ms() - start_ms) + " ms for " + str(len(data_set)) +
                       " items, " + str((general_utils.current_ms() - start_ms) / len(data_set)) + " ms per item")
@@ -81,7 +86,7 @@ class SPROUTObject:
         :param combined_clf: classifier used for CM4
         :param combined_clfs: classifier sets used for CM5
         """
-        if isinstance(x_train, pandas.DataFrame):
+        if (x_train is not None) and isinstance(x_train, pandas.DataFrame):
             x_data = x_train.to_numpy()
         else:
             x_data = x_train
@@ -91,20 +96,25 @@ class SPROUTObject:
         self.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9)
         self.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.5)
         self.add_calculator_maxprob()
-        self.add_calculator_entropy(n_classes=len(label_names))
-        self.add_calculator_external(classifier=LogisticReg(), x_train=x_data, y_train=y_train, n_classes=len(label_names))
-        self.add_calculator_combined(classifier=combined_clf, x_train=x_data, y_train=y_train, n_classes=len(label_names))
-        for cc in combined_clfs:
-            self.add_calculator_multicombined(clf_set=cc, x_train=x_data, y_train=y_train, n_classes=len(label_names))
-        for cc in agr_clfs:
-            self.add_calculator_agreement(clf_set=cc, x_train=x_data, y_train=y_train)
+        self.add_calculator_entropy(n_classes=len(label_names) if label_names is not None else 2)
+        self.add_calculator_external(classifier=LogisticReg(), x_train=x_data, y_train=y_train,
+                                     n_classes=len(label_names) if label_names is not None else 2)
+        self.add_calculator_combined(classifier=combined_clf, x_train=x_data, y_train=y_train,
+                                     n_classes=len(label_names) if label_names is not None else 2)
+        if combined_clfs is not None:
+            for cc in combined_clfs:
+                self.add_calculator_multicombined(clf_set=cc, x_train=x_data, y_train=y_train,
+                                                  n_classes=len(label_names) if label_names is not None else 2)
+        if agr_clfs is not None:
+            for cc in agr_clfs:
+                self.add_calculator_agreement(clf_set=cc, x_train=x_data, y_train=y_train)
         self.add_calculator_neighbour(x_train=x_data, y_train=y_train, label_names=label_names)
         self.add_calculator_proximity(x_train=x_data)
         self.add_calculator_featurebagging(x_train=x_data, y_train=y_train, n_baggers=50, bag_type='sup')
         self.add_calculator_featurebagging(x_train=x_data, y_train=y_train, n_baggers=50, bag_type='uns')
         self.add_calculator_recloss(x_train=x_data)
 
-    def add_calculator_confidence(self, x_train, y_train, confidence_level=0.9999):
+    def add_calculator_confidence(self, x_train, y_train=None, confidence_level=0.9999):
         """
         Confidence Interval Calculator (CM1 from paper)
         :param x_train: features in the train set
@@ -112,9 +122,9 @@ class SPROUTObject:
         :param confidence_level: size of the confidence interval (default: 0.9999)
         """
         self.trust_calculators.append(
-                ConfidenceInterval(x_train=(x_train if isinstance(x_train, np.ndarray) else x_train.to_numpy()),
+                ConfidenceInterval(x_train=x_train,
                                    y_train=y_train,
-                                   confidence_level=confidence_level))
+                                   conf_level=confidence_level))
 
     def add_calculator_entropy(self, n_classes):
         """
@@ -194,7 +204,7 @@ class SPROUTObject:
     def add_calculator_featurebagging(self, x_train, y_train, n_baggers=50, bag_type='sup'):
         self.trust_calculators.append(FeatureBagging(x_train, y_train, n_baggers, bag_type))
 
-    def add_calculator_recloss(self, x_train, tag=None):
+    def add_calculator_recloss(self, x_train, tag='simple'):
         """
         External Trust Calculator using Bayes (CM3 in the paper)
         :param x_train: features in the train set
@@ -202,31 +212,112 @@ class SPROUTObject:
         """
         self.trust_calculators.append(ReconstructionLoss(x_train=x_train, enc_tag=tag))
 
-
-    def predict_misclassifications(self, model_tag, trust_set):
-        clf = self.load_model(model_tag)
-        sp_df = copy.deepcopy(trust_set)
-        if clf is not None:
+    def predict_misclassifications(self, trust_set):
+        if self.binary_adjudicator is not None:
+            sp_df = copy.deepcopy(trust_set)
             if isinstance(trust_set, pandas.DataFrame):
                 x_test = sp_df.to_numpy()
             else:
                 x_test = sp_df
-            predictions = clf.predict(x_test)
+            predictions = self.binary_adjudicator.predict(x_test)
             sp_df["pred"] = predictions
+
         else:
-            print("Unable to load model with tag '" + str(model_tag) + "'")
+            print("Need to load a model for binary adjudication first")
 
-        return sp_df, clf
+        return sp_df, self.binary_adjudicator
 
-    def load_model(self, model_tag):
-        clf = None
+    def load_model(self, model_tag, x_train, y_train=None, label_names=[0, 1]):
         if os.path.exists(self.models_folder):
-            model_file = self.models_folder + str(model_tag) + ".joblib"
-            clf = joblib.load(model_file)
+            if model_tag in self.get_available_models():
+                model_folder = self.models_folder + str(model_tag) + "/"
+                self.binary_adjudicator = joblib.load(model_folder + "binary_adj_model.joblib")
+                print("Loaded Binary Adjudicator '" + get_classifier_name(self.binary_adjudicator) + "'")
+                u_calcs = read_calculators(model_folder)
+                self.trust_calculators = []
+                for uc_tag in u_calcs:
+                    params = u_calcs[uc_tag]
+                    calculator_name = params["calculator_class"]
+                    if "Entropy" in calculator_name:
+                        calc = EntropyUncertainty(norm=len(label_names))
+                    elif "MaxProb" in calculator_name:
+                        calc = MaxProbUncertainty()
+                    elif "Neighbors" in calculator_name:
+                        calc = NeighborsUncertainty(x_train=x_train, y_train=y_train,
+                                                    k=params["n_neighbors"], labels=label_names)
+                    elif "ExternalSupervised" in calculator_name:
+                        del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
+                        calc = ExternalSupervisedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
+                                                             norm=len(label_names))
+                    elif "ExternalUnsupervised" in calculator_name:
+                        del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
+                        calc = ExternalUnsupervisedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
+                                                               norm=len(label_names))
+                    elif ".CombinedUncertainty" in calculator_name:
+                        del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
+                        calc = CombinedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
+                                                   norm=len(label_names))
+                    elif "MultiCombinedUncertainty" in calculator_name:
+                        del_clfs = []
+                        clf_files = fnmatch.filter(os.listdir(model_folder), uc_tag + '*.joblib')
+                        clf_files.sort(reverse=False)
+                        for clf_name in clf_files:
+                            del_clf = joblib.load(model_folder + clf_name)
+                            del_clfs.append(del_clf)
+                        calc = MultiCombinedUncertainty(clf_set=del_clfs, x_train=x_train, y_train=y_train,
+                                                        norm=len(label_names))
+                    elif "AgreementUncertainty" in calculator_name:
+                        del_clfs = []
+                        clf_files = fnmatch.filter(os.listdir(model_folder), uc_tag + '*.joblib')
+                        clf_files.sort(reverse=False)
+                        for clf_name in clf_files:
+                            del_clf = joblib.load(model_folder + clf_name)
+                            del_clfs.append(del_clf)
+                        calc = AgreementUncertainty(clf_set=del_clfs, x_train=x_train)
+                    elif "ConfidenceInterval" in calculator_name:
+                        calc = ConfidenceInterval(conf_level=params["confidence_level"],
+                                                  x_train=x_train, y_train=y_train)
+                    elif "ProximityUncertainty" in calculator_name:
+                        calc = ProximityUncertainty(x_train=x_train, artificial_points=params["artificial_points"],
+                                                    range_wideness=params["range"], weighted=params["weighted"])
+                    elif "FeatureBagging" in calculator_name:
+                        calc = FeatureBagging(x_train=x_train, y_train=y_train,
+                                              n_baggers=params["n_baggers"], bag_type=params["bag_type"])
+                    elif "ReconstructionLoss" in calculator_name:
+                        calc = ReconstructionLoss(x_train=x_train, enc_tag=params["enc_tag"])
+                    else:
+                        calc = None
+                    if calc is not None:
+                        self.trust_calculators.append(calc)
+
+            else:
+                print("Model '" + str(model_tag) + "' does not exist")
         else:
             print("Models folder '" + self.models_folder + "' does not exist")
 
-        return clf
+        return self.binary_adjudicator
 
+    def get_available_models(self):
+        return [f.name for f in os.scandir(self.models_folder) if f.is_dir()]
 
+    def save_object(self, obj_folder):
+        # Save general info about calculators into a unique file
+        with open(obj_folder + "uncertainty_calculators.txt", 'w') as f:
+            f.write('# File that lists the calculators used to build this SPROUT object\n')
+            for i in range(0, len(self.trust_calculators)):
+                f.write('%s: %s\n' % (str(i+1), self.trust_calculators[i].full_uncertainty_calculator_name()))
 
+        # Saving a file for each uncertainty calculator
+        pd = {}
+        for i in range(0, len(self.trust_calculators)):
+            params_dict = self.trust_calculators[i].save_params(obj_folder + "/", "uncertainty_calculator_" + str(i+1))
+            if params_dict is None:
+                params_dict = {}
+            params_dict["calculator_class"] = get_full_class_name(self.trust_calculators[i].__class__)
+            pd["uncertainty_calculator_" + str(i+1)] = params_dict
+        with open(obj_folder + "uncertainty_calculator_params.csv", 'w') as f:
+            f.write('uncertainty_calculator,param_name,param_value\n')
+            for u_calc in pd:
+                params_dict = pd[u_calc]
+                for key, value in params_dict.items():
+                    f.write('%s,%s,%s\n' % (str(u_calc), str(key), str(value)))

@@ -1,3 +1,6 @@
+import csv
+import os.path
+
 import numpy as np
 import pandas
 import pandas as pd
@@ -131,3 +134,16 @@ def compute_correlation(feature, label, corr_tag="INFO"):
     else:
         print("Features and Label are not arrays of the same size")
         return 0.0
+
+
+def read_calculators(model_folder):
+    uc_dict = {}
+    if os.path.exists(model_folder + "uncertainty_calculator_params.csv"):
+        with open(model_folder + "uncertainty_calculator_params.csv") as csvfile:
+            my_reader = csv.reader(csvfile, delimiter=',')
+            next(my_reader, None)
+            for row in my_reader:
+                if row[0] not in uc_dict:
+                    uc_dict[row[0].strip()] = {}
+                uc_dict[row[0].strip()][row[1].strip()] = row[2].strip()
+    return uc_dict

@@ -102,3 +102,7 @@ def choose_classifier(clf_name, features, y_label, metric):
          return GradientBoostingClassifier(n_estimators=50)
     else:
         pass
+
+
+def get_full_class_name(class_obj):
+    return class_obj.__module__ + "." + class_obj.__qualname__

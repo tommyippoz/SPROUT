@@ -1,6 +1,7 @@
 import copy
 import random
 
+import joblib
 import numpy
 import pandas
 import pandas as pd
@@ -19,7 +20,7 @@ from tqdm import tqdm
 
 from sprout.utils.AutoEncoder import DeepAutoEncoder, SingleAutoEncoder, SingleSparseAutoEncoder
 from sprout.utils.sprout_utils import get_classifier_name
-from sprout.utils.general_utils import current_ms
+from sprout.utils.general_utils import current_ms, get_full_class_name
 
 
 class UncertaintyCalculator:
@@ -27,11 +28,25 @@ class UncertaintyCalculator:
     Abstract Class for trust calculators. Methods to be overridden are trust_strategy_name and trust_scores
     """
 
-    def strategy_name(self):
+    def uncertainty_calculator_name(self):
         """
         Returns the name of the strategy to calculate trust score (as string)
         """
         pass
+
+    def full_uncertainty_calculator_name(self):
+        """
+        Returns the extended name of the strategy to calculate trust score (as string)
+        """
+        return self.uncertainty_calculator_name()
+
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate trust score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        return None
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -69,7 +84,7 @@ class MaxProbUncertainty(UncertaintyCalculator):
         max_p = numpy.max(proba_array, axis=1)
         return np.asarray(max_p)
 
-    def strategy_name(self):
+    def uncertainty_calculator_name(self):
         return 'MaxProb Calculator'
 
 
@@ -79,7 +94,7 @@ class EntropyUncertainty(UncertaintyCalculator):
     Higher entropy means low trust / confidence
     """
 
-    def __init__(self, norm):
+    def __init__(self, norm=2):
         """
         Constructor Method
         :param norm: number of classes for normalization process
@@ -118,7 +133,7 @@ class EntropyUncertainty(UncertaintyCalculator):
             print("Items of the feature set have a different cardinality wrt probabilities")
         return np.asarray(trust)
 
-    def strategy_name(self):
+    def uncertainty_calculator_name(self):
         return 'Entropy Calculator'
 
 
@@ -131,10 +146,21 @@ class NeighborsUncertainty(UncertaintyCalculator):
     def __init__(self, x_train, y_train, k, labels):
         self.x_train = x_train
         self.y_train = y_train
-        self.n_neighbors = k
+        try:
+            self.n_neighbors = int(k)
+        except:
+            self.n_neighbors = 19
         self.labels = labels
 
-    def strategy_name(self):
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate trust score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        return {"n_neighbors": self.n_neighbors}
+
+    def uncertainty_calculator_name(self):
         return 'Trust Calculator on ' + str(self.n_neighbors) + ' Neighbors'
 
     def uncertainty_scores(self, feature_values, proba, classifier):
@@ -170,16 +196,28 @@ class ExternalSupervisedUncertainty(UncertaintyCalculator):
     Defines a trust strategy that runs an external classifer and calculates its confidence in the result
     """
 
-    def __init__(self, del_clf, x_train, y_train, norm, unc_measure='entropy'):
+    def __init__(self, del_clf, x_train, y_train, norm=2, unc_measure='entropy'):
         self.del_clf = del_clf
-        self.del_clf.fit(x_train, y_train)
         if unc_measure == 'entropy':
             self.trust_measure = EntropyUncertainty(norm)
         else:
             self.trust_measure = MaxProbUncertainty()
             unc_measure = 'max_prob'
         self.unc_measure = unc_measure
-        print("[ExternalSupTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
+        if x_train is not None and y_train is not None:
+            self.del_clf.fit(x_train, y_train)
+            print("[ExternalSupTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
+        else:
+            print("[ExternalSupTrust] Unable to train the supervised classifier - no data available")
+
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate trust score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        joblib.dump(self.del_clf, main_folder + tag + "_del_clf.joblib", compress=9)
+        return {"del_clf": get_full_class_name(self.del_clf.__class__), "unc_measure": self.unc_measure}
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -193,7 +231,7 @@ class ExternalSupervisedUncertainty(UncertaintyCalculator):
                                                      self.del_clf.predict_proba(feature_values_array),
                                                      self.del_clf)
 
-    def strategy_name(self):
+    def uncertainty_calculator_name(self):
         return 'External Supervised Calculator (' + get_classifier_name(self.del_clf) + '/' \
                + str(self.unc_measure) + ')'
 
@@ -203,16 +241,28 @@ class ExternalUnsupervisedUncertainty(UncertaintyCalculator):
     Defines a trust strategy that runs an external classifer and calculates its confidence in the result
     """
 
-    def __init__(self, del_clf, x_train, norm, unc_measure='entropy'):
+    def __init__(self, del_clf, x_train, norm=2, unc_measure='entropy'):
         self.del_clf = del_clf
-        self.del_clf.fit(x_train)
         if unc_measure == 'entropy':
             self.trust_measure = EntropyUncertainty(norm)
         else:
             self.trust_measure = MaxProbUncertainty()
             unc_measure = 'max_prob'
         self.unc_measure = unc_measure
-        print("[ExternalUnsTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
+        if x_train is not None:
+            self.del_clf.fit(x_train)
+            print("[ExternalUnsTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
+        else:
+            print("[ExternalUnsTrust] Unable to train the supervised classifier - no data available")
+
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate trust score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        joblib.dump(self.del_clf, main_folder + tag + "_del_clf.joblib", compress=9)
+        return {"del_clf": get_full_class_name(self.del_clf.__class__), "unc_measure": self.unc_measure}
 
     def unsupervised_predict_proba(self, test_features):
         proba = self.del_clf.predict_proba(test_features)
@@ -236,7 +286,7 @@ class ExternalUnsupervisedUncertainty(UncertaintyCalculator):
                                                      self.unsupervised_predict_proba(feature_values_array),
                                                      self.del_clf)
 
-    def strategy_name(self):
+    def uncertainty_calculator_name(self):
         return 'External Unsupervised Calculator (' + get_classifier_name(self.del_clf) + '/' \
                + str(self.unc_measure) + ')'
 
@@ -247,13 +297,25 @@ class CombinedUncertainty(UncertaintyCalculator):
     It uses the main classifier plus the additional classifier to calculate an unified confidence score
     """
 
-    def __init__(self, del_clf, x_train, y_train, norm):
+    def __init__(self, del_clf, x_train, y_train=None, norm=2):
         self.del_clf = del_clf
-        start_time = current_ms()
-        self.del_clf.fit(x_train, y_train)
-        print("[CombinedTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed in " +
-              str(current_ms() - start_time) + " ms")
         self.trust_measure = EntropyUncertainty(norm)
+        if x_train is not None:
+            start_time = current_ms()
+            self.del_clf.fit(x_train, y_train)
+            print("[CombinedTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed in " +
+                  str(current_ms() - start_time) + " ms")
+        else:
+            print("[CombinedTrust] Unable to train combined classifier - no data available")
+
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate trust score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        joblib.dump(self.del_clf, main_folder + tag + "_del_clf.joblib", compress=9)
+        return {"del_clf": get_full_class_name(self.del_clf.__class__)}
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -276,7 +338,7 @@ class CombinedUncertainty(UncertaintyCalculator):
                                                               self.del_clf)
         return np.where(pred == other_pred, (entropy + other_entropy) / 2, -(entropy + other_entropy) / 2)
 
-    def strategy_name(self):
+    def uncertainty_calculator_name(self):
         return 'Combined Calculator (' + get_classifier_name(self.del_clf) + ')'
 
 
@@ -286,7 +348,7 @@ class MultiCombinedUncertainty(UncertaintyCalculator):
     It uses the main classifier plus the additional classifier to calculate an unified confidence score
     """
 
-    def __init__(self, clf_set, x_train, y_train, norm):
+    def __init__(self, clf_set, x_train, y_train=None, norm=2):
         self.trust_set = []
         self.tag = ""
         start_time = current_ms()
@@ -296,6 +358,21 @@ class MultiCombinedUncertainty(UncertaintyCalculator):
         self.tag = str(len(self.trust_set)) + " - " + self.tag
         print("[MultiCombinedTrust] Fitting of " + str(len(clf_set)) + " classifiers completed in "
               + str(current_ms() - start_time) + " ms")
+
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate trust score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        i = 1
+        clf_names = []
+        for uc in self.trust_set:
+            clf = uc.del_clf
+            joblib.dump(clf, main_folder + tag + "_del_clf_" + str(i) + ".joblib", compress=9)
+            clf_names.append(get_full_class_name(clf.__class__))
+            i = i + 1
+        return {"del_clfs": clf_names}
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -315,7 +392,7 @@ class MultiCombinedUncertainty(UncertaintyCalculator):
             multi_trust = multi_trust + combined_trust.uncertainty_scores(feature_values_array, proba_array, classifier)
         return multi_trust / len(self.trust_set)
 
-    def strategy_name(self):
+    def uncertainty_calculator_name(self):
         return 'Multiple Combined Calculator (' + str(self.tag) + ' classifiers)'
 
 
@@ -330,18 +407,35 @@ class AgreementUncertainty(UncertaintyCalculator):
         self.tag = ""
         start_time = current_ms()
         for clf in clf_set:
-            try:
-                if isinstance(clf, pyod.models.base.BaseDetector):
-                    model = clf.fit(x_train)
-                else:
-                    model = clf.fit(x_train, y_train)
-            except:
-                print("Classifier '" + get_classifier_name(clf) + "' did not train correctly")
-            self.clfs.append(model)
+            if x_train is not None:
+                try:
+                    if isinstance(clf, pyod.models.base.BaseDetector):
+                        clf.fit(x_train)
+                    else:
+                        clf.fit(x_train, y_train)
+                except:
+                    print("Classifier '" + get_classifier_name(clf) + "' did not train correctly")
+            else:
+                print("Classifier '" + get_classifier_name(clf) + "' did not train correctly - no data available")
+            self.clfs.append(clf)
             self.tag = self.tag + get_classifier_name(clf)[0] + get_classifier_name(clf)[-1]
         self.tag = str(len(self.clfs)) + " - " + self.tag
         print("[AgreementTrust] Fitting of " + str(len(clf_set)) + " classifiers completed in "
               + str(current_ms() - start_time) + " ms")
+
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate trust score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        i = 1
+        clf_names = []
+        for clf in self.clfs:
+            joblib.dump(clf, main_folder + tag + "_clf_" + str(i) + ".joblib", compress=9)
+            clf_names.append(get_full_class_name(clf.__class__))
+            i = i + 1
+        return {"clfs": clf_names}
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -367,7 +461,7 @@ class AgreementUncertainty(UncertaintyCalculator):
         scores = numpy.where(multi_trust == mode_value, 1, 0)
         return numpy.average(scores, axis=1)[0]
 
-    def strategy_name(self):
+    def uncertainty_calculator_name(self):
         return 'Agreement Calculator (' + str(self.tag) + ' classifiers)'
 
 
@@ -376,38 +470,57 @@ class ConfidenceInterval(UncertaintyCalculator):
     Defines a trust strategy that calculates confidence intervals to derive trust
     """
 
-    def __init__(self, x_train, y_train=None, confidence_level=0.9999):
-        self.confidence_level = confidence_level
+    def __init__(self, x_train, y_train=None, conf_level=0.9999):
+        try:
+            self.confidence_level = float(conf_level)
+        except:
+            self.confidence_level = 0.9999
         self.intervals_min = {}
         self.intervals_max = {}
         self.labels = numpy.unique(y_train)
 
-        if y_train is None:
-            self.interval_type = 'uns'
-            intervals = []
-            for i in range(0, len(x_train[0])):
-                feature = x_train[:, i]
-                intervals.append(scipy.stats.t.interval(confidence_level,
-                                                        len(feature) - 1,
-                                                        loc=np.median(feature),
-                                                        scale=scipy.stats.sem(feature)))
-            intervals = numpy.asarray(intervals)
-            self.intervals_min = numpy.asarray(intervals[:, 0])
-            self.intervals_max = numpy.asarray(intervals[:, 1])
-        else:
-            self.interval_type = 'sup'
-            for label in self.labels:
+        if x_train is not None:
+            if isinstance(x_train, pandas.DataFrame):
+                x_data = x_train.to_numpy()
+            else:
+                x_data = x_train
+            if y_train is None:
+                self.interval_type = 'uns'
                 intervals = []
-                data = x_train[y_train == label, :]
-                for i in range(0, len(x_train[0])):
-                    feature = data[:, i]
-                    intervals.append(scipy.stats.t.interval(confidence_level,
+                for i in range(0, len(x_data[0])):
+                    feature = x_data[:, i]
+                    intervals.append(scipy.stats.t.interval(self.confidence_level,
                                                             len(feature) - 1,
                                                             loc=np.median(feature),
                                                             scale=scipy.stats.sem(feature)))
                 intervals = numpy.asarray(intervals)
-                self.intervals_min[label] = numpy.asarray(intervals[:, 0])
-                self.intervals_max[label] = numpy.asarray(intervals[:, 1])
+                self.intervals_min = numpy.asarray(intervals[:, 0])
+                self.intervals_max = numpy.asarray(intervals[:, 1])
+            else:
+                self.interval_type = 'sup'
+                for label in self.labels:
+                    intervals = []
+                    data = x_data[y_train == label, :]
+                    for i in range(0, len(x_data[0])):
+                        feature = data[:, i]
+                        intervals.append(scipy.stats.t.interval(self.confidence_level,
+                                                                len(feature) - 1,
+                                                                loc=np.median(feature),
+                                                                scale=scipy.stats.sem(feature)))
+                    intervals = numpy.asarray(intervals)
+                    self.intervals_min[label] = numpy.asarray(intervals[:, 0])
+                    self.intervals_max[label] = numpy.asarray(intervals[:, 1])
+        else:
+            self.interval_type = 'none'
+            print("Unable to derive confidence intervals - no data available")
+
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate trust score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        return {"confidence_level": self.confidence_level}
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -434,7 +547,7 @@ class ConfidenceInterval(UncertaintyCalculator):
             print("Items of the feature set have a different cardinality wrt probabilities")
         return np.asarray(trust)
 
-    def strategy_name(self):
+    def uncertainty_calculator_name(self):
         return 'Confidence Interval (' + str(self.confidence_level) + '/' + str(self.interval_type) + ')'
 
 
@@ -444,17 +557,36 @@ class ProximityUncertainty(UncertaintyCalculator):
     and checks if the classifier has a unified answer to all of those data points
     """
 
-    def __init__(self, x_train, artificial_points=10, range_wideness=1, weighted=False):
-        self.n_artificial = artificial_points
-        self.range = range_wideness
-        self.weighted = weighted
+    def __init__(self, x_train, artificial_points=10, range_wideness=0.1, weighted=False):
+        try:
+            self.n_artificial = int(artificial_points)
+        except:
+            self.n_artificial = 10
+        try:
+            self.range = float(range_wideness)
+        except:
+            self.range = 0.1
+        try:
+            self.weighted = weighted == "True"
+        except:
+            self.weighted = False
 
-        start_time = current_ms()
-        if isinstance(x_train, pd.DataFrame):
-            x_train = x_train.to_numpy()
-        self.stds = numpy.std(x_train, axis=0)
+        if x_train is not None:
+            start_time = current_ms()
+            if isinstance(x_train, pd.DataFrame):
+                x_train = x_train.to_numpy()
+            self.stds = numpy.std(x_train, axis=0)
+            print("Proximity Uncertainty initialized in " + str(current_ms() - start_time) + " ms")
+        else:
+            print("Proximity Uncertainty failed to initialize - no data available")
 
-        print("Proximity Uncertainty initialized in " + str(current_ms() - start_time) + " ms")
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate trust score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        return {"artificial_points": self.n_artificial, "weighted": self.weighted, "range": self.range}
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -497,7 +629,7 @@ class ProximityUncertainty(UncertaintyCalculator):
 
         return np.asarray(trust)
 
-    def strategy_name(self):
+    def uncertainty_calculator_name(self):
         return 'Proximity Uncertainty (' + str(self.n_artificial) + '/' + str(self.range) \
                + ('/W' if self.weighted else '') + ')'
 
@@ -510,39 +642,51 @@ class FeatureBagging(UncertaintyCalculator):
     def __init__(self, x_train, y_train, n_baggers=10, bag_type='sup'):
         self.feature_sets = []
         self.classifiers = []
-        if isinstance(n_baggers, int):
-            self.n_baggers = n_baggers
-        else:
+        try:
+            self.n_baggers = int(n_baggers)
+        except:
             self.n_baggers = 10
 
-        if isinstance(x_train, pandas.DataFrame):
-            x_train = x_train.to_numpy()
-        n_features = x_train.shape[1]
+        if x_train is not None:
+            if isinstance(x_train, pandas.DataFrame):
+                x_train = x_train.to_numpy()
+            n_features = x_train.shape[1]
 
-        if n_features < 20:
-            bag_rate = 0.8
-        elif n_features < 50:
-            bag_rate = 0.7
-        elif n_features < 100:
-            bag_rate = 0.6
-        else:
-            bag_rate = 0.5
-        bag_features = int(n_features*bag_rate)
-
-        for i in tqdm(range(self.n_baggers), "Building Feature Baggers"):
-            fs = random.sample(range(n_features), bag_features)
-            fs.sort()
-            self.feature_sets.append(fs)
-            if bag_type == 'uns':
-                classifier = COPOD()
-                classifier.fit(x_train[:, fs])
+            if n_features < 20:
+                bag_rate = 0.8
+            elif n_features < 50:
+                bag_rate = 0.7
+            elif n_features < 100:
+                bag_rate = 0.6
             else:
-                classifier = DecisionTreeClassifier()
-                classifier.fit(x_train[:, fs], y_train)
-                bag_type = 'sup'
-            self.classifiers.append(classifier)
+                bag_rate = 0.5
+            bag_features = int(n_features*bag_rate)
+
+            for i in tqdm(range(self.n_baggers), "Building Feature Baggers"):
+                fs = random.sample(range(n_features), bag_features)
+                fs.sort()
+                self.feature_sets.append(fs)
+                if bag_type == 'uns':
+                    classifier = COPOD()
+                    classifier.fit(x_train[:, fs])
+                else:
+                    classifier = DecisionTreeClassifier()
+                    classifier.fit(x_train[:, fs], y_train)
+                    bag_type = 'sup'
+                self.classifiers.append(classifier)
+
+        else:
+            print("Unable to build feature baggers - no data available")
 
         self.bag_type = bag_type
+
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate trust score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        return {"n_baggers": self.n_baggers, "bag_type": self.bag_type}
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -572,7 +716,7 @@ class FeatureBagging(UncertaintyCalculator):
 
         return np.asarray(trust)
 
-    def strategy_name(self):
+    def uncertainty_calculator_name(self):
         return 'FeatureBagging Uncertainty (' + str(self.n_baggers) + '/' + str(self.bag_type) + ')'
 
 
@@ -581,27 +725,39 @@ class ReconstructionLoss(UncertaintyCalculator):
     Defines a trust strategy that uses the reconstruction error of an autoencoder as uncertainty measure
     """
 
-    def __init__(self, x_train, enc_tag=None):
+    def __init__(self, x_train, enc_tag='simple'):
         self.ae = None
         self.enc_tag = enc_tag
-        bottleneck = int(x_train.shape[1] / 4) if x_train.shape[1] > 8 else 2
-        if enc_tag == 'deep':
-            self.ae = DeepAutoEncoder(x_train.shape[1], bottleneck)
-        elif enc_tag == 'sparse':
-            self.ae = SingleSparseAutoEncoder(x_train.shape[1], bottleneck)
+
+        if x_train is not None:
+            bottleneck = int(x_train.shape[1] / 4) if x_train.shape[1] > 8 else 2
+            if enc_tag == 'deep':
+                self.ae = DeepAutoEncoder(x_train.shape[1], bottleneck)
+            elif enc_tag == 'sparse':
+                self.ae = SingleSparseAutoEncoder(x_train.shape[1], bottleneck)
+            else:
+                self.enc_tag = 'simple'
+                self.ae = SingleAutoEncoder(x_train.shape[1], bottleneck)
+            norm_tr = copy.deepcopy(x_train)
+            if isinstance(norm_tr, pandas.DataFrame):
+                norm_tr = norm_tr.to_numpy()
+            self.maxmin = []
+            for i in range(0, norm_tr.shape[1]):
+                self.maxmin.append({'min': min(norm_tr[:, i]), 'max': max(norm_tr[:, i])})
+                if self.maxmin[i]['max'] - self.maxmin[i]['min'] != 0:
+                    norm_tr[:, i] = (norm_tr[:, i] - self.maxmin[i]['min']) / \
+                                    (self.maxmin[i]['max'] - self.maxmin[i]['min'])
+            self.ae.fit(norm_tr, 50, 256, verbose=0)
         else:
-            self.enc_tag = 'simple'
-            self.ae = SingleAutoEncoder(x_train.shape[1], bottleneck)
-        norm_tr = copy.deepcopy(x_train)
-        if isinstance(norm_tr, pandas.DataFrame):
-            norm_tr = norm_tr.to_numpy()
-        self.maxmin = []
-        for i in range(0, norm_tr.shape[1]):
-            self.maxmin.append({'min': min(norm_tr[:, i]), 'max': max(norm_tr[:, i])})
-            if self.maxmin[i]['max'] - self.maxmin[i]['min'] != 0:
-                norm_tr[:, i] = (norm_tr[:, i] - self.maxmin[i]['min']) / \
-                                (self.maxmin[i]['max'] - self.maxmin[i]['min'])
-        self.ae.fit(norm_tr, 50, 256, verbose=0)
+            print("Unable to build autoencoder to compute loss - no data available")
+
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate trust score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        return {"enc_tag": self.enc_tag}
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -623,5 +779,5 @@ class ReconstructionLoss(UncertaintyCalculator):
         decoded_tr, loss_tr = self.ae.predict(norm_te)
         return np.asarray(loss_tr)
 
-    def strategy_name(self):
+    def uncertainty_calculator_name(self):
         return 'AutoEncoder Loss (' + str(self.enc_tag) + ')'

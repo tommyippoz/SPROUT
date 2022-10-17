@@ -29,7 +29,7 @@ if __name__ == '__main__':
     Reads preferences from file 'config.cfg'
     """
 
-    # Loading Configuration
+    # Reading preferences
     dataset_files, classifier_list, y_label, limit_rows = load_config("config.cfg")
 
     with open(OUTPUT_FOLDER + OUTPUT_LOG_FILE, 'w') as f:
@@ -58,21 +58,9 @@ if __name__ == '__main__':
                 x_train, x_test, y_train, y_test, label_tags, features = \
                     dataset_utils.process_image_dataset(dataset_file, limit_rows)
 
-            print("Preparing Trust Calculators...")
+            print("Loading SPROUT Model ...")
             sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
-            sprout_obj.add_all_calculators(x_train=x_train,
-                                           y_train=y_train,
-                                           label_names=label_tags,
-                                           combined_clf=XGB(),
-                                           combined_clfs=[[GaussianNB(), LinearDiscriminantAnalysis(), LogisticReg()],
-                                                          [GaussianNB(), BernoulliNB(),
-                                                           Pipeline(
-                                                               [("norm", MinMaxScaler()), ("clf", MultinomialNB())]),
-                                                           Pipeline(
-                                                               [("norm", MinMaxScaler()), ("clf", ComplementNB())])],
-                                                          [DecisionTreeClassifier(), RandomForestClassifier(), XGB()],
-                                                          # [FastAI(), TabNetClassifier()]
-                                                          ])
+            sprout_obj.load_model(model_tag="iot_all", x_train=x_train, y_train=y_train, label_names=label_tags)
 
             for classifier_string in classifier_list:
                 # Building and exercising classifier
@@ -98,7 +86,7 @@ if __name__ == '__main__':
                 for tag in MODEL_TAGS:
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        predictions_df, clf = sprout_obj.predict_misclassifications(tag, sp_df)
+                        predictions_df, clf = sprout_obj.predict_misclassifications(sp_df)
 
                     y_pred = predictions_df["pred"].to_numpy()
                     y_true = y_misc

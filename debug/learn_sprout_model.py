@@ -51,7 +51,8 @@ def compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limi
 
     for dataset_file in dataset_files:
 
-        if (not os.path.isfile(dataset_file)) and not is_image_dataset(dataset_file):
+        if (dataset_file is None) or (len(dataset_file) == 0) or \
+                ((not os.path.isfile(dataset_file)) and not is_image_dataset(dataset_file)):
 
             # Error while Reading Dataset
             print("Dataset '" + str(dataset_file) + "' does not exist / not reachable")
@@ -76,17 +77,7 @@ def compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limi
                 x_train, x_test, y_train, y_test, label_tags, features = process_image_dataset(dataset_file, limit_rows)
 
             print("Preparing Trust Calculators...")
-            quail = SPROUTObject(models_folder=MODELS_FOLDER)
-            quail.add_all_calculators(x_train=x_train,
-                                      y_train=y_train,
-                                      label_names=label_tags,
-                                      combined_clf=XGB(),
-                                      combined_clfs=[[GaussianNB(), LinearDiscriminantAnalysis(), LogisticReg()],
-                                                     [GaussianNB(), BernoulliNB(),
-                                                      Pipeline([("norm", MinMaxScaler()), ("clf", MultinomialNB())]),
-                                                      Pipeline([("norm", MinMaxScaler()), ("clf", ComplementNB())])],
-                                                     [DecisionTreeClassifier(), RandomForestClassifier(), XGB()]],
-                                      agr_clfs=[[COPOD(), PCA(), HBOS(n_bins=len(features)*2), CBLOF(), IForest()]])
+            sprout_obj = build_object(x_train, y_train, label_tags)
 
             for classifier_string in classifier_list:
                 # Building and exercising classifier
@@ -97,7 +88,7 @@ def compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limi
                 out_df = build_SPROUT_dataset(y_proba, y_pred, y_test, label_tags)
 
                 # Calculating Trust Measures with SPROUT
-                q_df = quail.compute_set_trust(data_set=x_test, classifier=classifier)
+                q_df = sprout_obj.compute_set_trust(data_set=x_test, classifier=classifier)
                 out_df = pd.concat([out_df, q_df], axis=1)
 
                 # Printing Dataframe
@@ -155,6 +146,21 @@ def sample_data(x, y, ratio):
     return df.drop(["is_misclassification"], axis=1).to_numpy(), df["is_misclassification"].to_numpy()
 
 
+def build_object(x_train, y_train, label_tags):
+    sprout = SPROUTObject(models_folder=MODELS_FOLDER)
+    sprout.add_all_calculators(x_train=x_train,
+                              y_train=y_train,
+                              label_names=label_tags,
+                              combined_clf=XGB(),
+                              combined_clfs=[[GaussianNB(), LinearDiscriminantAnalysis(), LogisticReg()],
+                                             [GaussianNB(), BernoulliNB(),
+                                              Pipeline([("norm", MinMaxScaler()), ("clf", MultinomialNB())]),
+                                              Pipeline([("norm", MinMaxScaler()), ("clf", ComplementNB())])],
+                                             [DecisionTreeClassifier(), RandomForestClassifier(), XGB()]],
+                              agr_clfs=[[COPOD(), PCA(), HBOS(n_bins=20), CBLOF(), IForest()]])
+    return sprout
+
+
 if __name__ == '__main__':
     """
     Main to calculate trust measures for many datasets using many classifiers.
@@ -171,6 +177,7 @@ if __name__ == '__main__':
             os.mkdir(folder_path)
         if GENERATE_UNCERTAINTIES or len(os.listdir(folder_path)) == 0:
             compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limit_rows, folder_path)
+        sprout_obj = build_object(None, None, None)
 
         for analysis_desc in ANALYSIS_AVOID_TAGS:
 
@@ -184,19 +191,13 @@ if __name__ == '__main__':
                                           avoid_tags=ANALYSIS_AVOID_TAGS[analysis_desc],
                                           train_split=0.5)
 
-            # Classifiers for Detection
+            # Classifiers for Detection (Binary Adjudicator)
             m_frac = 0.5 if m_frac > 0.5 else m_frac
             CLASSIFIERS = [GradientBoostingClassifier(n_estimators=50),
                            DecisionTreeClassifier(),
-                           RandomForestClassifier(n_estimators=50),
+                           RandomForestClassifier(n_estimators=50)]
 
-                           # COPOD(contamination=m_frac),
-                           # CBLOF(contamination=m_frac),
-                           # TabNet(metric="auc", verbose=0),
-                           # FastAI(feature_names=features, label_name="is_misclassification", verbose=2, metric="roc_auc")
-                           ]
-
-            # Training Binary Classifiers to Predict Misclassifications
+            # Training Binary Adjudicators to Predict Misclassifications
             best_clf = None
             best_ratio = None
             best_metrics = {"MCC": -10}
@@ -239,8 +240,17 @@ if __name__ == '__main__':
             print("\nBest classifier is " + get_classifier_name(best_clf) + "/" + str(best_ratio) +
                   " with MCC = " + str(best_metrics["MCC"]))
 
+            # Setting up folder to store the SPROUT model
+            model_tag = tag + "_" + analysis_desc
+            models_details_folder = MODELS_FOLDER + model_tag + "/"
+            if not os.path.exists(models_details_folder):
+                os.mkdir(models_details_folder)
+
+            # Stores details of the SPROUT object used to build the Binary Adjudicator
+            sprout_obj.save_object(models_details_folder)
+
             # Storing the classifier to be used for Predicting Misclassifications of a Generic Classifier.
-            model_file = MODELS_FOLDER + tag + "_" + analysis_desc + ".joblib"
+            model_file = models_details_folder + "binary_adj_model.joblib"
             joblib.dump(best_clf, model_file, compress=9)
 
             # Tests if storing was successful
@@ -251,17 +261,13 @@ if __name__ == '__main__':
             else:
                 print("Error while storing the model - file corrupted")
 
-            # Printing files with Details
-            models_details_folder = MODELS_FOLDER + "details/"
-            if not os.path.exists(models_details_folder):
-                os.mkdir(models_details_folder)
-
+            # Scores of the SPROUT wrapper
             det_dict = {"analysis tag": analysis_desc,
-                        "classifier": get_classifier_name(best_clf),
+                        "binary classifier": get_classifier_name(best_clf),
                         "train data size": len(y_train),
                         "train data features": numpy.asarray(features),
-                        "original misclassification ratio": m_frac,
-                        "actual misclassification ratio": best_ratio,
+                        "original misclassification ratio of training set": m_frac,
+                        "actual misclassification ratio in training set": best_ratio,
                         "test_mcc": best_metrics["MCC"],
                         "test_acc": best_metrics["Accuracy"],
                         "test_auc": best_metrics["AUC ROC"],
@@ -272,15 +278,15 @@ if __name__ == '__main__':
                         "test_fp": best_metrics["FP"],
                         "test_fn": best_metrics["FN"],
                         }
-            with open(models_details_folder + tag + "_" + analysis_desc + ".txt", 'w') as f:
+            with open(models_details_folder + "binary_adjudicator_metrics.txt", 'w') as f:
                 for key, value in det_dict.items():
                     f.write('%s:%s\n' % (key, value))
 
             # Plot ROC_AUC
             sklearn.metrics.RocCurveDisplay.from_estimator(best_clf, x_test, y_test)
-            plt.savefig(models_details_folder + tag + "_" + analysis_desc + "_aucroc.png")
+            plt.savefig(models_details_folder + "binary_adjudicator_aucroc_plot.png")
 
             f_imp = dict(zip(numpy.asarray(features), best_clf.feature_importances_))
-            with open(models_details_folder + tag + "_" + analysis_desc + "_feature_importances.csv", 'w') as f:
+            with open(models_details_folder + "binary_adjudicator_feature_importances.csv", 'w') as f:
                 for key, value in f_imp.items():
                     f.write('%s,%s\n' % (key, value))
