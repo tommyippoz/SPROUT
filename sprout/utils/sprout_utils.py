@@ -41,7 +41,7 @@ def build_classifier(classifier, x_train, y_train, x_test, y_test, verbose=True)
         print("\nBuilding classifier: " + get_classifier_name(classifier) + "\n")
 
     if isinstance(x_train, pandas.DataFrame):
-        train_data = x_train.tonumpy()
+        train_data = x_train.to_numpy()
 
     # Fitting classifier
     start_ms = current_ms()
