@@ -81,20 +81,28 @@ class SPROUTObject:
         :param combined_clf: classifier used for CM4
         :param combined_clfs: classifier sets used for CM5
         """
-        self.add_calculator_confidence(x_train=x_train, y_train=y_train)
+        if isinstance(x_train, pandas.DataFrame):
+            x_data = x_train.to_numpy()
+        else:
+            x_data = x_train
+        self.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9999)
+        self.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.999)
+        self.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.99)
+        self.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9)
+        self.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.5)
         self.add_calculator_maxprob()
         self.add_calculator_entropy(n_classes=len(label_names))
-        self.add_calculator_external(classifier=LogisticReg(), x_train=x_train, y_train=y_train, n_classes=len(label_names))
-        self.add_calculator_combined(classifier=combined_clf, x_train=x_train, y_train=y_train, n_classes=len(label_names))
+        self.add_calculator_external(classifier=LogisticReg(), x_train=x_data, y_train=y_train, n_classes=len(label_names))
+        self.add_calculator_combined(classifier=combined_clf, x_train=x_data, y_train=y_train, n_classes=len(label_names))
         for cc in combined_clfs:
-            self.add_calculator_multicombined(clf_set=cc, x_train=x_train, y_train=y_train, n_classes=len(label_names))
+            self.add_calculator_multicombined(clf_set=cc, x_train=x_data, y_train=y_train, n_classes=len(label_names))
         for cc in agr_clfs:
-            self.add_calculator_agreement(clf_set=cc, x_train=x_train, y_train=y_train)
-        self.add_calculator_neighbour(x_train=x_train, y_train=y_train, label_names=label_names)
-        self.add_calculator_proximity(x_train=x_train)
-        self.add_calculator_featurebagging(x_train=x_train, y_train=y_train, n_baggers=50, bag_type='sup')
-        self.add_calculator_featurebagging(x_train=x_train, y_train=y_train, n_baggers=50, bag_type='uns')
-        self.add_calculator_recloss(x_train=x_train)
+            self.add_calculator_agreement(clf_set=cc, x_train=x_data, y_train=y_train)
+        self.add_calculator_neighbour(x_train=x_data, y_train=y_train, label_names=label_names)
+        self.add_calculator_proximity(x_train=x_data)
+        self.add_calculator_featurebagging(x_train=x_data, y_train=y_train, n_baggers=50, bag_type='sup')
+        self.add_calculator_featurebagging(x_train=x_data, y_train=y_train, n_baggers=50, bag_type='uns')
+        self.add_calculator_recloss(x_train=x_data)
 
     def add_calculator_confidence(self, x_train, y_train, confidence_level=0.9999):
         """

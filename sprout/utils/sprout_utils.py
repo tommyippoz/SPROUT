@@ -1,4 +1,5 @@
 import numpy as np
+import pandas
 import pandas as pd
 import scipy
 import sklearn
@@ -39,21 +40,24 @@ def build_classifier(classifier, x_train, y_train, x_test, y_test, verbose=True)
     if verbose:
         print("\nBuilding classifier: " + get_classifier_name(classifier) + "\n")
 
+    if isinstance(x_train, pandas.DataFrame):
+        train_data = x_train.tonumpy()
+
     # Fitting classifier
     start_ms = current_ms()
-    classifier.fit(x_train, y_train)
+    classifier.fit(train_data, y_train)
     train_ms = current_ms()
 
     # Test features have to be a numpy array
     if not isinstance(x_test, np.ndarray):
-        x_test = x_test.to_numpy()
+        test_data = x_test.to_numpy()
 
     # Predicting labels
-    y_pred = classifier.predict(x_test)
+    y_pred = classifier.predict(test_data)
     test_time = current_ms() - train_ms
 
     # Predicting probabilities
-    y_proba = classifier.predict_proba(x_test)
+    y_proba = classifier.predict_proba(test_data)
     if isinstance(y_proba, pd.DataFrame):
         y_proba = y_proba.to_numpy()
 

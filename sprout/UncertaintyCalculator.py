@@ -330,10 +330,13 @@ class AgreementUncertainty(UncertaintyCalculator):
         self.tag = ""
         start_time = current_ms()
         for clf in clf_set:
-            if isinstance(clf, pyod.models.base.BaseDetector):
-                model = clf.fit(x_train)
-            else:
-                model = clf.fit(x_train, y_train)
+            try:
+                if isinstance(clf, pyod.models.base.BaseDetector):
+                    model = clf.fit(x_train)
+                else:
+                    model = clf.fit(x_train, y_train)
+            except:
+                print("Classifier '" + get_classifier_name(clf) + "' did not train correctly")
             self.clfs.append(model)
             self.tag = self.tag + get_classifier_name(clf)[0] + get_classifier_name(clf)[-1]
         self.tag = str(len(self.clfs)) + " - " + self.tag
@@ -354,15 +357,18 @@ class AgreementUncertainty(UncertaintyCalculator):
         """
         multi_trust = []
         for clf_model in self.clfs:
-            predictions = numpy.asarray(clf_model.predict(feature_values_array))
-            multi_trust.append(predictions)
+            try:
+                predictions = numpy.asarray(clf_model.predict(feature_values_array))
+                multi_trust.append(predictions)
+            except:
+                print("Classifier '" + get_classifier_name(clf_model) + "' cannot be used for prediction")
         multi_trust = numpy.asarray(multi_trust)
         mode_value = stats.mode(multi_trust)
         scores = numpy.where(multi_trust == mode_value, 1, 0)
         return numpy.average(scores, axis=1)[0]
 
     def strategy_name(self):
-        return 'Multiple Combined Calculator (' + str(self.tag) + ' classifiers)'
+        return 'Agreement Calculator (' + str(self.tag) + ' classifiers)'
 
 
 class ConfidenceInterval(UncertaintyCalculator):
@@ -370,24 +376,38 @@ class ConfidenceInterval(UncertaintyCalculator):
     Defines a trust strategy that calculates confidence intervals to derive trust
     """
 
-    def __init__(self, x_train, y_train, confidence_level=0.9999):
+    def __init__(self, x_train, y_train=None, confidence_level=0.9999):
         self.confidence_level = confidence_level
         self.intervals_min = {}
         self.intervals_max = {}
         self.labels = numpy.unique(y_train)
 
-        for label in self.labels:
+        if y_train is None:
+            self.interval_type = 'uns'
             intervals = []
-            data = x_train[y_train == label, :]
             for i in range(0, len(x_train[0])):
-                feature = data[:, i]
+                feature = x_train[:, i]
                 intervals.append(scipy.stats.t.interval(confidence_level,
                                                         len(feature) - 1,
                                                         loc=np.median(feature),
                                                         scale=scipy.stats.sem(feature)))
             intervals = numpy.asarray(intervals)
-            self.intervals_min[label] = numpy.asarray(intervals[:, 0])
-            self.intervals_max[label] = numpy.asarray(intervals[:, 1])
+            self.intervals_min = numpy.asarray(intervals[:, 0])
+            self.intervals_max = numpy.asarray(intervals[:, 1])
+        else:
+            self.interval_type = 'sup'
+            for label in self.labels:
+                intervals = []
+                data = x_train[y_train == label, :]
+                for i in range(0, len(x_train[0])):
+                    feature = data[:, i]
+                    intervals.append(scipy.stats.t.interval(confidence_level,
+                                                            len(feature) - 1,
+                                                            loc=np.median(feature),
+                                                            scale=scipy.stats.sem(feature)))
+                intervals = numpy.asarray(intervals)
+                self.intervals_min[label] = numpy.asarray(intervals[:, 0])
+                self.intervals_max[label] = numpy.asarray(intervals[:, 1])
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
@@ -403,15 +423,19 @@ class ConfidenceInterval(UncertaintyCalculator):
             feature_values_array = feature_values_array.to_numpy()
         if len(feature_values_array) == len(proba_array):
             for i in range(0, len(proba_array)):
-                in_left = (self.intervals_min[predicted_labels[i]] <= feature_values_array[i])
-                in_right = (feature_values_array[i] <= self.intervals_max[predicted_labels[i]])
+                if self.interval_type == 'sup':
+                    in_left = (self.intervals_min[predicted_labels[i]] <= feature_values_array[i])
+                    in_right = (feature_values_array[i] <= self.intervals_max[predicted_labels[i]])
+                else:
+                    in_left = (self.intervals_min <= feature_values_array[i])
+                    in_right = (feature_values_array[i] <= self.intervals_max)
                 trust.append(numpy.average(in_left * in_right))
         else:
             print("Items of the feature set have a different cardinality wrt probabilities")
         return np.asarray(trust)
 
     def strategy_name(self):
-        return 'Confidence Interval (' + str(self.confidence_level) + '%)'
+        return 'Confidence Interval (' + str(self.confidence_level) + '/' + str(self.interval_type) + ')'
 
 
 class ProximityUncertainty(UncertaintyCalculator):
@@ -450,8 +474,8 @@ class ProximityUncertainty(UncertaintyCalculator):
         mc_x = []
         for i in range(len(feature_values_array)):
             features = feature_values_array[i]
-            for _ in range(self.n_artificial):
-                mc_x.append([random.gauss(m, s) for m, s in zip(features, self.range*self.stds)])
+            mc_x.extend([[random.gauss(m, s) for m, s in zip(features, self.range*self.stds)]
+                         for _ in range(self.n_artificial)])
         mc_x = np.array(mc_x)
 
         # Calculating predictions

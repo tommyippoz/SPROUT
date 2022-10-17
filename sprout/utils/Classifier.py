@@ -12,7 +12,7 @@ from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.svm import SVC
 
 from pytorch_tabnet.tab_model import TabNetClassifier
-#from autogluon.tabular import TabularPredictor
+from autogluon.tabular import TabularPredictor
 
 
 class Classifier:
@@ -174,93 +174,93 @@ class TabNet(Classifier):
     def classifier_name(self):
         return "TabNet"
 
-#
-# class AutoGluon(Classifier):
-#     """
-#     Wrapper for classifiers taken from Gluon library
-#     clf_name options are
-#     ‘GBM’ (LightGBM)
-#     ‘CAT’ (CatBoost)
-#     ‘XGB’ (XGBoost)
-#     ‘RF’ (random forest)
-#     ‘XT’ (extremely randomized trees)
-#     ‘KNN’ (k-nearest neighbors)
-#     ‘LR’ (linear regression)
-#     ‘NN’ (neural network with MXNet backend)
-#     ‘FASTAI’ (neural network with FastAI backend)
-#     """
-#
-#     def __init__(self, feature_names, label_name, clf_name, metric, verbose=0):
-#         Classifier.__init__(self, TabularPredictor(label=label_name, eval_metric=metric, verbosity=verbose))
-#         self.label_name = label_name
-#         self.feature_names = feature_names
-#         self.clf_name = clf_name
-#         self.feature_importance = []
-#
-#     def fit(self, x_train, y_train):
-#         df = pd.DataFrame(data=x_train.copy(), columns=self.feature_names)
-#         df[self.label_name] = y_train
-#         self.model.fit(train_data=df, hyperparameters={self.clf_name:{}})
-#         self.feature_importance = self.model.feature_importance(df)
-#         self.feature_importances_ = self.compute_feature_importances()
-#         self.classes_ = numpy.unique(y_train)
-#         self.trained = True
-#
-#     def compute_feature_importances(self):
-#         importances = []
-#         for feature in self.feature_names:
-#             if feature in self.feature_importance.importance.index.tolist():
-#                 importances.append(abs(self.feature_importance.importance.get(feature)))
-#             else:
-#                 importances.append(0.0)
-#         return np.asarray(importances)
-#
-#     def predict(self, x_test):
-#         df = pd.DataFrame(data=x_test, columns=self.feature_names)
-#         return self.model.predict(df, as_pandas=False)
-#
-#     def predict_proba(self, x_test):
-#         df = pd.DataFrame(data=x_test, columns=self.feature_names)
-#         return self.model.predict_proba(df, as_pandas=False)
-#
-#     def classifier_name(self):
-#         return "AutoGluon"
-#
-#
-# class FastAI(AutoGluon):
-#     """
-#     Wrapper for the gluon.FastAI algorithm
-#     """
-#
-#     def __init__(self, feature_names, label_name, metric, verbose=0):
-#         AutoGluon.__init__(self, feature_names, label_name, "FASTAI", metric, verbose)
-#
-#     def classifier_name(self):
-#         return "FastAI"
-#
-#
-# class GBM(AutoGluon):
-#     """
-#     Wrapper for the gluon.LightGBM algorithm
-#     """
-#
-#     def __init__(self, feature_names, label_name, metric):
-#         AutoGluon.__init__(self, feature_names, label_name, "GBM", metric)
-#
-#     def classifier_name(self):
-#         return "GBM"
-#
-#
-# class MXNet(AutoGluon):
-#     """
-#     Wrapper for the gluon.MXNet algorithm (to be debugged)
-#     """
-#
-#     def __init__(self, feature_names, label_name):
-#         AutoGluon.__init__(self, feature_names, label_name, "NN")
-#
-#     def classifier_name(self):
-#         return "MXNet"
+
+class AutoGluon(Classifier):
+    """
+    Wrapper for classifiers taken from Gluon library
+    clf_name options are
+    ‘GBM’ (LightGBM)
+    ‘CAT’ (CatBoost)
+    ‘XGB’ (XGBoost)
+    ‘RF’ (random forest)
+    ‘XT’ (extremely randomized trees)
+    ‘KNN’ (k-nearest neighbors)
+    ‘LR’ (linear regression)
+    ‘NN’ (neural network with MXNet backend)
+    ‘FASTAI’ (neural network with FastAI backend)
+    """
+
+    def __init__(self, feature_names, label_name, clf_name, metric, verbose=0):
+        Classifier.__init__(self, TabularPredictor(label=label_name, eval_metric=metric, verbosity=verbose))
+        self.label_name = label_name
+        self.feature_names = feature_names
+        self.clf_name = clf_name
+        self.feature_importance = []
+
+    def fit(self, x_train, y_train):
+        df = pd.DataFrame(data=x_train.copy(), columns=self.feature_names)
+        df[self.label_name] = y_train
+        self.model.fit(train_data=df, hyperparameters={self.clf_name:{}})
+        self.feature_importance = self.model.feature_importance(df)
+        self.feature_importances_ = self.compute_feature_importances()
+        self.classes_ = numpy.unique(y_train)
+        self.trained = True
+
+    def compute_feature_importances(self):
+        importances = []
+        for feature in self.feature_names:
+            if feature in self.feature_importance.importance.index.tolist():
+                importances.append(abs(self.feature_importance.importance.get(feature)))
+            else:
+                importances.append(0.0)
+        return np.asarray(importances)
+
+    def predict(self, x_test):
+        df = pd.DataFrame(data=x_test, columns=self.feature_names)
+        return self.model.predict(df, as_pandas=False)
+
+    def predict_proba(self, x_test):
+        df = pd.DataFrame(data=x_test, columns=self.feature_names)
+        return self.model.predict_proba(df, as_pandas=False)
+
+    def classifier_name(self):
+        return "AutoGluon"
+
+
+class FastAI(AutoGluon):
+    """
+    Wrapper for the gluon.FastAI algorithm
+    """
+
+    def __init__(self, feature_names, label_name, metric, verbose=0):
+        AutoGluon.__init__(self, feature_names, label_name, "FASTAI", metric, verbose)
+
+    def classifier_name(self):
+        return "FastAI"
+
+
+class GBM(AutoGluon):
+    """
+    Wrapper for the gluon.LightGBM algorithm
+    """
+
+    def __init__(self, feature_names, label_name, metric):
+        AutoGluon.__init__(self, feature_names, label_name, "GBM", metric)
+
+    def classifier_name(self):
+        return "GBM"
+
+
+class MXNet(AutoGluon):
+    """
+    Wrapper for the gluon.MXNet algorithm (to be debugged)
+    """
+
+    def __init__(self, feature_names, label_name):
+        AutoGluon.__init__(self, feature_names, label_name, "NN")
+
+    def classifier_name(self):
+        return "MXNet"
 
 
 class KNeighbors(Classifier):

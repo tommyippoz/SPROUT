@@ -77,9 +77,6 @@ def compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limi
 
             print("Preparing Trust Calculators...")
             quail = SPROUTObject(models_folder=MODELS_FOLDER)
-            quail.add_calculator_maxprob()
-            quail.add_calculator_agreement(x_train=x_train,
-                                           clf_set=[COPOD(), PCA(), HBOS(n_bins=len(features)*2), CBLOF(), IForest()])
             quail.add_all_calculators(x_train=x_train,
                                       y_train=y_train,
                                       label_names=label_tags,
