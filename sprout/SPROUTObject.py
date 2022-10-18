@@ -1,19 +1,14 @@
 import copy
 import fnmatch
-import glob
 import os.path
 
 import joblib
-import numpy as np
 import pandas
 import pandas as pd
-import pyod.models.auto_encoder
 from pyod.models.base import BaseDetector
-from pyod.models.pca import PCA
 from sklearn.naive_bayes import GaussianNB
 
 from sprout.utils import general_utils
-from sprout.utils.Classifier import LogisticReg
 from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval, ExternalSupervisedUncertainty, \
     CombinedUncertainty, MultiCombinedUncertainty, NeighborsUncertainty, ProximityUncertainty, FeatureBagging, \
     ReconstructionLoss, \
@@ -61,6 +56,8 @@ class SPROUTObject:
             if verbose:
                 print("Calculating Trust Strategy: " + calculator.uncertainty_calculator_name())
             start_ms = general_utils.current_ms()
+            if isinstance(data_set, pandas.DataFrame):
+                data_set = data_set.to_numpy()
             trust_scores = calculator.uncertainty_scores(data_set, y_proba, classifier)
             if type(trust_scores) is dict:
                 for key in trust_scores:
@@ -76,43 +73,6 @@ class SPROUTObject:
             return out_df
         else:
             return out_df.to_numpy()
-
-    def add_all_calculators(self, x_train, y_train, label_names, combined_clf, combined_clfs, agr_clfs):
-        """
-        Adds all trust calculators to the SPROUT object
-        :param x_train: features in the train set
-        :param y_train: labels in the train set
-        :param label_names: unique names in the label
-        :param combined_clf: classifier used for CM4
-        :param combined_clfs: classifier sets used for CM5
-        """
-        if (x_train is not None) and isinstance(x_train, pandas.DataFrame):
-            x_data = x_train.to_numpy()
-        else:
-            x_data = x_train
-        self.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9999)
-        self.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.999)
-        self.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.99)
-        self.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9)
-        self.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.5)
-        self.add_calculator_maxprob()
-        self.add_calculator_entropy(n_classes=len(label_names) if label_names is not None else 2)
-        self.add_calculator_external(classifier=LogisticReg(), x_train=x_data, y_train=y_train,
-                                     n_classes=len(label_names) if label_names is not None else 2)
-        self.add_calculator_combined(classifier=combined_clf, x_train=x_data, y_train=y_train,
-                                     n_classes=len(label_names) if label_names is not None else 2)
-        if combined_clfs is not None:
-            for cc in combined_clfs:
-                self.add_calculator_multicombined(clf_set=cc, x_train=x_data, y_train=y_train,
-                                                  n_classes=len(label_names) if label_names is not None else 2)
-        if agr_clfs is not None:
-            for cc in agr_clfs:
-                self.add_calculator_agreement(clf_set=cc, x_train=x_data, y_train=y_train)
-        self.add_calculator_neighbour(x_train=x_data, y_train=y_train, label_names=label_names)
-        self.add_calculator_proximity(x_train=x_data)
-        self.add_calculator_featurebagging(x_train=x_data, y_train=y_train, n_baggers=50, bag_type='sup')
-        self.add_calculator_featurebagging(x_train=x_data, y_train=y_train, n_baggers=50, bag_type='uns')
-        self.add_calculator_recloss(x_train=x_data)
 
     def add_calculator_confidence(self, x_train, y_train=None, confidence_level=0.9999):
         """
@@ -212,6 +172,14 @@ class SPROUTObject:
         """
         self.trust_calculators.append(ReconstructionLoss(x_train=x_train, enc_tag=tag))
 
+    def predict_set_misclassifications(self, data_set, classifier, y_proba=None, verbose=True, as_pandas=True):
+        trust_set = self.compute_set_trust(data_set, classifier, y_proba, verbose, as_pandas)
+        return self.predict_misclassifications(trust_set)
+
+    def predict_data_misclassifications(self, data_point, classifier, verbose=True, as_pandas=True):
+        trust_data = self.compute_data_trust(data_point, classifier, verbose, as_pandas)
+        return self.predict_misclassifications(trust_data)
+
     def predict_misclassifications(self, trust_set):
         if self.binary_adjudicator is not None:
             sp_df = copy.deepcopy(trust_set)
@@ -251,8 +219,7 @@ class SPROUTObject:
                                                              norm=len(label_names))
                     elif "ExternalUnsupervised" in calculator_name:
                         del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
-                        calc = ExternalUnsupervisedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
-                                                               norm=len(label_names))
+                        calc = ExternalUnsupervisedUncertainty(del_clf=del_clf, x_train=x_train, norm=len(label_names))
                     elif ".CombinedUncertainty" in calculator_name:
                         del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
                         calc = CombinedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
@@ -298,6 +265,10 @@ class SPROUTObject:
         return self.binary_adjudicator
 
     def get_available_models(self):
+        """
+        Returns the models available in the SPROUT repository
+        :return: list of strings
+        """
         return [f.name for f in os.scandir(self.models_folder) if f.is_dir()]
 
     def save_object(self, obj_folder):

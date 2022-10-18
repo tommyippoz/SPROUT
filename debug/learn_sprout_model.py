@@ -204,106 +204,110 @@ if __name__ == '__main__':
               "           Analysis using tag:" + tag + "\n"
               "---------------------------------------------------------\n")
 
-        # Merging data into a unique Dataset for training Misclassification Predictors
-        x_train, y_train, x_test, y_test, features, m_frac = \
-            load_uncertainty_datasets(folder_path, train_split=0.5)
+        if os.path.exists(folder_path):
+            # Merging data into a unique Dataset for training Misclassification Predictors
+            x_train, y_train, x_test, y_test, features, m_frac = \
+                load_uncertainty_datasets(folder_path, train_split=0.5)
 
-        # Classifiers for Detection (Binary Adjudicator)
-        m_frac = 0.5 if m_frac > 0.5 else m_frac
-        CLASSIFIERS = [GradientBoostingClassifier(n_estimators=100),
-                       DecisionTreeClassifier(),
-                       LinearDiscriminantAnalysis(),
-                       RandomForestClassifier(n_estimators=100)]
+            # Classifiers for Detection (Binary Adjudicator)
+            m_frac = 0.5 if m_frac > 0.5 else m_frac
+            CLASSIFIERS = [GradientBoostingClassifier(n_estimators=100),
+                           DecisionTreeClassifier(),
+                           LinearDiscriminantAnalysis(),
+                           RandomForestClassifier(n_estimators=100)]
 
-        # Training Binary Adjudicators to Predict Misclassifications
-        best_clf = None
-        best_ratio = None
-        best_metrics = {"MCC": -10}
+            # Training Binary Adjudicators to Predict Misclassifications
+            best_clf = None
+            best_ratio = None
+            best_metrics = {"MCC": -10}
 
-        # Formatting MISC_RATIOS
-        if MISC_RATIOS is None or len(MISC_RATIOS) == 0:
-            MISC_RATIOS = [None]
+            # Formatting MISC_RATIOS
+            if MISC_RATIOS is None or len(MISC_RATIOS) == 0:
+                MISC_RATIOS = [None]
 
-        for clf_base in CLASSIFIERS:
-            clf_name = get_classifier_name(clf_base)
-            for ratio in MISC_RATIOS:
-                clf = copy.deepcopy(clf_base)
-                if ratio is not None:
-                    x_tr, y_tr = sample_data(x_train, y_train, ratio)
-                else:
-                    x_tr = x_train
-                    y_tr = y_train
-                start_ms = current_ms()
-                clf.fit(x_tr, y_tr)
-                end_ms = current_ms()
-                y_pred = clf.predict(x_test)
-                mcc = sklearn.metrics.matthews_corrcoef(y_test, y_pred)
-                print("[" + clf_name + "][ratio=" + str(ratio) + "] Accuracy: " + str(
-                    sklearn.metrics.accuracy_score(y_test, y_pred))
-                      + " and MCC of " + str(mcc) + " in " + str((end_ms - start_ms) / 60000) + " mins")
-                if mcc > best_metrics["MCC"]:
-                    best_ratio = ratio
-                    best_clf = clf
-                    [tn, fp], [fn, tp] = sklearn.metrics.confusion_matrix(y_test, y_pred)
-                    best_metrics = {"MCC": mcc,
-                                    "Accuracy": sklearn.metrics.accuracy_score(y_test, y_pred),
-                                    "AUC ROC": sklearn.metrics.roc_auc_score(y_test, y_pred),
-                                    "Precision": sklearn.metrics.precision_score(y_test, y_pred),
-                                    "Recall": sklearn.metrics.recall_score(y_test, y_pred),
-                                    "TP": tp,
-                                    "TN": tn,
-                                    "FP": fp,
-                                    "FN": fn}
+            for clf_base in CLASSIFIERS:
+                clf_name = get_classifier_name(clf_base)
+                for ratio in MISC_RATIOS:
+                    clf = copy.deepcopy(clf_base)
+                    if ratio is not None:
+                        x_tr, y_tr = sample_data(x_train, y_train, ratio)
+                    else:
+                        x_tr = x_train
+                        y_tr = y_train
+                    start_ms = current_ms()
+                    clf.fit(x_tr, y_tr)
+                    end_ms = current_ms()
+                    y_pred = clf.predict(x_test)
+                    mcc = sklearn.metrics.matthews_corrcoef(y_test, y_pred)
+                    print("[" + clf_name + "][ratio=" + str(ratio) + "] Accuracy: " + str(
+                        sklearn.metrics.accuracy_score(y_test, y_pred))
+                          + " and MCC of " + str(mcc) + " in " + str((end_ms - start_ms) / 60000) + " mins")
+                    if mcc > best_metrics["MCC"]:
+                        best_ratio = ratio
+                        best_clf = clf
+                        [tn, fp], [fn, tp] = sklearn.metrics.confusion_matrix(y_test, y_pred)
+                        best_metrics = {"MCC": mcc,
+                                        "Accuracy": sklearn.metrics.accuracy_score(y_test, y_pred),
+                                        "AUC ROC": sklearn.metrics.roc_auc_score(y_test, y_pred),
+                                        "Precision": sklearn.metrics.precision_score(y_test, y_pred),
+                                        "Recall": sklearn.metrics.recall_score(y_test, y_pred),
+                                        "TP": tp,
+                                        "TN": tn,
+                                        "FP": fp,
+                                        "FN": fn}
 
-        print("\nBest classifier is " + get_classifier_name(best_clf) + "/" + str(best_ratio) +
-              " with MCC = " + str(best_metrics["MCC"]))
+            print("\nBest classifier is " + get_classifier_name(best_clf) + "/" + str(best_ratio) +
+                  " with MCC = " + str(best_metrics["MCC"]))
 
-        # Setting up folder to store the SPROUT model
-        models_details_folder = MODELS_FOLDER + tag + "/"
-        if not os.path.exists(models_details_folder):
-            os.mkdir(models_details_folder)
+            # Setting up folder to store the SPROUT model
+            models_details_folder = MODELS_FOLDER + tag + "/"
+            if not os.path.exists(models_details_folder):
+                os.mkdir(models_details_folder)
 
-        # Stores details of the SPROUT object used to build the Binary Adjudicator
-        sprout_obj.save_object(models_details_folder)
+            # Stores details of the SPROUT object used to build the Binary Adjudicator
+            sprout_obj.save_object(models_details_folder)
 
-        # Storing the classifier to be used for Predicting Misclassifications of a Generic Classifier.
-        model_file = models_details_folder + "binary_adj_model.joblib"
-        joblib.dump(best_clf, model_file, compress=9)
+            # Storing the classifier to be used for Predicting Misclassifications of a Generic Classifier.
+            model_file = models_details_folder + "binary_adj_model.joblib"
+            joblib.dump(best_clf, model_file, compress=9)
 
-        # Tests if storing was successful
-        clf_obj = joblib.load(model_file)
-        y_p = clf_obj.predict(x_test)
-        if sklearn.metrics.matthews_corrcoef(y_test, y_p) == best_metrics["MCC"]:
-            print("Model stored successfully at '" + model_file + "'")
+            # Tests if storing was successful
+            clf_obj = joblib.load(model_file)
+            y_p = clf_obj.predict(x_test)
+            if sklearn.metrics.matthews_corrcoef(y_test, y_p) == best_metrics["MCC"]:
+                print("Model stored successfully at '" + model_file + "'")
+            else:
+                print("Error while storing the model - file corrupted")
+
+            # Scores of the SPROUT wrapper
+            det_dict = {"analysis tag": tag,
+                        "binary classifier": get_classifier_name(best_clf),
+                        "train data size": len(y_train),
+                        "train data features": numpy.asarray(features),
+                        "original misclassification ratio of training set": m_frac,
+                        "actual misclassification ratio in training set": best_ratio,
+                        "test_mcc": best_metrics["MCC"],
+                        "test_acc": best_metrics["Accuracy"],
+                        "test_auc": best_metrics["AUC ROC"],
+                        "test_p": best_metrics["Precision"],
+                        "test_r": best_metrics["Recall"],
+                        "test_tp": best_metrics["TP"],
+                        "test_tn": best_metrics["TN"],
+                        "test_fp": best_metrics["FP"],
+                        "test_fn": best_metrics["FN"],
+                        }
+            with open(models_details_folder + "binary_adjudicator_metrics.txt", 'w') as f:
+                for key, value in det_dict.items():
+                    f.write('%s:%s\n' % (key, value))
+
+            # Plot ROC_AUC
+            sklearn.metrics.RocCurveDisplay.from_estimator(best_clf, x_test, y_test)
+            plt.savefig(models_details_folder + "binary_adjudicator_aucroc_plot.png")
+
+            f_imp = dict(zip(numpy.asarray(features), best_clf.feature_importances_))
+            with open(models_details_folder + "binary_adjudicator_feature_importances.csv", 'w') as f:
+                for key, value in f_imp.items():
+                    f.write('%s,%s\n' % (key, value))
+
         else:
-            print("Error while storing the model - file corrupted")
-
-        # Scores of the SPROUT wrapper
-        det_dict = {"analysis tag": tag,
-                    "binary classifier": get_classifier_name(best_clf),
-                    "train data size": len(y_train),
-                    "train data features": numpy.asarray(features),
-                    "original misclassification ratio of training set": m_frac,
-                    "actual misclassification ratio in training set": best_ratio,
-                    "test_mcc": best_metrics["MCC"],
-                    "test_acc": best_metrics["Accuracy"],
-                    "test_auc": best_metrics["AUC ROC"],
-                    "test_p": best_metrics["Precision"],
-                    "test_r": best_metrics["Recall"],
-                    "test_tp": best_metrics["TP"],
-                    "test_tn": best_metrics["TN"],
-                    "test_fp": best_metrics["FP"],
-                    "test_fn": best_metrics["FN"],
-                    }
-        with open(models_details_folder + "binary_adjudicator_metrics.txt", 'w') as f:
-            for key, value in det_dict.items():
-                f.write('%s:%s\n' % (key, value))
-
-        # Plot ROC_AUC
-        sklearn.metrics.RocCurveDisplay.from_estimator(best_clf, x_test, y_test)
-        plt.savefig(models_details_folder + "binary_adjudicator_aucroc_plot.png")
-
-        f_imp = dict(zip(numpy.asarray(features), best_clf.feature_importances_))
-        with open(models_details_folder + "binary_adjudicator_feature_importances.csv", 'w') as f:
-            for key, value in f_imp.items():
-                f.write('%s,%s\n' % (key, value))
+            print("Path for the analysis does not exist")
