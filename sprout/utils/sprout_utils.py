@@ -52,7 +52,7 @@ def build_classifier(classifier, x_train, y_train, x_test, y_test, verbose=True)
     train_ms = current_ms()
 
     # Test features have to be a numpy array
-    if not isinstance(x_test, np.ndarray):
+    if isinstance(x_test, pandas.DataFrame):
         test_data = x_test.to_numpy()
 
     # Predicting labels

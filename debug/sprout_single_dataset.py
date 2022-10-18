@@ -19,7 +19,7 @@ from sprout.SPROUTObject import SPROUTObject
 from sprout.utils.sprout_utils import get_classifier_name
 
 MODELS_FOLDER = "../models/"
-MODEL_TAGS = ["bio_all", "full_all", "image_all", "iot_all", "hw_all", "nids_all"]
+MODEL_TAGS = ["bio", "full", "image", "iot", "hw", "nids"]
 OUTPUT_FOLDER = "./output_folder/"
 OUTPUT_LOG_FILE = "single_sprout.csv"
 
@@ -30,7 +30,7 @@ if __name__ == '__main__':
     """
 
     # Reading preferences
-    dataset_files, classifier_list, y_label, limit_rows = load_config("config.cfg")
+    dataset_files, d_folder, s_folder, classifier_list, y_label, limit_rows = load_config("config.cfg")
 
     with open(OUTPUT_FOLDER + OUTPUT_LOG_FILE, 'w') as f:
         f.write('dataset,classifier,detector_tag,detector_classifier,classifier_acc,detector_acc,detector_mcc,' +
@@ -39,56 +39,50 @@ if __name__ == '__main__':
     for dataset_file in dataset_files:
 
         if (not os.path.isfile(dataset_file)) and not dataset_utils.is_image_dataset(dataset_file):
-
-            # Error while Reading Dataset
             print("Dataset '" + str(dataset_file) + "' does not exist / not reachable")
-
         else:
-
             print("Processing Dataset " + dataset_file + (
                 " - limit " + str(limit_rows) if np.isfinite(limit_rows) else ""))
-
-            # Reading Dataset
             if dataset_file.endswith('.csv'):
-                # Reading Tabular Dataset
                 x_train, x_test, y_train, y_test, label_tags, features = \
                     dataset_utils.process_tabular_dataset(dataset_file, y_label, limit_rows)
             else:
-                # Other / Image Dataset
                 x_train, x_test, y_train, y_test, label_tags, features = \
                     dataset_utils.process_image_dataset(dataset_file, limit_rows)
 
-            print("Loading SPROUT Model ...")
-            sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
-            sprout_obj.load_model(model_tag="iot_all", x_train=x_train, y_train=y_train, label_names=label_tags)
+            for tag in MODEL_TAGS:
+                print("Loading SPROUT Model for tag '" + str(tag) + "' ...")
+                sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
+                sprout_obj.load_model(model_tag=tag, x_train=x_train, y_train=y_train, label_names=label_tags)
 
-            for classifier_string in classifier_list:
-                # Building and exercising classifier
-                classifier = choose_classifier(classifier_string, features, y_label, "accuracy")
-                y_proba, y_pred = sprout_utils.build_classifier(classifier, x_train, y_train, x_test, y_test)
-                clf_acc = sklearn.metrics.accuracy_score(y_test, y_pred)
-                y_misc = numpy.multiply(y_pred != y_test, 1)
+                for classifier_string in classifier_list:
+                    # Building and exercising classifier
+                    classifier = choose_classifier(classifier_string, features, y_label, "accuracy")
+                    y_proba, y_pred = sprout_utils.build_classifier(classifier, x_train, y_train, x_test, y_test)
+                    clf_acc = sklearn.metrics.accuracy_score(y_test, y_pred)
+                    y_misc = numpy.multiply(y_pred != y_test, 1)
 
-                # Initializing SPROUT dataset for output
-                out_df = sprout_utils.build_SPROUT_dataset(y_proba, y_pred, y_test, label_tags)
+                    # Initializing SPROUT dataset for output
+                    out_df = sprout_utils.build_SPROUT_dataset(y_proba, y_pred, y_test, label_tags)
 
-                # Calculating Trust Measures with SPROUT
-                sp_df = sprout_obj.compute_set_trust(data_set=x_test, classifier=classifier)
-                sp_df = sp_df.select_dtypes(exclude=['object'])
-                out_df = pd.concat([out_df, sp_df], axis=1)
+                    # Calculating Trust Measures with SPROUT
+                    sp_df = sprout_obj.compute_set_trust(data_set=x_test, classifier=classifier)
+                    sp_df = sp_df.select_dtypes(exclude=['object'])
+                    out_df = pd.concat([out_df, sp_df], axis=1)
 
-                # Printing Dataframe
-                file_out = OUTPUT_FOLDER + clean_name(dataset_file) + "_" + \
-                           sprout_utils.get_classifier_name(classifier) + '.csv'
-                out_df.to_csv(file_out, index=False)
-                print("File '" + file_out + "' Printed")
-
-                for tag in MODEL_TAGS:
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        predictions_df, clf = sprout_obj.predict_misclassifications(sp_df)
-
+                    # Predict misclassifications with SPROUT
+                    predictions_df, clf = sprout_obj.predict_misclassifications(sp_df)
                     y_pred = predictions_df["pred"].to_numpy()
+
+                    # Printing Dataframe
+                    file_out = OUTPUT_FOLDER + clean_name(dataset_file, d_folder) + "_" + \
+                               sprout_utils.get_classifier_name(classifier) + '.csv'
+                    if not os.path.exists(os.path.dirname(file_out)):
+                        os.mkdir(os.path.dirname(file_out))
+                    out_df["SPROUT_pred"] = y_pred
+                    out_df.to_csv(file_out, index=False)
+                    print("File '" + file_out + "' Printed")
+
                     y_true = y_misc
                     [tn, fp], [fn, tp] = sklearn.metrics.confusion_matrix(y_true, y_pred)
                     best_metrics = {"MCC": sklearn.metrics.matthews_corrcoef(y_true, y_pred),
@@ -101,7 +95,7 @@ if __name__ == '__main__':
                                     "FP": fp,
                                     "FN": fn}
 
-                    print("Misclassification Detector [" + tag + "]: " + get_classifier_name(clf) +
+                    print("\nMisclassification Detector [" + tag + "]: " + get_classifier_name(clf) +
                           " for classifier '" + get_classifier_name(classifier) + "' "
                                                                                   "has ACC = " + str(
                         best_metrics["Accuracy"]) + ", MCC = " + str(best_metrics["MCC"]))

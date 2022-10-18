@@ -31,6 +31,14 @@ def load_config(file_config):
             classifiers = [x.strip() for x in classifiers.split(',')]
         else:
             classifiers = [classifiers]
+
+        # Folders
+        d_folder = config_file['datasets_folder']
+        if not d_folder.endswith("/"):
+            d_folder = d_folder + "/"
+        s_folder = config_file['sprout_scores_folder']
+        if not s_folder.endswith("/"):
+            s_folder = s_folder + "/"
     
         # Processing paths
         path_string = config_file['datasets']
@@ -40,11 +48,12 @@ def load_config(file_config):
             path_string = [path_string]
         datasets_path = []
         for file_string in path_string:
-            if os.path.isdir(file_string):
-                datasets_path.extend([os.path.join(file_string, f) for f in os.listdir(file_string) if
-                                      os.path.isfile(os.path.join(file_string, f))])
+            file_path = os.path.join(d_folder, file_string)
+            if os.path.isdir(file_path):
+                datasets_path.extend([os.path.join(file_path, f) for f in os.listdir(file_path) if
+                                      os.path.isfile(os.path.join(file_path, f))])
             else:
-                datasets_path.append(file_string)
+                datasets_path.append(file_path)
     
         # Processing limit to rows
         lim_rows = config_file['limit_rows']
@@ -52,7 +61,8 @@ def load_config(file_config):
             lim_rows = np.nan
         else:
             lim_rows = int(lim_rows)
-        return datasets_path, classifiers, config_file['label_tabular'], lim_rows
+
+        return datasets_path, d_folder, s_folder, classifiers, config_file['label_tabular'], lim_rows
     
     else:
         # Config File does not exist
@@ -67,16 +77,19 @@ def current_ms():
     return round(time.time() * 1000)
 
 
-def clean_name(file):
+def clean_name(file, prequel):
     """
     Method to get clean name of a file
     :param file: the original file path
     :return: the filename with no path and extension
     """
-    name = os.path.basename(file)
-    if '.' in name:
-        name = name.split('.')[0]
-    return name
+    if prequel in file:
+        file = file.replace(prequel, "")
+    if '.' in file:
+        file = file.split('.')[0]
+    if file.startswith("/"):
+        file = file[1:]
+    return file
 
 
 def choose_classifier(clf_name, features, y_label, metric):

@@ -1,5 +1,6 @@
 import copy
 import random
+import warnings
 
 import joblib
 import numpy
@@ -101,7 +102,6 @@ class EntropyUncertainty(UncertaintyCalculator):
         """
         norm_array = np.full(norm, 1 / norm)
         self.normalization = (-norm_array * np.log2(norm_array)).sum()
-        return
 
     def uncertainty_score(self, proba):
         """
@@ -109,7 +109,6 @@ class EntropyUncertainty(UncertaintyCalculator):
         :param proba: the probability array assigned by the algorithm to the data point
         :return: entropy score in the range [0, 1]
         """
-
         val = np.delete(proba, np.where(proba == 0))
         p = val / val.sum()
         entropy = (-p * np.log2(p)).sum()
@@ -205,6 +204,8 @@ class ExternalSupervisedUncertainty(UncertaintyCalculator):
             unc_measure = 'max_prob'
         self.unc_measure = unc_measure
         if x_train is not None and y_train is not None:
+            if isinstance(x_train, pandas.DataFrame):
+                x_train = x_train.to_numpy()
             self.del_clf.fit(x_train, y_train)
             print("[ExternalSupTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
         else:
@@ -250,6 +251,8 @@ class ExternalUnsupervisedUncertainty(UncertaintyCalculator):
             unc_measure = 'max_prob'
         self.unc_measure = unc_measure
         if x_train is not None:
+            if isinstance(x_train, pandas.DataFrame):
+                x_train = x_train.to_numpy()
             self.del_clf.fit(x_train)
             print("[ExternalUnsTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
         else:
@@ -271,7 +274,7 @@ class ExternalUnsupervisedUncertainty(UncertaintyCalculator):
             min_p = min(proba[i])
             max_p = max(proba[i])
             proba[i][pred[i]] = max_p
-            proba[i][1-pred[i]] = min_p
+            proba[i][1 - pred[i]] = min_p
         return proba
 
     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
@@ -301,6 +304,8 @@ class CombinedUncertainty(UncertaintyCalculator):
         self.del_clf = del_clf
         self.trust_measure = EntropyUncertainty(norm)
         if x_train is not None:
+            if isinstance(x_train, pandas.DataFrame):
+                x_train = x_train.to_numpy()
             start_time = current_ms()
             self.del_clf.fit(x_train, y_train)
             print("[CombinedTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed in " +
@@ -408,6 +413,8 @@ class AgreementUncertainty(UncertaintyCalculator):
         start_time = current_ms()
         for clf in clf_set:
             if x_train is not None:
+                if isinstance(x_train, pandas.DataFrame):
+                    x_train = x_train.to_numpy()
                 try:
                     if isinstance(clf, pyod.models.base.BaseDetector):
                         clf.fit(x_train)
@@ -489,10 +496,12 @@ class ConfidenceInterval(UncertaintyCalculator):
                 intervals = []
                 for i in range(0, len(x_data[0])):
                     feature = x_data[:, i]
-                    intervals.append(scipy.stats.t.interval(self.confidence_level,
-                                                            len(feature) - 1,
-                                                            loc=np.median(feature),
-                                                            scale=scipy.stats.sem(feature)))
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        intervals.append(scipy.stats.t.interval(self.confidence_level,
+                                                                len(feature) - 1,
+                                                                loc=np.median(feature),
+                                                                scale=scipy.stats.sem(feature)))
                 intervals = numpy.asarray(intervals)
                 self.intervals_min = numpy.asarray(intervals[:, 0])
                 self.intervals_max = numpy.asarray(intervals[:, 1])
@@ -503,10 +512,12 @@ class ConfidenceInterval(UncertaintyCalculator):
                     data = x_data[y_train == label, :]
                     for i in range(0, len(x_data[0])):
                         feature = data[:, i]
-                        intervals.append(scipy.stats.t.interval(self.confidence_level,
-                                                                len(feature) - 1,
-                                                                loc=np.median(feature),
-                                                                scale=scipy.stats.sem(feature)))
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            intervals.append(scipy.stats.t.interval(self.confidence_level,
+                                                                    len(feature) - 1,
+                                                                    loc=np.median(feature),
+                                                                    scale=scipy.stats.sem(feature)))
                     intervals = numpy.asarray(intervals)
                     self.intervals_min[label] = numpy.asarray(intervals[:, 0])
                     self.intervals_max[label] = numpy.asarray(intervals[:, 1])
@@ -606,7 +617,7 @@ class ProximityUncertainty(UncertaintyCalculator):
         mc_x = []
         for i in range(len(feature_values_array)):
             features = feature_values_array[i]
-            mc_x.extend([[random.gauss(m, s) for m, s in zip(features, self.range*self.stds)]
+            mc_x.extend([[random.gauss(m, s) for m, s in zip(features, self.range * self.stds)]
                          for _ in range(self.n_artificial)])
         mc_x = np.array(mc_x)
 
@@ -660,7 +671,7 @@ class FeatureBagging(UncertaintyCalculator):
                 bag_rate = 0.6
             else:
                 bag_rate = 0.5
-            bag_features = int(n_features*bag_rate)
+            bag_features = int(n_features * bag_rate)
 
             for i in tqdm(range(self.n_baggers), "Building Feature Baggers"):
                 fs = random.sample(range(n_features), bag_features)
@@ -712,7 +723,7 @@ class FeatureBagging(UncertaintyCalculator):
         # Calculating Uncertainty
         trust = []
         for i in range(len(feature_values_array)):
-            trust.append(sum(fs_pred[i] == predicted_classes[i])/len(fs_pred[i]))
+            trust.append(sum(fs_pred[i] == predicted_classes[i]) / len(fs_pred[i]))
 
         return np.asarray(trust)
 

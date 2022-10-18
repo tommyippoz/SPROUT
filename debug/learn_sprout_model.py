@@ -18,7 +18,6 @@ from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB, Compleme
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
 
 from sprout.utils.Classifier import LogisticReg, XGB, TabNet
 from sprout.utils.dataset_utils import process_tabular_dataset, process_image_dataset, is_image_dataset
@@ -33,18 +32,18 @@ GENERATE_UNCERTAINTIES = True
 FILE_AVOID_TAG = None
 
 # Vars for Learning Model
-ANALYSIS_AVOID_TAGS = {"all": None}
 MODELS_FOLDER = "../models/"
-STUDY_TAG = {"iot": "./datasets_measures/IoT",}
-             # "hw": "./datasets_measures/HW/",
-             # "bio": "./datasets_measures/Biometry/",
-             # "image": "./datasets_measures/MNIST/",
-             # "nids": "./datasets_measures/NIDS/",
-             # "full": "./datasets_measures/all/"}
+STUDY_TAG = {"iot": "./datasets_measures/IoT",
+             "hw": "./datasets_measures/HW/",
+             "bio": "./datasets_measures/Biometry/",
+             "image": "./datasets_measures/MNIST/",
+             "nids": "./datasets_measures/NIDS/",
+             "full": "./datasets_measures/all/"}
 MISC_RATIOS = [None, 0.1, 0.2, 0.3]
 
 
-def compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limit_rows, out_folder):
+def compute_datasets_uncertainties(dataset_files, d_folder, s_folder,
+                                   classifier_list, y_label, limit_rows):
     """
     Computes Uncertainties for many datasets.
     """
@@ -92,7 +91,9 @@ def compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limi
                 out_df = pd.concat([out_df, q_df], axis=1)
 
                 # Printing Dataframe
-                file_out = out_folder + '/' + clean_name(dataset_file) + "_" + get_classifier_name(classifier) + '.csv'
+                file_out = s_folder + clean_name(dataset_file, d_folder) + "_" + get_classifier_name(classifier) + '.csv'
+                if not os.path.exists(os.path.dirname(file_out)):
+                    os.mkdir(os.path.dirname(file_out))
                 out_df.to_csv(file_out, index=False)
                 print("File '" + file_out + "' Printed")
 
@@ -147,18 +148,37 @@ def sample_data(x, y, ratio):
 
 
 def build_object(x_train, y_train, label_tags):
-    sprout = SPROUTObject(models_folder=MODELS_FOLDER)
-    sprout.add_all_calculators(x_train=x_train,
-                              y_train=y_train,
-                              label_names=label_tags,
-                              combined_clf=XGB(),
-                              combined_clfs=[[GaussianNB(), LinearDiscriminantAnalysis(), LogisticReg()],
-                                             [GaussianNB(), BernoulliNB(),
-                                              Pipeline([("norm", MinMaxScaler()), ("clf", MultinomialNB())]),
-                                              Pipeline([("norm", MinMaxScaler()), ("clf", ComplementNB())])],
-                                             [DecisionTreeClassifier(), RandomForestClassifier(), XGB()]],
-                              agr_clfs=[[COPOD(), PCA(), HBOS(n_bins=20), CBLOF(), IForest()]])
-    return sprout
+    sp_obj = SPROUTObject(models_folder=MODELS_FOLDER)
+    if (x_train is not None) and isinstance(x_train, pandas.DataFrame):
+        x_data = x_train.to_numpy()
+    else:
+        x_data = x_train
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9999)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.999)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.99)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.5)
+    sp_obj.add_calculator_maxprob()
+    sp_obj.add_calculator_entropy(n_classes=len(label_tags) if label_tags is not None else 2)
+    sp_obj.add_calculator_external(classifier=LogisticReg(), x_train=x_data, y_train=y_train,
+                                   n_classes=len(label_tags) if label_tags is not None else 2)
+    sp_obj.add_calculator_combined(classifier=XGB(), x_train=x_data, y_train=y_train,
+                                   n_classes=len(label_tags) if label_tags is not None else 2)
+    for cc in [[GaussianNB(), LinearDiscriminantAnalysis(), LogisticReg()],
+               [GaussianNB(), BernoulliNB(),
+                    Pipeline([("norm", MinMaxScaler()), ("clf", MultinomialNB())]),
+                    Pipeline([("norm", MinMaxScaler()), ("clf", ComplementNB())])],
+               [DecisionTreeClassifier(), RandomForestClassifier(), XGB()]]:
+        sp_obj.add_calculator_multicombined(clf_set=cc, x_train=x_data, y_train=y_train,
+                                   n_classes=len(label_tags) if label_tags is not None else 2)
+    for cc in [[COPOD(), PCA(), HBOS(n_bins=20), CBLOF(), IForest()]]:
+        sp_obj.add_calculator_agreement(clf_set=cc, x_train=x_data, y_train=y_train)
+    sp_obj.add_calculator_neighbour(x_train=x_data, y_train=y_train, label_names=label_tags)
+    sp_obj.add_calculator_proximity(x_train=x_data)
+    sp_obj.add_calculator_featurebagging(x_train=x_data, y_train=y_train, n_baggers=50, bag_type='sup')
+    sp_obj.add_calculator_featurebagging(x_train=x_data, y_train=y_train, n_baggers=50, bag_type='uns')
+    sp_obj.add_calculator_recloss(x_train=x_data)
+    return sp_obj
 
 
 if __name__ == '__main__':
@@ -168,125 +188,122 @@ if __name__ == '__main__':
     """
 
     # Reading preferences
-    dataset_files, classifier_list, y_label, limit_rows = load_config("config.cfg")
+    dataset_files, dataset_folder, sprout_folder, classifier_list, y_label, limit_rows = load_config("config.cfg")
+
+    # Generating Input data for training Misclassification Predictors
+    if not os.path.exists(sprout_folder):
+        os.mkdir(sprout_folder)
+    if GENERATE_UNCERTAINTIES or len(os.listdir(sprout_folder)) == 0:
+        compute_datasets_uncertainties(dataset_files, dataset_folder, sprout_folder,
+                                       classifier_list, y_label, limit_rows)
+    sprout_obj = build_object(None, None, None)
 
     for tag, folder_path in STUDY_TAG.items():
 
-        # Generating Input data for training Misclassification Predictors
-        if not os.path.exists(folder_path):
-            os.mkdir(folder_path)
-        if GENERATE_UNCERTAINTIES or len(os.listdir(folder_path)) == 0:
-            compute_datasets_uncertainties(dataset_files, classifier_list, y_label, limit_rows, folder_path)
-        sprout_obj = build_object(None, None, None)
+        print("---------------------------------------------------------\n"
+              "           Analysis using tag:" + tag + "\n"
+              "---------------------------------------------------------\n")
 
-        for analysis_desc in ANALYSIS_AVOID_TAGS:
+        # Merging data into a unique Dataset for training Misclassification Predictors
+        x_train, y_train, x_test, y_test, features, m_frac = \
+            load_uncertainty_datasets(folder_path, train_split=0.5)
 
-            print("---------------------------------------------------------\n"
-                  "Analysis using tag:" + analysis_desc + "\n"
-                                                          "---------------------------------------------------------\n")
+        # Classifiers for Detection (Binary Adjudicator)
+        m_frac = 0.5 if m_frac > 0.5 else m_frac
+        CLASSIFIERS = [GradientBoostingClassifier(n_estimators=100),
+                       DecisionTreeClassifier(),
+                       LinearDiscriminantAnalysis(),
+                       RandomForestClassifier(n_estimators=100)]
 
-            # Merging data into a unique Dataset for training Misclassification Predictors
-            x_train, y_train, x_test, y_test, features, m_frac = \
-                load_uncertainty_datasets(folder_path,
-                                          avoid_tags=ANALYSIS_AVOID_TAGS[analysis_desc],
-                                          train_split=0.5)
+        # Training Binary Adjudicators to Predict Misclassifications
+        best_clf = None
+        best_ratio = None
+        best_metrics = {"MCC": -10}
 
-            # Classifiers for Detection (Binary Adjudicator)
-            m_frac = 0.5 if m_frac > 0.5 else m_frac
-            CLASSIFIERS = [GradientBoostingClassifier(n_estimators=50),
-                           DecisionTreeClassifier(),
-                           RandomForestClassifier(n_estimators=50)]
+        # Formatting MISC_RATIOS
+        if MISC_RATIOS is None or len(MISC_RATIOS) == 0:
+            MISC_RATIOS = [None]
 
-            # Training Binary Adjudicators to Predict Misclassifications
-            best_clf = None
-            best_ratio = None
-            best_metrics = {"MCC": -10}
+        for clf_base in CLASSIFIERS:
+            clf_name = get_classifier_name(clf_base)
+            for ratio in MISC_RATIOS:
+                clf = copy.deepcopy(clf_base)
+                if ratio is not None:
+                    x_tr, y_tr = sample_data(x_train, y_train, ratio)
+                else:
+                    x_tr = x_train
+                    y_tr = y_train
+                start_ms = current_ms()
+                clf.fit(x_tr, y_tr)
+                end_ms = current_ms()
+                y_pred = clf.predict(x_test)
+                mcc = sklearn.metrics.matthews_corrcoef(y_test, y_pred)
+                print("[" + clf_name + "][ratio=" + str(ratio) + "] Accuracy: " + str(
+                    sklearn.metrics.accuracy_score(y_test, y_pred))
+                      + " and MCC of " + str(mcc) + " in " + str((end_ms - start_ms) / 60000) + " mins")
+                if mcc > best_metrics["MCC"]:
+                    best_ratio = ratio
+                    best_clf = clf
+                    [tn, fp], [fn, tp] = sklearn.metrics.confusion_matrix(y_test, y_pred)
+                    best_metrics = {"MCC": mcc,
+                                    "Accuracy": sklearn.metrics.accuracy_score(y_test, y_pred),
+                                    "AUC ROC": sklearn.metrics.roc_auc_score(y_test, y_pred),
+                                    "Precision": sklearn.metrics.precision_score(y_test, y_pred),
+                                    "Recall": sklearn.metrics.recall_score(y_test, y_pred),
+                                    "TP": tp,
+                                    "TN": tn,
+                                    "FP": fp,
+                                    "FN": fn}
 
-            # Formatting MISC_RATIOS
-            if MISC_RATIOS is None or len(MISC_RATIOS) == 0:
-                MISC_RATIOS = [None]
+        print("\nBest classifier is " + get_classifier_name(best_clf) + "/" + str(best_ratio) +
+              " with MCC = " + str(best_metrics["MCC"]))
 
-            for clf_base in CLASSIFIERS:
-                clf_name = get_classifier_name(clf_base)
-                for ratio in MISC_RATIOS:
-                    clf = copy.deepcopy(clf_base)
-                    if ratio is not None:
-                        x_tr, y_tr = sample_data(x_train, y_train, ratio)
-                    else:
-                        x_tr = x_train
-                        y_tr = y_train
-                    start_ms = current_ms()
-                    clf.fit(x_tr, y_tr)
-                    end_ms = current_ms()
-                    y_pred = clf.predict(x_test)
-                    mcc = sklearn.metrics.matthews_corrcoef(y_test, y_pred)
-                    print("[" + clf_name + "][ratio=" + str(ratio) + "] Accuracy: " + str(
-                        sklearn.metrics.accuracy_score(y_test, y_pred))
-                          + " and MCC of " + str(mcc) + " in " + str((end_ms - start_ms) / 60000) + " mins")
-                    if mcc > best_metrics["MCC"]:
-                        best_ratio = ratio
-                        best_clf = clf
-                        [tn, fp], [fn, tp] = sklearn.metrics.confusion_matrix(y_test, y_pred)
-                        best_metrics = {"MCC": mcc,
-                                        "Accuracy": sklearn.metrics.accuracy_score(y_test, y_pred),
-                                        "AUC ROC": sklearn.metrics.roc_auc_score(y_test, y_pred),
-                                        "Precision": sklearn.metrics.precision_score(y_test, y_pred),
-                                        "Recall": sklearn.metrics.recall_score(y_test, y_pred),
-                                        "TP": tp,
-                                        "TN": tn,
-                                        "FP": fp,
-                                        "FN": fn}
+        # Setting up folder to store the SPROUT model
+        models_details_folder = MODELS_FOLDER + tag + "/"
+        if not os.path.exists(models_details_folder):
+            os.mkdir(models_details_folder)
 
-            print("\nBest classifier is " + get_classifier_name(best_clf) + "/" + str(best_ratio) +
-                  " with MCC = " + str(best_metrics["MCC"]))
+        # Stores details of the SPROUT object used to build the Binary Adjudicator
+        sprout_obj.save_object(models_details_folder)
 
-            # Setting up folder to store the SPROUT model
-            model_tag = tag + "_" + analysis_desc
-            models_details_folder = MODELS_FOLDER + model_tag + "/"
-            if not os.path.exists(models_details_folder):
-                os.mkdir(models_details_folder)
+        # Storing the classifier to be used for Predicting Misclassifications of a Generic Classifier.
+        model_file = models_details_folder + "binary_adj_model.joblib"
+        joblib.dump(best_clf, model_file, compress=9)
 
-            # Stores details of the SPROUT object used to build the Binary Adjudicator
-            sprout_obj.save_object(models_details_folder)
+        # Tests if storing was successful
+        clf_obj = joblib.load(model_file)
+        y_p = clf_obj.predict(x_test)
+        if sklearn.metrics.matthews_corrcoef(y_test, y_p) == best_metrics["MCC"]:
+            print("Model stored successfully at '" + model_file + "'")
+        else:
+            print("Error while storing the model - file corrupted")
 
-            # Storing the classifier to be used for Predicting Misclassifications of a Generic Classifier.
-            model_file = models_details_folder + "binary_adj_model.joblib"
-            joblib.dump(best_clf, model_file, compress=9)
+        # Scores of the SPROUT wrapper
+        det_dict = {"analysis tag": tag,
+                    "binary classifier": get_classifier_name(best_clf),
+                    "train data size": len(y_train),
+                    "train data features": numpy.asarray(features),
+                    "original misclassification ratio of training set": m_frac,
+                    "actual misclassification ratio in training set": best_ratio,
+                    "test_mcc": best_metrics["MCC"],
+                    "test_acc": best_metrics["Accuracy"],
+                    "test_auc": best_metrics["AUC ROC"],
+                    "test_p": best_metrics["Precision"],
+                    "test_r": best_metrics["Recall"],
+                    "test_tp": best_metrics["TP"],
+                    "test_tn": best_metrics["TN"],
+                    "test_fp": best_metrics["FP"],
+                    "test_fn": best_metrics["FN"],
+                    }
+        with open(models_details_folder + "binary_adjudicator_metrics.txt", 'w') as f:
+            for key, value in det_dict.items():
+                f.write('%s:%s\n' % (key, value))
 
-            # Tests if storing was successful
-            clf_obj = joblib.load(model_file)
-            y_p = clf_obj.predict(x_test)
-            if sklearn.metrics.matthews_corrcoef(y_test, y_p) == best_metrics["MCC"]:
-                print("Model stored successfully at '" + model_file + "'")
-            else:
-                print("Error while storing the model - file corrupted")
+        # Plot ROC_AUC
+        sklearn.metrics.RocCurveDisplay.from_estimator(best_clf, x_test, y_test)
+        plt.savefig(models_details_folder + "binary_adjudicator_aucroc_plot.png")
 
-            # Scores of the SPROUT wrapper
-            det_dict = {"analysis tag": analysis_desc,
-                        "binary classifier": get_classifier_name(best_clf),
-                        "train data size": len(y_train),
-                        "train data features": numpy.asarray(features),
-                        "original misclassification ratio of training set": m_frac,
-                        "actual misclassification ratio in training set": best_ratio,
-                        "test_mcc": best_metrics["MCC"],
-                        "test_acc": best_metrics["Accuracy"],
-                        "test_auc": best_metrics["AUC ROC"],
-                        "test_p": best_metrics["Precision"],
-                        "test_r": best_metrics["Recall"],
-                        "test_tp": best_metrics["TP"],
-                        "test_tn": best_metrics["TN"],
-                        "test_fp": best_metrics["FP"],
-                        "test_fn": best_metrics["FN"],
-                        }
-            with open(models_details_folder + "binary_adjudicator_metrics.txt", 'w') as f:
-                for key, value in det_dict.items():
-                    f.write('%s:%s\n' % (key, value))
-
-            # Plot ROC_AUC
-            sklearn.metrics.RocCurveDisplay.from_estimator(best_clf, x_test, y_test)
-            plt.savefig(models_details_folder + "binary_adjudicator_aucroc_plot.png")
-
-            f_imp = dict(zip(numpy.asarray(features), best_clf.feature_importances_))
-            with open(models_details_folder + "binary_adjudicator_feature_importances.csv", 'w') as f:
-                for key, value in f_imp.items():
-                    f.write('%s,%s\n' % (key, value))
+        f_imp = dict(zip(numpy.asarray(features), best_clf.feature_importances_))
+        with open(models_details_folder + "binary_adjudicator_feature_importances.csv", 'w') as f:
+            for key, value in f_imp.items():
+                f.write('%s,%s\n' % (key, value))
