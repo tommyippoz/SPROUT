@@ -45,6 +45,8 @@ def build_classifier(classifier, x_train, y_train, x_test, y_test, verbose=True)
 
     if isinstance(x_train, pandas.DataFrame):
         train_data = x_train.to_numpy()
+    else:
+        train_data = x_train
 
     # Fitting classifier
     start_ms = current_ms()
@@ -54,6 +56,8 @@ def build_classifier(classifier, x_train, y_train, x_test, y_test, verbose=True)
     # Test features have to be a numpy array
     if isinstance(x_test, pandas.DataFrame):
         test_data = x_test.to_numpy()
+    else:
+        test_data = x_test
 
     # Predicting labels
     y_pred = classifier.predict(test_data)

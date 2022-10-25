@@ -195,67 +195,68 @@ class SPROUTObject:
 
         return sp_df, self.binary_adjudicator
 
-    def load_model(self, model_tag, x_train, y_train=None, label_names=[0, 1]):
+    def load_model(self, model_tag, x_train, y_train=None, label_names=[0, 1], load_calculators=True):
         if os.path.exists(self.models_folder):
             if model_tag in self.get_available_models():
                 model_folder = self.models_folder + str(model_tag) + "/"
                 self.binary_adjudicator = joblib.load(model_folder + "binary_adj_model.joblib")
                 print("Loaded Binary Adjudicator '" + get_classifier_name(self.binary_adjudicator) + "'")
-                u_calcs = read_calculators(model_folder)
-                self.trust_calculators = []
-                for uc_tag in u_calcs:
-                    params = u_calcs[uc_tag]
-                    calculator_name = params["calculator_class"]
-                    if "Entropy" in calculator_name:
-                        calc = EntropyUncertainty(norm=len(label_names))
-                    elif "MaxProb" in calculator_name:
-                        calc = MaxProbUncertainty()
-                    elif "Neighbors" in calculator_name:
-                        calc = NeighborsUncertainty(x_train=x_train, y_train=y_train,
-                                                    k=params["n_neighbors"], labels=label_names)
-                    elif "ExternalSupervised" in calculator_name:
-                        del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
-                        calc = ExternalSupervisedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
-                                                             norm=len(label_names))
-                    elif "ExternalUnsupervised" in calculator_name:
-                        del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
-                        calc = ExternalUnsupervisedUncertainty(del_clf=del_clf, x_train=x_train, norm=len(label_names))
-                    elif ".CombinedUncertainty" in calculator_name:
-                        del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
-                        calc = CombinedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
-                                                   norm=len(label_names))
-                    elif "MultiCombinedUncertainty" in calculator_name:
-                        del_clfs = []
-                        clf_files = fnmatch.filter(os.listdir(model_folder), uc_tag + '*.joblib')
-                        clf_files.sort(reverse=False)
-                        for clf_name in clf_files:
-                            del_clf = joblib.load(model_folder + clf_name)
-                            del_clfs.append(del_clf)
-                        calc = MultiCombinedUncertainty(clf_set=del_clfs, x_train=x_train, y_train=y_train,
-                                                        norm=len(label_names))
-                    elif "AgreementUncertainty" in calculator_name:
-                        del_clfs = []
-                        clf_files = fnmatch.filter(os.listdir(model_folder), uc_tag + '*.joblib')
-                        clf_files.sort(reverse=False)
-                        for clf_name in clf_files:
-                            del_clf = joblib.load(model_folder + clf_name)
-                            del_clfs.append(del_clf)
-                        calc = AgreementUncertainty(clf_set=del_clfs, x_train=x_train)
-                    elif "ConfidenceInterval" in calculator_name:
-                        calc = ConfidenceInterval(conf_level=params["confidence_level"],
-                                                  x_train=x_train, y_train=y_train)
-                    elif "ProximityUncertainty" in calculator_name:
-                        calc = ProximityUncertainty(x_train=x_train, artificial_points=params["artificial_points"],
-                                                    range_wideness=params["range"], weighted=params["weighted"])
-                    elif "FeatureBagging" in calculator_name:
-                        calc = FeatureBagging(x_train=x_train, y_train=y_train,
-                                              n_baggers=params["n_baggers"], bag_type=params["bag_type"])
-                    elif "ReconstructionLoss" in calculator_name:
-                        calc = ReconstructionLoss(x_train=x_train, enc_tag=params["enc_tag"])
-                    else:
-                        calc = None
-                    if calc is not None:
-                        self.trust_calculators.append(calc)
+                if load_calculators:
+                    u_calcs = read_calculators(model_folder)
+                    self.trust_calculators = []
+                    for uc_tag in u_calcs:
+                        params = u_calcs[uc_tag]
+                        calculator_name = params["calculator_class"]
+                        if "Entropy" in calculator_name:
+                            calc = EntropyUncertainty(norm=len(label_names))
+                        elif "MaxProb" in calculator_name:
+                            calc = MaxProbUncertainty()
+                        elif "Neighbors" in calculator_name:
+                            calc = NeighborsUncertainty(x_train=x_train, y_train=y_train,
+                                                        k=params["n_neighbors"], labels=label_names)
+                        elif "ExternalSupervised" in calculator_name:
+                            del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
+                            calc = ExternalSupervisedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
+                                                                 norm=len(label_names))
+                        elif "ExternalUnsupervised" in calculator_name:
+                            del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
+                            calc = ExternalUnsupervisedUncertainty(del_clf=del_clf, x_train=x_train, norm=len(label_names))
+                        elif ".CombinedUncertainty" in calculator_name:
+                            del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
+                            calc = CombinedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
+                                                       norm=len(label_names))
+                        elif "MultiCombinedUncertainty" in calculator_name:
+                            del_clfs = []
+                            clf_files = fnmatch.filter(os.listdir(model_folder), uc_tag + '*.joblib')
+                            clf_files.sort(reverse=False)
+                            for clf_name in clf_files:
+                                del_clf = joblib.load(model_folder + clf_name)
+                                del_clfs.append(del_clf)
+                            calc = MultiCombinedUncertainty(clf_set=del_clfs, x_train=x_train, y_train=y_train,
+                                                            norm=len(label_names))
+                        elif "AgreementUncertainty" in calculator_name:
+                            del_clfs = []
+                            clf_files = fnmatch.filter(os.listdir(model_folder), uc_tag + '*.joblib')
+                            clf_files.sort(reverse=False)
+                            for clf_name in clf_files:
+                                del_clf = joblib.load(model_folder + clf_name)
+                                del_clfs.append(del_clf)
+                            calc = AgreementUncertainty(clf_set=del_clfs, x_train=x_train)
+                        elif "ConfidenceInterval" in calculator_name:
+                            calc = ConfidenceInterval(conf_level=params["confidence_level"],
+                                                      x_train=x_train, y_train=y_train)
+                        elif "ProximityUncertainty" in calculator_name:
+                            calc = ProximityUncertainty(x_train=x_train, artificial_points=params["artificial_points"],
+                                                        range_wideness=params["range"], weighted=params["weighted"])
+                        elif "FeatureBagging" in calculator_name:
+                            calc = FeatureBagging(x_train=x_train, y_train=y_train,
+                                                  n_baggers=params["n_baggers"], bag_type=params["bag_type"])
+                        elif "ReconstructionLoss" in calculator_name:
+                            calc = ReconstructionLoss(x_train=x_train, enc_tag=params["enc_tag"])
+                        else:
+                            calc = None
+                        if calc is not None:
+                            self.trust_calculators.append(calc)
 
             else:
                 print("Model '" + str(model_tag) + "' does not exist")

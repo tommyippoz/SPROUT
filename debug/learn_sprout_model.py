@@ -11,6 +11,8 @@ from pyod.models.cblof import CBLOF
 from pyod.models.copod import COPOD
 from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
+from pyod.models.mcd import MCD
+from pyod.models.ocsvm import OCSVM
 from pyod.models.pca import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
@@ -28,17 +30,17 @@ from sprout.utils.sprout_utils import build_classifier, build_SPROUT_dataset, ge
 import matplotlib.pyplot as plt
 
 # Vars for Generating Uncertainties
-GENERATE_UNCERTAINTIES = True
+GENERATE_UNCERTAINTIES = False
 FILE_AVOID_TAG = None
 
 # Vars for Learning Model
 MODELS_FOLDER = "../models/"
-STUDY_TAG = {"iot": "./datasets_measures/IoT",
-             "hw": "./datasets_measures/HW/",
-             "bio": "./datasets_measures/Biometry/",
-             "image": "./datasets_measures/MNIST/",
-             "nids": "./datasets_measures/NIDS/",
-             "full": "./datasets_measures/all/"}
+STUDY_TAG = {"iot_no_tn": "./datasets_measures/IoT",
+             "hw_no_tn": "./datasets_measures/HW_Failure/",
+             "bio_no_tn": "./datasets_measures/Biometry_Datasets/",
+             "image_no_tn": "./datasets_measures/Image/",
+             "nids_no_tn": "./datasets_measures/NIDS/",
+             "full_no_tn": "./datasets_measures/all/"}
 MISC_RATIOS = [None, 0.1, 0.2, 0.3]
 
 
@@ -76,7 +78,8 @@ def compute_datasets_uncertainties(dataset_files, d_folder, s_folder,
                 x_train, x_test, y_train, y_test, label_tags, features = process_image_dataset(dataset_file, limit_rows)
 
             print("Preparing Trust Calculators...")
-            sprout_obj = build_object(x_train, y_train, label_tags)
+            sprout_obj = build_supervised_object(x_train, y_train, label_tags)
+            # sprout_obj = build_unsupervised_object(x_train, sum(y_train) / len(y_train))
 
             for classifier_string in classifier_list:
                 # Building and exercising classifier
@@ -147,7 +150,7 @@ def sample_data(x, y, ratio):
     return df.drop(["is_misclassification"], axis=1).to_numpy(), df["is_misclassification"].to_numpy()
 
 
-def build_object(x_train, y_train, label_tags):
+def build_supervised_object(x_train, y_train, label_tags):
     sp_obj = SPROUTObject(models_folder=MODELS_FOLDER)
     if (x_train is not None) and isinstance(x_train, pandas.DataFrame):
         x_data = x_train.to_numpy()
@@ -181,6 +184,34 @@ def build_object(x_train, y_train, label_tags):
     return sp_obj
 
 
+def build_unsupervised_object(x_train, contamination):
+    contamination = contamination if contamination <= 0.5 else 0.5
+    sp_obj = SPROUTObject(models_folder=MODELS_FOLDER)
+    if (x_train is not None) and isinstance(x_train, pandas.DataFrame):
+        x_data = x_train.to_numpy()
+    else:
+        x_data = x_train
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9999)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.999)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.99)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.5)
+    sp_obj.add_calculator_maxprob()
+    sp_obj.add_calculator_entropy(n_classes=2)
+    for cc in [[HBOS(contamination=contamination, n_bins=100), COPOD(contamination=contamination),
+                CBLOF(contamination=contamination), PCA(contamination=contamination),
+                IForest(contamination=contamination), OCSVM(contamination=contamination),
+                MCD(contamination=contamination)],
+               [HBOS(contamination=contamination, n_bins=100), PCA(contamination=contamination),
+                MCD(contamination=contamination)]]:
+        sp_obj.add_calculator_multicombined(clf_set=cc, x_train=x_data, y_train=None, n_classes=2)
+    sp_obj.add_calculator_neighbour(x_train=x_data, y_train=None, label_names=["normal", "anomaly"])
+    sp_obj.add_calculator_proximity(x_train=x_data)
+    sp_obj.add_calculator_featurebagging(x_train=x_data, y_train=None, n_baggers=50, bag_type='uns')
+    sp_obj.add_calculator_recloss(x_train=x_data)
+    return sp_obj
+
+
 if __name__ == '__main__':
     """
     Main to calculate trust measures for many datasets using many classifiers.
@@ -196,7 +227,8 @@ if __name__ == '__main__':
     if GENERATE_UNCERTAINTIES or len(os.listdir(sprout_folder)) == 0:
         compute_datasets_uncertainties(dataset_files, dataset_folder, sprout_folder,
                                        classifier_list, y_label, limit_rows)
-    sprout_obj = build_object(None, None, None)
+    sprout_obj = build_supervised_object(None, None, None)
+    # sprout_obj = build_unsupervised_object(None, 0.1)
 
     for tag, folder_path in STUDY_TAG.items():
 
@@ -207,7 +239,7 @@ if __name__ == '__main__':
         if os.path.exists(folder_path):
             # Merging data into a unique Dataset for training Misclassification Predictors
             x_train, y_train, x_test, y_test, features, m_frac = \
-                load_uncertainty_datasets(folder_path, train_split=0.5)
+                load_uncertainty_datasets(folder_path, train_split=0.5, avoid_tags=["TabNet"])
 
             # Classifiers for Detection (Binary Adjudicator)
             m_frac = 0.5 if m_frac > 0.5 else m_frac

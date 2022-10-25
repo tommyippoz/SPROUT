@@ -1,25 +1,18 @@
 import os
-import warnings
 
 import numpy
 import numpy as np
 import pandas as pd
 import sklearn
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB, ComplementNB
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.tree import DecisionTreeClassifier
 
 from sprout.utils import dataset_utils, sprout_utils
-from sprout.utils.Classifier import XGB, LogisticReg
 from sprout.utils.general_utils import load_config, choose_classifier, clean_name
 from sprout.SPROUTObject import SPROUTObject
 from sprout.utils.sprout_utils import get_classifier_name
 
 MODELS_FOLDER = "../models/"
-MODEL_TAGS = ["bio", "full", "image", "iot", "hw", "nids"]
+MODEL_TAGS = ["bio", "full", "image", "iot", "hw", "nids",
+              "bio_no_tn", "full_no_tn", "image_no_tn", "iot_no_tn", "hw_no_tn", "nids_no_tn"]
 OUTPUT_FOLDER = "./output_folder/"
 OUTPUT_LOG_FILE = "single_sprout.csv"
 

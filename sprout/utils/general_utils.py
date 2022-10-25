@@ -48,12 +48,15 @@ def load_config(file_config):
             path_string = [path_string]
         datasets_path = []
         for file_string in path_string:
-            file_path = os.path.join(d_folder, file_string)
-            if os.path.isdir(file_path):
-                datasets_path.extend([os.path.join(file_path, f) for f in os.listdir(file_path) if
-                                      os.path.isfile(os.path.join(file_path, f))])
+            if file_string in ["MNIST", "DIGITS", "FASHION-MNIST"]:
+                datasets_path.append(file_string)
             else:
-                datasets_path.append(file_path)
+                file_path = os.path.join(d_folder, file_string)
+                if os.path.isdir(file_path):
+                    datasets_path.extend([os.path.join(file_path, f) for f in os.listdir(file_path) if
+                                          os.path.isfile(os.path.join(file_path, f))])
+                else:
+                    datasets_path.append(file_path)
     
         # Processing limit to rows
         lim_rows = config_file['limit_rows']

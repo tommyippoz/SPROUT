@@ -787,7 +787,10 @@ class ReconstructionLoss(UncertaintyCalculator):
             if self.maxmin[i]['max'] - self.maxmin[i]['min'] != 0:
                 norm_te[:, i] = (norm_te[:, i] - self.maxmin[i]['min']) / \
                                 (self.maxmin[i]['max'] - self.maxmin[i]['min'])
-        decoded_tr, loss_tr = self.ae.predict(norm_te)
+        try:
+            decoded_tr, loss_tr = self.ae.predict(norm_te)
+        except:
+            loss_tr = 0
         return np.asarray(loss_tr)
 
     def uncertainty_calculator_name(self):
