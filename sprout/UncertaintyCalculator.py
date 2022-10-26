@@ -285,9 +285,14 @@ class ExternalUnsupervisedUncertainty(UncertaintyCalculator):
         :param proba_array: the probability arrays assigned by the algorithm to the data points
         :return: array of trust scores
         """
-        return self.trust_measure.uncertainty_scores(feature_values_array,
-                                                     self.unsupervised_predict_proba(feature_values_array),
-                                                     self.del_clf)
+        if isinstance(classifier, pyod.models.base.BaseDetector):
+            return self.trust_measure.uncertainty_scores(feature_values_array,
+                                                         self.unsupervised_predict_proba(feature_values_array),
+                                                         self.del_clf)
+        else:
+            return self.trust_measure.uncertainty_scores(feature_values_array,
+                                                         self.del_clf.predict_proba(feature_values_array),
+                                                         self.del_clf)
 
     def uncertainty_calculator_name(self):
         return 'External Unsupervised Calculator (' + get_classifier_name(self.del_clf) + '/' \

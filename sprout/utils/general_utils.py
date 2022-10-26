@@ -3,12 +3,18 @@ import os
 import time
 
 import numpy as np
+from pyod.models.cblof import CBLOF
+from pyod.models.copod import COPOD
+from pyod.models.hbos import HBOS
+from pyod.models.mcd import MCD
+from pyod.models.ocsvm import OCSVM
+from pyod.models.pca import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, BaggingClassifier, GradientBoostingClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 
-from sprout.utils.Classifier import XGB, TabNet, KNeighbors, LogisticReg, FastAI
+from sprout.utils.Classifier import XGB, TabNet, KNeighbors, LogisticReg, FastAI, UnsupervisedClassifier
 
 
 def load_config(file_config):
@@ -26,11 +32,16 @@ def load_config(file_config):
         config_file = dict(config.items('CONFIGURATION'))
     
         # Processing classifiers
-        classifiers = config_file['classifiers']
-        if ',' in classifiers:
-            classifiers = [x.strip() for x in classifiers.split(',')]
+        s_classifiers = config_file['supervised_classifiers']
+        if ',' in s_classifiers:
+            s_classifiers = [x.strip() for x in s_classifiers.split(',')]
         else:
-            classifiers = [classifiers]
+            s_classifiers = [s_classifiers]
+        u_classifiers = config_file['unsupervised_classifiers']
+        if ',' in u_classifiers:
+            u_classifiers = [x.strip() for x in u_classifiers.split(',')]
+        else:
+            u_classifiers = [u_classifiers]
 
         # Folders
         d_folder = config_file['datasets_folder']
@@ -65,7 +76,7 @@ def load_config(file_config):
         else:
             lim_rows = int(lim_rows)
 
-        return datasets_path, d_folder, s_folder, classifiers, config_file['label_tabular'], lim_rows
+        return datasets_path, d_folder, s_folder, s_classifiers, u_classifiers, config_file['label_tabular'], lim_rows
     
     else:
         # Config File does not exist
@@ -95,7 +106,7 @@ def clean_name(file, prequel):
     return file
 
 
-def choose_classifier(clf_name, features, y_label, metric):
+def choose_classifier(clf_name, features, y_label, metric, contamination=None):
     if clf_name in {"XGB", "XGBoost"}:
         return XGB()
     elif clf_name in {"DT", "DTree", "DecisionTree"}:
@@ -116,6 +127,18 @@ def choose_classifier(clf_name, features, y_label, metric):
         return FastAI(feature_names=features, label_name=y_label, metric=metric)
     elif clf_name in {"GBC", "GradientBoosting"}:
          return GradientBoostingClassifier(n_estimators=50)
+    elif clf_name in {"COPOD"}:
+        return UnsupervisedClassifier(COPOD(contamination=contamination))
+    elif clf_name in {"HBOS"}:
+        return UnsupervisedClassifier(HBOS(contamination=contamination, n_bins=100))
+    elif clf_name in {"MCD"}:
+        return UnsupervisedClassifier(MCD(contamination=contamination))
+    elif clf_name in {"PCA"}:
+        return UnsupervisedClassifier(PCA(contamination=contamination))
+    elif clf_name in {"CBLOF"}:
+        return UnsupervisedClassifier(CBLOF(contamination=contamination))
+    elif clf_name in {"OCSVM", "1SVM"}:
+        return UnsupervisedClassifier(OCSVM(contamination=contamination))
     else:
         pass
 

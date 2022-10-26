@@ -30,8 +30,9 @@ from sprout.utils.sprout_utils import build_classifier, build_SPROUT_dataset, ge
 import matplotlib.pyplot as plt
 
 # Vars for Generating Uncertainties
-GENERATE_UNCERTAINTIES = False
+GENERATE_UNCERTAINTIES = True
 FILE_AVOID_TAG = None
+MODEL_TYPE = 'UNS'
 
 # Vars for Learning Model
 MODELS_FOLDER = "../models/"
@@ -78,12 +79,15 @@ def compute_datasets_uncertainties(dataset_files, d_folder, s_folder,
                 x_train, x_test, y_train, y_test, label_tags, features = process_image_dataset(dataset_file, limit_rows)
 
             print("Preparing Trust Calculators...")
-            sprout_obj = build_supervised_object(x_train, y_train, label_tags)
-            # sprout_obj = build_unsupervised_object(x_train, sum(y_train) / len(y_train))
+            if MODEL_TYPE == 'SUP':
+                sprout_obj = build_supervised_object(x_train, y_train, label_tags)
+            else:
+                contamination = sum(y_train) / len(y_train)
+                sprout_obj = build_unsupervised_object(x_train, contamination)
 
             for classifier_string in classifier_list:
                 # Building and exercising classifier
-                classifier = choose_classifier(classifier_string, features, y_label, "accuracy")
+                classifier = choose_classifier(classifier_string, features, y_label, "accuracy", contamination)
                 y_proba, y_pred = build_classifier(classifier, x_train, y_train, x_test, y_test)
 
                 # Initializing SPROUT dataset for output
@@ -191,11 +195,11 @@ def build_unsupervised_object(x_train, contamination):
         x_data = x_train.to_numpy()
     else:
         x_data = x_train
-    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9999)
-    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.999)
-    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.99)
-    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9)
-    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.5)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=None, confidence_level=0.9999)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=None, confidence_level=0.999)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=None, confidence_level=0.99)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=None, confidence_level=0.9)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=None, confidence_level=0.5)
     sp_obj.add_calculator_maxprob()
     sp_obj.add_calculator_entropy(n_classes=2)
     for cc in [[HBOS(contamination=contamination, n_bins=100), COPOD(contamination=contamination),
@@ -219,16 +223,19 @@ if __name__ == '__main__':
     """
 
     # Reading preferences
-    dataset_files, dataset_folder, sprout_folder, classifier_list, y_label, limit_rows = load_config("config.cfg")
+    dataset_files, dataset_folder, sprout_folder, sup_clfs, uns_clfs, y_label, limit_rows = load_config("config.cfg")
 
     # Generating Input data for training Misclassification Predictors
     if not os.path.exists(sprout_folder):
         os.mkdir(sprout_folder)
     if GENERATE_UNCERTAINTIES or len(os.listdir(sprout_folder)) == 0:
         compute_datasets_uncertainties(dataset_files, dataset_folder, sprout_folder,
-                                       classifier_list, y_label, limit_rows)
-    sprout_obj = build_supervised_object(None, None, None)
-    # sprout_obj = build_unsupervised_object(None, 0.1)
+                                       sup_clfs if MODEL_TYPE == 'SUP' else uns_clfs,
+                                       y_label, limit_rows)
+    if MODEL_TYPE == 'SUP':
+        sprout_obj = build_supervised_object(None, None, None)
+    else:
+        sprout_obj = build_unsupervised_object(None, 0.1)
 
     for tag, folder_path in STUDY_TAG.items():
 
@@ -239,7 +246,7 @@ if __name__ == '__main__':
         if os.path.exists(folder_path):
             # Merging data into a unique Dataset for training Misclassification Predictors
             x_train, y_train, x_test, y_test, features, m_frac = \
-                load_uncertainty_datasets(folder_path, train_split=0.5, avoid_tags=["TabNet"])
+                load_uncertainty_datasets(folder_path, train_split=0.5)
 
             # Classifiers for Detection (Binary Adjudicator)
             m_frac = 0.5 if m_frac > 0.5 else m_frac

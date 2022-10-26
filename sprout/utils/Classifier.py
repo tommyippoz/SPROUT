@@ -41,11 +41,18 @@ class Classifier:
         :param x_train: feature set
         :param y_train: labels
         """
-        if isinstance(x_train, pd.DataFrame):
-            self.model.fit(x_train.values, y_train)
+        if y_train is not None:
+            if isinstance(x_train, pd.DataFrame):
+                self.model.fit(x_train.values, y_train)
+            else:
+                self.model.fit(x_train, y_train)
+            self.classes_ = numpy.unique(y_train)
         else:
-            self.model.fit(x_train, y_train)
-        self.classes_ = numpy.unique(y_train)
+            if isinstance(x_train, pd.DataFrame):
+                self.model.fit(x_train.values)
+            else:
+                self.model.fit(x_train)
+            self.classes_ = 2
         self.feature_importances_ = self.compute_feature_importances()
         self.trained = True
 
@@ -100,14 +107,19 @@ class UnsupervisedClassifier(Classifier):
     Wrapper for unsupervised classifiers belonging to the library PYOD
     """
 
-    def __init__(self, classifier, name):
+    def __init__(self, classifier):
         Classifier.__init__(self, classifier)
-        self.name = name
+        self.name = classifier.__class__.__name__
 
-    def fit(self, x_train, y_train):
-        self.model.fit(x_train.values)
-        self.classes_ = numpy.unique(y_train)
-        self.trained = True
+    def predict_proba(self, test_features):
+        proba = self.model.predict_proba(test_features)
+        pred = self.model.predict(test_features)
+        for i in range(len(pred)):
+            min_p = min(proba[i])
+            max_p = max(proba[i])
+            proba[i][pred[i]] = max_p
+            proba[i][1 - pred[i]] = min_p
+        return proba
 
     def predict_confidence(self, x_test):
         """
