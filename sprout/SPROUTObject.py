@@ -3,6 +3,7 @@ import fnmatch
 import os.path
 
 import joblib
+import numpy
 import pandas
 import pandas as pd
 from pyod.models.base import BaseDetector
@@ -187,6 +188,7 @@ class SPROUTObject:
                 x_test = sp_df.to_numpy()
             else:
                 x_test = sp_df
+            x_test = numpy.nan_to_num(x_test)
             predictions = self.binary_adjudicator.predict(x_test)
             sp_df["pred"] = predictions
 

@@ -2,6 +2,7 @@ import os
 import shutil
 import urllib
 
+import numpy
 import numpy as np
 import pandas as pd
 import sklearn as sk
@@ -114,15 +115,12 @@ def process_tabular_dataset(dataset_name, label_name, limit):
     if (np.isfinite(limit)) & (limit < len(df.index)):
         df = df[0:limit]
 
-    print("Dataset loaded: " + str(len(df.index)) + " items")
     encoding = pd.factorize(df[label_name])
     y_enc = encoding[0]
     labels = encoding[1]
 
     # Basic Pre-Processing
-    normal_frame = df.loc[df[label_name] == "normal"]
-    print("Dataset loaded: " + str(len(df.index)) + " items, " + str(len(normal_frame.index)) +
-          " normal and " + str(len(labels)) + " labels")
+    print("Dataset loaded: " + str(len(df.index)) + " items and " + str(len(labels)) + " labels")
 
     # Train/Test Split of Classifiers
     x = df.drop(columns=[label_name])
@@ -131,6 +129,41 @@ def process_tabular_dataset(dataset_name, label_name, limit):
     x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_no_cat, y_enc, test_size=0.5, shuffle=True)
 
     return x_tr, x_te, y_tr, y_te, labels, feature_list
+
+
+def process_binary_tabular_dataset(dataset_name, label_name, limit):
+    """
+    Method to process an input dataset as CSV
+    :param limit: integer to cut dataset if needed.
+    :param dataset_name: name of the file (CSV) containing the dataset
+    :param label_name: name of the feature containing the label
+    :return: many values for analysis
+    """
+    # Loading Dataset
+    df = pd.read_csv(dataset_name, sep=",")
+
+    # Shuffle
+    df = df.sample(frac=1.0)
+    df = df.fillna(0)
+    df = df.replace('null', 0)
+
+    # Testing Purposes
+    if (np.isfinite(limit)) & (limit < len(df.index)):
+        df = df[0:limit]
+
+    print("Dataset loaded: " + str(len(df.index)) + " items")
+    y_enc = numpy.where(df[label_name] == "normal", 0, 1)
+
+    # Basic Pre-Processing
+    print("Dataset loaded: " + str(len(df.index)) + " items, " + str(sum(y_enc)) + " anomalies")
+
+    # Train/Test Split of Classifiers
+    x = df.drop(columns=[label_name])
+    x_no_cat = x.select_dtypes(exclude=['object'])
+    feature_list = x_no_cat.columns
+    x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_no_cat, y_enc, test_size=0.5, shuffle=True)
+
+    return x_tr, x_te, y_tr, y_te, ["normal", "anomaly"], feature_list
 
 
 def is_image_dataset(dataset_name):

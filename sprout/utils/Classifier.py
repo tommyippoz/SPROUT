@@ -43,13 +43,13 @@ class Classifier:
         """
         if y_train is not None:
             if isinstance(x_train, pd.DataFrame):
-                self.model.fit(x_train.values, y_train)
+                self.model.fit(x_train.to_numpy(), y_train)
             else:
                 self.model.fit(x_train, y_train)
             self.classes_ = numpy.unique(y_train)
         else:
             if isinstance(x_train, pd.DataFrame):
-                self.model.fit(x_train.values)
+                self.model.fit(x_train.to_numpy())
             else:
                 self.model.fit(x_train)
             self.classes_ = 2

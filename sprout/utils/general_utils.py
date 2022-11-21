@@ -1,14 +1,29 @@
 import configparser
 import os
+import shutil
 import time
 
 import numpy as np
+from pyod.models.abod import ABOD
 from pyod.models.cblof import CBLOF
+from pyod.models.cof import COF
 from pyod.models.copod import COPOD
+from pyod.models.gmm import GMM
 from pyod.models.hbos import HBOS
+from pyod.models.iforest import IForest
+from pyod.models.inne import INNE
+from pyod.models.knn import KNN
+from pyod.models.loda import LODA
+from pyod.models.lof import LOF
+from pyod.models.lscp import LSCP
+from pyod.models.lunar import LUNAR
 from pyod.models.mcd import MCD
 from pyod.models.ocsvm import OCSVM
 from pyod.models.pca import PCA
+from pyod.models.rgraph import RGraph
+from pyod.models.so_gaal import SO_GAAL
+from pyod.models.suod import SUOD
+from pyod.models.vae import VAE
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, BaggingClassifier, GradientBoostingClassifier
 from sklearn.svm import SVC
@@ -37,11 +52,13 @@ def load_config(file_config):
             s_classifiers = [x.strip() for x in s_classifiers.split(',')]
         else:
             s_classifiers = [s_classifiers]
+        s_classifiers = [x for x in s_classifiers if x]
         u_classifiers = config_file['unsupervised_classifiers']
         if ',' in u_classifiers:
             u_classifiers = [x.strip() for x in u_classifiers.split(',')]
         else:
             u_classifiers = [u_classifiers]
+        u_classifiers = [x for x in u_classifiers if x]
 
         # Folders
         d_folder = config_file['datasets_folder']
@@ -107,6 +124,8 @@ def clean_name(file, prequel):
 
 
 def choose_classifier(clf_name, features, y_label, metric, contamination=None):
+    if contamination is not None and contamination > 0.5:
+        contamination = 0.5
     if clf_name in {"XGB", "XGBoost"}:
         return XGB()
     elif clf_name in {"DT", "DTree", "DecisionTree"}:
@@ -136,12 +155,54 @@ def choose_classifier(clf_name, features, y_label, metric, contamination=None):
     elif clf_name in {"PCA"}:
         return UnsupervisedClassifier(PCA(contamination=contamination))
     elif clf_name in {"CBLOF"}:
-        return UnsupervisedClassifier(CBLOF(contamination=contamination))
+        return UnsupervisedClassifier(CBLOF(contamination=contamination, alpha=0.75, beta=3))
     elif clf_name in {"OCSVM", "1SVM"}:
         return UnsupervisedClassifier(OCSVM(contamination=contamination))
+    elif clf_name in {"kNN"}:
+        return UnsupervisedClassifier(KNN(contamination=contamination))
+    elif clf_name in {"LOF"}:
+        return UnsupervisedClassifier(LOF(contamination=contamination, n_neighbors=9))
+    elif clf_name in {"GMM"}:
+        return UnsupervisedClassifier(GMM(contamination=contamination))
+    elif clf_name in {"INNE"}:
+        return UnsupervisedClassifier(INNE(contamination=contamination))
+    elif clf_name in {"FastABOD", "ABOD", "FABOD"}:
+        return UnsupervisedClassifier(ABOD(contamination=contamination, method='fast', n_neighbors=9))
+    elif clf_name in {"COF"}:
+        return UnsupervisedClassifier(COF(contamination=contamination, n_neighbors=9))
+    elif clf_name in {"IFOREST", "IForest"}:
+        return UnsupervisedClassifier(IForest(contamination=contamination))
+    elif clf_name in {"LODA"}:
+        return UnsupervisedClassifier(LODA(contamination=contamination, n_bins=100))
+    elif clf_name in {"VAE"}:
+        return UnsupervisedClassifier(VAE(contamination=contamination))
+    elif clf_name in {"LUNAR"}:
+        return UnsupervisedClassifier(LUNAR())
+    elif clf_name in {"RGraph"}:
+        return UnsupervisedClassifier(RGraph(contamination=contamination, verbose=1))
+    elif clf_name in {"SO_GAAL"}:
+        return UnsupervisedClassifier(SO_GAAL(contamination=contamination))
+    elif clf_name in {"LSCP"}:
+        return UnsupervisedClassifier(LSCP(contamination=contamination,
+                                           detector_list=[MCD(), COPOD(), GMM(), HBOS()]))
+    elif clf_name in {"SUOD"}:
+        return UnsupervisedClassifier(SUOD(contamination=contamination,
+                                           base_estimators=[MCD(), COPOD(), GMM(), HBOS()]))
     else:
         pass
 
 
 def get_full_class_name(class_obj):
     return class_obj.__module__ + "." + class_obj.__qualname__
+
+
+def clear_folder(folder_path):
+    for filename in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))

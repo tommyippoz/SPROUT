@@ -42,7 +42,7 @@ def build_classifier(classifier, x_train, y_train, x_test, y_test, verbose=True)
     :return: probabilities and predictions of the classifier
     """
     if verbose:
-        print("\nBuilding classifier: " + get_classifier_name(classifier) + "\n")
+        print("\nBuilding classifier: " + get_classifier_name(classifier))
 
     if isinstance(x_train, pandas.DataFrame):
         train_data = x_train.to_numpy()
@@ -51,7 +51,10 @@ def build_classifier(classifier, x_train, y_train, x_test, y_test, verbose=True)
 
     # Fitting classifier
     start_ms = current_ms()
-    classifier.fit(train_data, y_train)
+    if isinstance(classifier, pyod.models.base.BaseDetector):
+        classifier.fit(train_data)
+    else:
+        classifier.fit(train_data, y_train)
     train_ms = current_ms()
 
     # Test features have to be a numpy array

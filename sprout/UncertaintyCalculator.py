@@ -162,27 +162,30 @@ class NeighborsUncertainty(UncertaintyCalculator):
     def uncertainty_calculator_name(self):
         return 'Trust Calculator on ' + str(self.n_neighbors) + ' Neighbors'
 
-    def uncertainty_scores(self, feature_values, proba, classifier):
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
         """
         Computes trust by predictng the labels for the k-NN of each data point.
         Trust score ranges from 0 (complete disagreement) to 1 (complete agreement)
-        :param feature_values: the feature values of the data points in the test set
-        :param proba: the probability arrays assigned by the algorithm to the data points
+        :param feature_values_array: the feature values of the data points in the test set
+        :param proba_array: the probability arrays assigned by the algorithm to the data points
         :param classifier: the classifier used for classification
         :return: dictionary of two arrays: Trust and Detail
         """
-        neighbour_trust = [0 for i in range(len(feature_values))]
-        neighbour_c = [0 for i in range(len(feature_values))]
         start_time = current_ms()
         print("Starting kNN search ...")
         near_neighbors = NearestNeighbors(n_neighbors=self.n_neighbors,
                                           algorithm='kd_tree',
                                           n_jobs=-1).fit(self.x_train)
-        distances, indices = near_neighbors.kneighbors(feature_values)
+        distances, indices = near_neighbors.kneighbors(feature_values_array)
         print("kNN Search completed in " + str(current_ms() - start_time) + " ms")
         train_classes = np.asarray(classifier.predict(self.x_train))
-        predict_classes = np.asarray(classifier.predict(feature_values))
-        for i in tqdm(range(len(feature_values))):
+        if proba_array is None or proba_array.shape[0] != feature_values_array.shape[0]:
+            predict_classes = np.asarray(classifier.predict(feature_values_array))
+        else:
+            predict_classes = numpy.argmax(proba_array, axis=1)
+        neighbour_trust = [0 for i in range(len(feature_values_array))]
+        neighbour_c = [0 for i in range(len(feature_values_array))]
+        for i in tqdm(range(len(feature_values_array))):
             predict_neighbours = train_classes[indices[i]]
             agreements = (predict_neighbours == predict_classes[i]).sum()
             neighbour_trust[i] = agreements / len(predict_neighbours)
@@ -312,7 +315,11 @@ class CombinedUncertainty(UncertaintyCalculator):
             if isinstance(x_train, pandas.DataFrame):
                 x_train = x_train.to_numpy()
             start_time = current_ms()
-            self.del_clf.fit(x_train, y_train)
+
+            if isinstance(self.del_clf, pyod.models.base.BaseDetector):
+                self.del_clf.fit(x_train)
+            else:
+                self.del_clf.fit(x_train, y_train)
             print("[CombinedTrust] Fitting of '" + get_classifier_name(del_clf) + "' Completed in " +
                   str(current_ms() - start_time) + " ms")
         else:
@@ -340,7 +347,10 @@ class CombinedUncertainty(UncertaintyCalculator):
         :param proba_array: the probability arrays assigned by the algorithm to the data points
         :return: array of trust scores
         """
-        pred = classifier.predict(feature_values_array)
+        if proba_array is None or proba_array.shape[0] != feature_values_array.shape[0]:
+            pred = classifier.predict(feature_values_array)
+        else:
+            pred = numpy.argmax(proba_array, axis=1)
         other_pred = self.del_clf.predict(feature_values_array)
         entropy = self.trust_measure.uncertainty_scores(feature_values_array, proba_array, classifier)
         other_entropy = self.trust_measure.uncertainty_scores(feature_values_array,
