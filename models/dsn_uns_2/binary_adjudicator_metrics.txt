@@ -1,0 +1,22 @@
+analysis tag:all_uns_80
+binary classifier:RandomForestClassifier
+train data size:3983473
+train data features:['Confidence Interval (0.99/uns)' 'Confidence Interval (0.5/uns)'
+ 'MaxProb Calculator' 'Entropy Calculator'
+ 'Multiple Combined Calculator (6 - HSCDCFPAMDGM classifiers)'
+ 'Multiple Combined Calculator (2 - ADLF classifiers)'
+ 'Multiple Combined Calculator (4 - HSPAMDGM classifiers)'
+ 'Multiple Combined Calculator (3 - ItIESD classifiers)'
+ 'Trust Calculator on 19 Neighbors_Trust' 'Proximity Uncertainty (10/0.1)'
+ 'FeatureBagging Uncertainty (50/uns)' 'AutoEncoder Loss (simple)']
+original misclassification ratio of training set:0.07899818891733085
+actual misclassification ratio in training set:None
+test_mcc:0.8389385760116391
+test_acc:0.9779699940454015
+test_auc:0.8787854477358087
+test_p:0.9491317898486198
+test_r:0.7610577719976029
+test_tp:59689
+test_tn:914241
+test_fp:3199
+test_fn:18740

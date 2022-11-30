@@ -1,0 +1,12 @@
+Confidence Interval (0.99/uns),0.06093600574079886
+Confidence Interval (0.5/uns),0.06262975725916689
+MaxProb Calculator,0.01719165258983421
+Entropy Calculator,0.016350273143892053
+Multiple Combined Calculator (6 - HSCDCFPAMDGM classifiers),0.2831686870929571
+Multiple Combined Calculator (2 - ADLF classifiers),0.07316835800032465
+Multiple Combined Calculator (4 - HSPAMDGM classifiers),0.07303937837234964
+Multiple Combined Calculator (3 - ItIESD classifiers),0.08251677173662786
+Trust Calculator on 19 Neighbors_Trust,0.016749523290542367
+Proximity Uncertainty (10/0.1),0.027850762527632737
+FeatureBagging Uncertainty (50/uns),0.06562607666096865
+AutoEncoder Loss (simple),0.22077275358490495

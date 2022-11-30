@@ -1,0 +1,26 @@
+uncertainty_calculator,param_name,param_value
+uncertainty_calculator_1,confidence_level,0.99
+uncertainty_calculator_1,calculator_class,sprout.UncertaintyCalculator.ConfidenceInterval
+uncertainty_calculator_2,confidence_level,0.5
+uncertainty_calculator_2,calculator_class,sprout.UncertaintyCalculator.ConfidenceInterval
+uncertainty_calculator_3,calculator_class,sprout.UncertaintyCalculator.MaxProbUncertainty
+uncertainty_calculator_4,calculator_class,sprout.UncertaintyCalculator.EntropyUncertainty
+uncertainty_calculator_5,del_clfs,['pyod.models.hbos.HBOS', 'pyod.models.copod.COPOD', 'pyod.models.cblof.CBLOF', 'pyod.models.pca.PCA', 'pyod.models.mcd.MCD', 'pyod.models.gmm.GMM']
+uncertainty_calculator_5,calculator_class,sprout.UncertaintyCalculator.MultiCombinedUncertainty
+uncertainty_calculator_6,del_clfs,['pyod.models.abod.ABOD', 'pyod.models.lof.LOF']
+uncertainty_calculator_6,calculator_class,sprout.UncertaintyCalculator.MultiCombinedUncertainty
+uncertainty_calculator_7,del_clfs,['pyod.models.hbos.HBOS', 'pyod.models.pca.PCA', 'pyod.models.mcd.MCD', 'pyod.models.gmm.GMM']
+uncertainty_calculator_7,calculator_class,sprout.UncertaintyCalculator.MultiCombinedUncertainty
+uncertainty_calculator_8,del_clfs,['pyod.models.iforest.IForest', 'pyod.models.inne.INNE', 'pyod.models.suod.SUOD']
+uncertainty_calculator_8,calculator_class,sprout.UncertaintyCalculator.MultiCombinedUncertainty
+uncertainty_calculator_9,n_neighbors,19
+uncertainty_calculator_9,calculator_class,sprout.UncertaintyCalculator.NeighborsUncertainty
+uncertainty_calculator_10,artificial_points,10
+uncertainty_calculator_10,weighted,False
+uncertainty_calculator_10,range,0.1
+uncertainty_calculator_10,calculator_class,sprout.UncertaintyCalculator.ProximityUncertainty
+uncertainty_calculator_11,n_baggers,50
+uncertainty_calculator_11,bag_type,uns
+uncertainty_calculator_11,calculator_class,sprout.UncertaintyCalculator.FeatureBagging
+uncertainty_calculator_12,enc_tag,simple
+uncertainty_calculator_12,calculator_class,sprout.UncertaintyCalculator.ReconstructionLoss

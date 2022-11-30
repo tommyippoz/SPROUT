@@ -1,0 +1,22 @@
+analysis tag:native_uns_80
+binary classifier:DecisionTreeClassifier
+train data size:2392864
+train data features:['Confidence Interval (0.99/uns)' 'Confidence Interval (0.5/uns)'
+ 'MaxProb Calculator' 'Entropy Calculator'
+ 'Multiple Combined Calculator (6 - HSCDCFPAMDGM classifiers)'
+ 'Multiple Combined Calculator (2 - ADLF classifiers)'
+ 'Multiple Combined Calculator (4 - HSPAMDGM classifiers)'
+ 'Multiple Combined Calculator (3 - ItIESD classifiers)'
+ 'Trust Calculator on 19 Neighbors_Trust' 'Proximity Uncertainty (10/0.1)'
+ 'FeatureBagging Uncertainty (50/uns)' 'AutoEncoder Loss (simple)']
+original misclassification ratio of training set:0.0705671530015914
+actual misclassification ratio in training set:0.05
+test_mcc:0.8396558854220539
+test_acc:0.9790594032924562
+test_auc:0.9208777824683313
+test_p:0.848620804253905
+test_r:0.8532184539010478
+test_tp:35749
+test_tn:549940
+test_fp:6377
+test_fn:6150
