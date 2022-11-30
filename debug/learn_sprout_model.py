@@ -277,11 +277,12 @@ if __name__ == '__main__':
 
             # Classifiers for Detection (Binary Adjudicator)
             m_frac = 0.5 if m_frac > 0.5 else m_frac
-            CLASSIFIERS = [#GradientBoostingClassifier(n_estimators=50),
+            CLASSIFIERS = [GradientBoostingClassifier(n_estimators=10),
+                           GradientBoostingClassifier(n_estimators=30),
                            DecisionTreeClassifier(),
                            LinearDiscriminantAnalysis(),
-                           RandomForestClassifier(n_estimators=100),
-                           #RandomForestClassifier(n_estimators=30)
+                           RandomForestClassifier(n_estimators=10),
+                           RandomForestClassifier(n_estimators=30)
                            ]
 
             # Training Binary Adjudicators to Predict Misclassifications

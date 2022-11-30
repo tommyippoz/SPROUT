@@ -1,0 +1,26 @@
+analysis tag:nids_no_tn
+binary classifier:RandomForestClassifier
+train data size:4594710
+train data features:['Confidence Interval (0.9999/sup)' 'Confidence Interval (0.999/sup)'
+ 'Confidence Interval (0.99/sup)' 'Confidence Interval (0.9/sup)'
+ 'Confidence Interval (0.5/sup)' 'MaxProb Calculator' 'Entropy Calculator'
+ 'External Supervised Calculator (LogisticRegression/entropy)'
+ 'Combined Calculator (XGBoost)'
+ 'Multiple Combined Calculator (3 - GBLsLn classifiers)'
+ 'Multiple Combined Calculator (4 - GBBBPePe classifiers)'
+ 'Multiple Combined Calculator (3 - DrRrXt classifiers)'
+ 'Agreement Calculator (5 - CDPAHSCFIt classifiers)'
+ 'Trust Calculator on 19 Neighbors_Trust' 'Proximity Uncertainty (10/0.1)'
+ 'FeatureBagging Uncertainty (50/sup)'
+ 'FeatureBagging Uncertainty (50/uns)' 'AutoEncoder Loss (simple)']
+original misclassification ratio of training set:0.09792391685220612
+actual misclassification ratio in training set:0.1
+test_mcc:0.9015840114074352
+test_acc:0.9829823862659449
+test_auc:0.9381501300363144
+test_p:0.9402909841302897
+test_r:0.8823882121720206
+test_tp:397335
+test_tn:4119184
+test_fp:25231
+test_fn:52960
