@@ -7,6 +7,8 @@ from sprout.SPROUTObject import SPROUTObject
 from sprout.utils.sprout_utils import correlations
 from sprout.utils.dataset_utils import load_DIGITS
 
+MODELS_FOLDER = "../models/"
+MODEL_TAG = "dsn_sup_2"
 
 if __name__ == '__main__':
     """
@@ -16,13 +18,9 @@ if __name__ == '__main__':
     # Reading sample dataset (DIGITS)
     x_train, x_test, y_train, y_test, label_names, feature_names = load_DIGITS(as_pandas=True)
 
-    print("Preparing Trust Calculators...")
-
-    # Building SPROUT instance and adding Entropy, Bayesian and Neighbour-based Calculators
-    quail = SPROUTObject()
-    quail.add_calculator_entropy(n_classes=len(label_names))
-    quail.add_calculator_bayes(x_train=x_train, y_train=y_train, n_classes=len(label_names))
-    quail.add_calculator_SHAP(x_train=x_train, feature_names=feature_names)
+    # Loading SPROUT wrapper for supervised learning
+    sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
+    sprout_obj.load_model(model_tag=MODEL_TAG, x_train=x_train, y_train=y_train, label_names=label_names)
 
     # AutoGluon Parameters, clf_name in
     #     ‘GBM’ (LightGBM)
@@ -45,10 +43,10 @@ if __name__ == '__main__':
     print("Fit and Prediction completed with Accuracy: " + str(sklearn.metrics.accuracy_score(y_test, y_pred)))
 
     # Initializing SPROUT dataset for output
-    out_df = quail_utils.build_SPROUT_dataset(y_proba, y_pred, y_test, label_names)
+    out_df = sprout_utils.build_SPROUT_dataset(y_proba, y_pred, y_test, label_names)
 
     # Calculating Trust Measures with SPROUT
-    q_df = quail.compute_set_trust(data_set=x_test, y_proba=y_proba, classifier=classifier)
+    q_df = sprout_obj.compute_set_trust(data_set=x_test, y_proba=y_proba, classifier=classifier)
     out_df = pandas.concat([out_df, q_df], axis=1)
     correlations(out_df)
 

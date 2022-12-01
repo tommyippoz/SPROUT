@@ -131,7 +131,7 @@ def process_tabular_dataset(dataset_name, label_name, limit):
     return x_tr, x_te, y_tr, y_te, labels, feature_list
 
 
-def process_binary_tabular_dataset(dataset_name, label_name, limit):
+def process_binary_tabular_dataset(dataset_name, label_name, limit=numpy.nan):
     """
     Method to process an input dataset as CSV
     :param limit: integer to cut dataset if needed.

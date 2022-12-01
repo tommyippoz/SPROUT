@@ -8,7 +8,6 @@ from pyod.models.abod import ABOD
 from pyod.models.cblof import CBLOF
 from pyod.models.cof import COF
 from pyod.models.copod import COPOD
-from pyod.models.gmm import GMM
 from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
 from pyod.models.inne import INNE
@@ -16,11 +15,9 @@ from pyod.models.knn import KNN
 from pyod.models.loda import LODA
 from pyod.models.lof import LOF
 from pyod.models.lscp import LSCP
-from pyod.models.lunar import LUNAR
 from pyod.models.mcd import MCD
 from pyod.models.ocsvm import OCSVM
 from pyod.models.pca import PCA
-from pyod.models.rgraph import RGraph
 from pyod.models.so_gaal import SO_GAAL
 from pyod.models.suod import SUOD
 from pyod.models.vae import VAE
@@ -162,8 +159,6 @@ def choose_classifier(clf_name, features, y_label, metric, contamination=None):
         return UnsupervisedClassifier(KNN(contamination=contamination))
     elif clf_name in {"LOF"}:
         return UnsupervisedClassifier(LOF(contamination=contamination, n_neighbors=9))
-    elif clf_name in {"GMM"}:
-        return UnsupervisedClassifier(GMM(contamination=contamination))
     elif clf_name in {"INNE"}:
         return UnsupervisedClassifier(INNE(contamination=contamination))
     elif clf_name in {"FastABOD", "ABOD", "FABOD"}:
@@ -176,18 +171,14 @@ def choose_classifier(clf_name, features, y_label, metric, contamination=None):
         return UnsupervisedClassifier(LODA(contamination=contamination, n_bins=100))
     elif clf_name in {"VAE"}:
         return UnsupervisedClassifier(VAE(contamination=contamination))
-    elif clf_name in {"LUNAR"}:
-        return UnsupervisedClassifier(LUNAR())
-    elif clf_name in {"RGraph"}:
-        return UnsupervisedClassifier(RGraph(contamination=contamination, verbose=1))
     elif clf_name in {"SO_GAAL"}:
         return UnsupervisedClassifier(SO_GAAL(contamination=contamination))
     elif clf_name in {"LSCP"}:
         return UnsupervisedClassifier(LSCP(contamination=contamination,
-                                           detector_list=[MCD(), COPOD(), GMM(), HBOS()]))
+                                           detector_list=[MCD(), COPOD(), HBOS()]))
     elif clf_name in {"SUOD"}:
         return UnsupervisedClassifier(SUOD(contamination=contamination,
-                                           base_estimators=[MCD(), COPOD(), GMM(), HBOS()]))
+                                           base_estimators=[MCD(), COPOD(), HBOS()]))
     else:
         pass
 
