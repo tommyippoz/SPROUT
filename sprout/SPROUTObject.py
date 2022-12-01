@@ -184,8 +184,9 @@ class SPROUTObject:
     def predict_misclassifications(self, trust_set):
         if self.binary_adjudicator is not None:
             sp_df = copy.deepcopy(trust_set)
-            if isinstance(trust_set, pandas.DataFrame):
-                x_test = sp_df.to_numpy()
+            if isinstance(sp_df, pandas.DataFrame):
+                x_test = sp_df.select_dtypes(exclude=['object'])
+                x_test = x_test.to_numpy()
             else:
                 x_test = sp_df
             x_test = numpy.nan_to_num(x_test)

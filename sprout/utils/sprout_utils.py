@@ -102,6 +102,8 @@ def correlations(trust_df, corr_tag="INFO", print_output=True):
     """
     corr_dict = {}
     label = trust_df["is_misclassification"].to_numpy()
+    if print_output:
+        print("Importance of each uncertainty measure with SPROUT behavior")
     for feature_name in trust_df.columns:
         if feature_name not in ["true_label", "predicted_label", "is_misclassification", "probabilities"]:
             feature_values = trust_df[feature_name]
