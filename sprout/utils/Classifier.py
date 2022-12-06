@@ -2,17 +2,12 @@ import numpy
 import numpy as np
 import pandas
 import pandas as pd
-from xgboost import XGBClassifier
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.linear_model import LogisticRegression
-from sklearn.naive_bayes import GaussianNB
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
-from sklearn.svm import SVC
-
-from pytorch_tabnet.tab_model import TabNetClassifier
 from autogluon.tabular import TabularPredictor
+from pytorch_tabnet.tab_model import TabNetClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from xgboost import XGBClassifier
 
 
 class Classifier:

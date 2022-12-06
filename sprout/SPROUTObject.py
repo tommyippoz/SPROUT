@@ -9,11 +9,11 @@ import pandas as pd
 from pyod.models.base import BaseDetector
 from sklearn.naive_bayes import GaussianNB
 
-from sprout.utils import general_utils
 from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval, ExternalSupervisedUncertainty, \
     CombinedUncertainty, MultiCombinedUncertainty, NeighborsUncertainty, ProximityUncertainty, FeatureBagging, \
     ReconstructionLoss, \
     ExternalUnsupervisedUncertainty, MaxProbUncertainty, AgreementUncertainty
+from sprout.utils import general_utils
 from sprout.utils.general_utils import get_full_class_name
 from sprout.utils.sprout_utils import get_classifier_name, read_calculators
 

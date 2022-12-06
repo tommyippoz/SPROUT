@@ -1,11 +1,10 @@
 import pandas
 import sklearn
 from pytorch_tabnet.tab_model import TabNetClassifier
+from utils.dataset_utils import load_FASHIONMNIST
 
-from sprout.utils import sprout_utils
 from sprout.SPROUTObject import SPROUTObject
 from sprout.utils.sprout_utils import correlations
-from utils.dataset_utils import load_FASHIONMNIST
 
 if __name__ == '__main__':
     """

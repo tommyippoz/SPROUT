@@ -3,10 +3,10 @@ import pandas
 import sklearn
 
 from examples.AutoGluonClassifier import AutoGluonClassifier
-from sprout.utils import sprout_utils
 from sprout.SPROUTObject import SPROUTObject
-from sprout.utils.sprout_utils import correlations
+from sprout.utils import sprout_utils
 from sprout.utils.dataset_utils import load_DIGITS
+from sprout.utils.sprout_utils import correlations
 
 MODELS_FOLDER = "../models/"
 MODEL_TAG = "dsn_sup_2"
@@ -70,4 +70,4 @@ if __name__ == '__main__':
     out_df["clf_pred"] = y_pred
     out_df["true_label"] = y_test
     out_df["sprout_omit"] = sp_df["pred"]
-    out_df.to_csv('my_sprout_gluon_df.csv', index=False)
+    out_df.to_csv('sprout_gluon_df.csv', index=False)

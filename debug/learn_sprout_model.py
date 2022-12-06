@@ -2,6 +2,7 @@ import copy
 import os
 
 import joblib
+import matplotlib.pyplot as plt
 import numpy
 import numpy as np
 import pandas
@@ -10,16 +11,12 @@ import sklearn
 from pyod.models.abod import ABOD
 from pyod.models.cblof import CBLOF
 from pyod.models.copod import COPOD
-from pyod.models.feature_bagging import FeatureBagging
 from pyod.models.gmm import GMM
 from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
 from pyod.models.inne import INNE
-from pyod.models.knn import KNN
 from pyod.models.lof import LOF
-from pyod.models.lscp import LSCP
 from pyod.models.mcd import MCD
-from pyod.models.ocsvm import OCSVM
 from pyod.models.pca import PCA
 from pyod.models.suod import SUOD
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
@@ -29,14 +26,12 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.tree import DecisionTreeClassifier
 
-from sprout.utils.Classifier import LogisticReg, XGB, TabNet, UnsupervisedClassifier
+from sprout.SPROUTObject import SPROUTObject
+from sprout.utils.Classifier import LogisticReg, XGB
 from sprout.utils.dataset_utils import process_tabular_dataset, process_image_dataset, is_image_dataset, \
     process_binary_tabular_dataset
 from sprout.utils.general_utils import load_config, choose_classifier, clean_name, current_ms, clear_folder
-from sprout.SPROUTObject import SPROUTObject
 from sprout.utils.sprout_utils import build_classifier, build_SPROUT_dataset, get_classifier_name
-
-import matplotlib.pyplot as plt
 
 # Vars for Generating Uncertainties
 GENERATE_UNCERTAINTIES = False

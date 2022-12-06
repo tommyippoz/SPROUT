@@ -1,15 +1,12 @@
 import pandas
 import sklearn
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from pyod.models.copod import COPOD
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB, ComplementNB
-from sklearn.tree import DecisionTreeClassifier
 
-from sprout.utils import sprout_utils
 from sprout.SPROUTObject import SPROUTObject
-from sprout.utils.Classifier import LogisticReg, XGB
-from sprout.utils.sprout_utils import correlations
+from sprout.utils import sprout_utils
 from sprout.utils.dataset_utils import process_binary_tabular_dataset
+from sprout.utils.sprout_utils import correlations
 
 MODELS_FOLDER = "../models/"
 MODEL_TAG = "dsn_uns"
@@ -31,8 +28,8 @@ if __name__ == '__main__':
     sprout_obj.load_model(model_tag=MODEL_TAG, x_train=x_train, y_train=y_train, label_names=label_names)
 
     # Building and exercising SKLearn classifier
-    classifier = RandomForestClassifier(n_estimators=10)
-    classifier.fit(x_train, y_train)
+    classifier = COPOD()
+    classifier.fit(x_train)
     y_pred = classifier.predict(x_test)
     y_proba = classifier.predict_proba(x_test)
     print("Fit and Prediction completed with Accuracy: " + str(sklearn.metrics.accuracy_score(y_test, y_pred)))
@@ -46,4 +43,4 @@ if __name__ == '__main__':
     correlations(out_df)
 
     # Printing Dataframe
-    out_df.to_csv('sklearn_sprout_example.csv', index=False)
+    out_df.to_csv('sklearn_pyod_example.csv', index=False)

@@ -1,27 +1,24 @@
 import copy
 import random
 import warnings
+from collections import Counter
 
 import joblib
 import numpy
+import numpy as np
 import pandas
 import pandas as pd
 import pyod.models.base
 import scipy.stats
-
-import numpy as np
 from pyod.models.copod import COPOD
 from scipy.stats import stats
-
 from sklearn.neighbors import NearestNeighbors
-from collections import Counter
-
 from sklearn.tree import DecisionTreeClassifier
 from tqdm import tqdm
 
 from sprout.utils.AutoEncoder import DeepAutoEncoder, SingleAutoEncoder, SingleSparseAutoEncoder
-from sprout.utils.sprout_utils import get_classifier_name
 from sprout.utils.general_utils import current_ms, get_full_class_name
+from sprout.utils.sprout_utils import get_classifier_name
 
 
 class UncertaintyCalculator:

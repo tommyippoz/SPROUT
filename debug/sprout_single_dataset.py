@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 import sklearn
 
+from sprout.SPROUTObject import SPROUTObject
 from sprout.utils import dataset_utils, sprout_utils
 from sprout.utils.general_utils import load_config, choose_classifier, clean_name
-from sprout.SPROUTObject import SPROUTObject
 from sprout.utils.sprout_utils import get_classifier_name
 
 MODELS_FOLDER = "../models/"
