@@ -5,7 +5,7 @@ import sklearn
 from examples.AutoGluonClassifier import AutoGluonClassifier
 from sprout.SPROUTObject import SPROUTObject
 from sprout.utils import sprout_utils
-from sprout.utils.dataset_utils import load_DIGITS, load_MNIST
+from sprout.utils.dataset_utils import load_MNIST
 from sprout.utils.sprout_utils import correlations
 
 MODELS_FOLDER = "../models/"
@@ -18,7 +18,7 @@ if __name__ == '__main__':
     """
 
     # Reading sample dataset (MNIST)
-    x_train, x_test, y_train, y_test, label_names, feature_names = load_MNIST(flatten=True)
+    x_train, x_test, y_train, y_test, label_names, feature_names = load_MNIST(flatten=True, row_limit=10000)
 
     # as of now SPROUT needs flattened inputs
     xf_train = numpy.stack([x.flatten() for x in x_train])

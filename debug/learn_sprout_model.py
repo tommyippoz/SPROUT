@@ -34,20 +34,21 @@ from sprout.utils.general_utils import load_config, choose_classifier, clean_nam
 from sprout.utils.sprout_utils import build_classifier, build_SPROUT_dataset, get_classifier_name
 
 # Vars for Generating Uncertainties
-GENERATE_UNCERTAINTIES = False
+GENERATE_UNCERTAINTIES = True
 FILE_AVOID_TAG = None
-MODEL_TYPE = 'UNS'
+MODEL_TYPE = 'SUP'
 
 # Vars for Learning Model
 MODELS_FOLDER = "../models/"
 STUDY_TAG = {  # "iot_no_tn": "./datasets_measures/IoT",
-    "native_uns_80": "./datasets_measures/nativebindatasets/",
-    "all_uns_80": "./datasets_measures/allbin/",
+    #"native_uns_80": "./datasets_measures/nativebindatasets/",
+    #"all_uns_80": "./datasets_measures/allbin/",
     # "bio_no_tn": "./datasets_measures/Biometry_Datasets/",
     # "image_no_tn": "./datasets_measures/Image/",
     # "nids_no_tn": "./datasets_measures/NIDS/",
-    # "full_no_tn": "./datasets_measures/all/"
+    "all_sup_fast": "./datasets_measures/all_csv/"
 }
+
 MISC_RATIOS = [None, 0.05, 0.1, 0.2]
 
 
@@ -90,11 +91,12 @@ def compute_datasets_uncertainties(dataset_files, d_folder, s_folder,
 
             print("Preparing Trust Calculators...")
             if MODEL_TYPE == 'SUP':
-                sprout_obj = build_supervised_object(x_train, y_train, label_tags)
+                contamination = 0
+                sprout_obj = build_fast_supervised_object(x_train, y_train, label_tags)
             else:
                 contamination = sum(y_train) / len(y_train)
                 y_train = None
-                sprout_obj = build_unsupervised_object(x_train, contamination)
+                sprout_obj = build_fast_unsupervised_object(x_train, contamination)
 
             for classifier_string in classifier_list:
                 # Building and exercising classifier
@@ -238,6 +240,53 @@ def build_unsupervised_object(x_train, contamination):
     return sp_obj
 
 
+def build_fast_supervised_object(x_train, y_train, label_tags):
+    sp_obj = SPROUTObject(models_folder=MODELS_FOLDER)
+    if (x_train is not None) and isinstance(x_train, pandas.DataFrame):
+        x_data = x_train.to_numpy()
+    else:
+        x_data = x_train
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9999)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.5)
+    sp_obj.add_calculator_maxprob()
+    sp_obj.add_calculator_entropy(n_classes=len(label_tags) if label_tags is not None else 2)
+    sp_obj.add_calculator_combined(classifier=XGB(), x_train=x_data, y_train=y_train,
+                                   n_classes=len(label_tags) if label_tags is not None else 2)
+    for cc in [[GaussianNB(), LinearDiscriminantAnalysis(), LogisticReg()],
+               [GaussianNB(), BernoulliNB(),
+                Pipeline([("norm", MinMaxScaler()), ("clf", MultinomialNB())]),
+                Pipeline([("norm", MinMaxScaler()), ("clf", ComplementNB())])],
+               [DecisionTreeClassifier(), RandomForestClassifier(), XGB()]]:
+        sp_obj.add_calculator_multicombined(clf_set=cc, x_train=x_data, y_train=y_train,
+                                            n_classes=len(label_tags) if label_tags is not None else 2)
+    sp_obj.add_calculator_neighbour(x_train=x_data, y_train=y_train, label_names=label_tags)
+    sp_obj.add_calculator_featurebagging(x_train=x_data, y_train=y_train, n_baggers=50, bag_type='sup')
+    sp_obj.add_calculator_recloss(x_train=x_data)
+    return sp_obj
+
+
+def build_fast_unsupervised_object(x_train, contamination):
+    contamination = contamination if contamination <= 0.5 else 0.5
+    sp_obj = SPROUTObject(models_folder=MODELS_FOLDER)
+    if (x_train is not None) and isinstance(x_train, pandas.DataFrame):
+        x_data = x_train.to_numpy()
+    else:
+        x_data = x_train
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=None, confidence_level=0.99)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=None, confidence_level=0.5)
+    sp_obj.add_calculator_maxprob()
+    sp_obj.add_calculator_entropy(n_classes=2)
+    for cc in [[HBOS(contamination=contamination, n_bins=100), COPOD(contamination=contamination),
+                CBLOF(contamination=contamination, alpha=0.75, beta=3), PCA(contamination=contamination),
+                MCD(contamination=contamination), GMM(contamination=contamination), IForest(contamination=contamination)],
+               [HBOS(contamination=contamination, n_bins=100), PCA(contamination=contamination),
+                MCD(contamination=contamination), GMM(contamination=contamination)],
+               [IForest(contamination=contamination), INNE(contamination=contamination)]]:
+        sp_obj.add_calculator_multicombined(clf_set=cc, x_train=x_data, y_train=None, n_classes=2)
+    sp_obj.add_calculator_recloss(x_train=x_data)
+    return sp_obj
+
+
 if __name__ == '__main__':
     """
     Main to calculate trust measures for many datasets using many classifiers.
@@ -255,9 +304,9 @@ if __name__ == '__main__':
                                        sup_clfs if MODEL_TYPE == 'SUP' else uns_clfs,
                                        y_label, limit_rows)
     if MODEL_TYPE == 'SUP':
-        sprout_obj = build_supervised_object(None, None, None)
+        sprout_obj = build_fast_supervised_object(None, None, None)
     else:
-        sprout_obj = build_unsupervised_object(None, 0.1)
+        sprout_obj = build_fast_unsupervised_object(None, 0.1)
 
     for tag, folder_path in STUDY_TAG.items():
 
