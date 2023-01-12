@@ -5,7 +5,7 @@ import sklearn
 from examples.AutoGluonClassifier import AutoGluonClassifier
 from sprout.SPROUTObject import SPROUTObject
 from sprout.utils import sprout_utils
-from sprout.utils.dataset_utils import load_DIGITS
+from sprout.utils.dataset_utils import load_DIGITS, load_MNIST
 from sprout.utils.sprout_utils import correlations
 
 MODELS_FOLDER = "../models/"
@@ -17,12 +17,16 @@ if __name__ == '__main__':
     Requires autogluon-tabular and lightgbm pip packages
     """
 
-    # Reading sample dataset (DIGITS)
-    x_train, x_test, y_train, y_test, label_names, feature_names = load_DIGITS(as_pandas=False)
+    # Reading sample dataset (MNIST)
+    x_train, x_test, y_train, y_test, label_names, feature_names = load_MNIST(flatten=True)
+
+    # as of now SPROUT needs flattened image inputs
+    xf_train = numpy.stack([x.flatten() for x in x_train])
+    xf_test = numpy.stack([x.flatten() for x in x_test])
 
     # Loading SPROUT wrapper for supervised learning
     sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
-    sprout_obj.load_model(model_tag=MODEL_TAG, x_train=x_train, y_train=y_train, label_names=label_names)
+    sprout_obj.load_model(model_tag=MODEL_TAG, x_train=xf_train, y_train=y_train, label_names=label_names)
 
     # AutoGluon Parameters, clf_name in
     #     ‘GBM’ (LightGBM)
@@ -36,7 +40,7 @@ if __name__ == '__main__':
     #     ‘FASTAI’ (neural network with FastAI backend)
 
     # Building and exercising AutoGluon classifier
-    clf_name = 'GBM'
+    clf_name = 'FASTAI'
     classifier = AutoGluonClassifier(feat_names=feature_names, clf_name=clf_name)
     classifier.fit(x_train=x_train, y_train=y_train)
     y_pred = classifier.predict(x_test=x_test)
@@ -49,7 +53,7 @@ if __name__ == '__main__':
     out_df = sprout_utils.build_SPROUT_dataset(y_proba, y_pred, y_test, label_names)
 
     # Calculating Trust Measures with SPROUT
-    sp_df, adj = sprout_obj.predict_set_misclassifications(data_set=x_test, y_proba=y_proba, classifier=classifier)
+    sp_df, adj = sprout_obj.predict_set_misclassifications(data_set=xf_test, y_proba=y_proba, classifier=classifier)
     sprout_pred = sp_df["pred"].to_numpy()
 
     # Computing SPROUT Metrics
@@ -59,7 +63,7 @@ if __name__ == '__main__':
 
     print('\n------------  SPROUT Report  ------------------\n')
     print('Regular classifier has accuracy of %.3f and %.3f misclassifications' % (clf_acc, 1-clf_acc))
-    print('SPROUT suspects %.3f of misclassifications' % (susp_misc))
+    print('SPROUT suspects %.3f of misclassifications' % (100.0*susp_misc))
     print('Classifier wrapped with SPROUT has %.3f accuracy, %.3f omission rate, '
           'and %.3f residual misclassifications' % (sp_acc, o_rate, 1-sp_acc-o_rate))
 

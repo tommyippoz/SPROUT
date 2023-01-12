@@ -19,27 +19,29 @@ def load_DIGITS(row_limit=np.nan, as_pandas=False):
     return process_image_dataset("DIGITS", limit=row_limit, as_pandas=as_pandas)
 
 
-def load_MNIST(row_limit=np.nan, as_pandas=False):
+def load_MNIST(row_limit=np.nan, as_pandas=False, flatten=True):
     """
     Loads MNIST dataset
+    :param flatten: True if dataset should be linearized
     :param row_limit: int (number of data points) if you want to use a portion of the dataset
     :param as_pandas: True if output has to be a Pandas Dataframe
     :return: features and labels with train/test split, label names and feature names
     """
-    return process_image_dataset("MNIST", limit=row_limit, as_pandas=as_pandas)
+    return process_image_dataset("MNIST", limit=row_limit, as_pandas=as_pandas, flatten=flatten)
 
 
-def load_FASHIONMNIST(row_limit=np.nan, as_pandas=False):
+def load_FASHIONMNIST(row_limit=np.nan, as_pandas=False, flatten=True):
     """
     Loads FASHION-MNIST dataset
+    :param flatten: True if dataset should be linearized
     :param row_limit: int (number of data points) if you want to use a portion of the dataset
     :param as_pandas: True if output has to be a Pandas Dataframe
     :return: features and labels with train/test split, label names and feature names
     """
-    return process_image_dataset("FASHION-MNIST", limit=row_limit, as_pandas=as_pandas)
+    return process_image_dataset("FASHION-MNIST", limit=row_limit, as_pandas=as_pandas, flatten=flatten)
 
 
-def process_image_dataset(dataset_name, limit=np.nan, as_pandas=False):
+def process_image_dataset(dataset_name, limit=np.nan, as_pandas=False, flatten=True):
     """
     Gets data for analysis, provided that the dataset is an image dataset
     :param as_pandas: True if output has to be a Pandas Dataframe
@@ -72,7 +74,7 @@ def process_image_dataset(dataset_name, limit=np.nan, as_pandas=False):
                           "t10k-images-idx3-ubyte.gz", mnist_folder)
             download_file("http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz",
                           "t10k-labels-idx1-ubyte.gz", mnist_folder)
-        return format_mnist(mnist_folder, limit, as_pandas)
+        return format_mnist(mnist_folder, limit, as_pandas, flatten)
 
     elif dataset_name == "FASHION-MNIST":
         f_mnist_folder = "input_folder/fashion"
@@ -87,7 +89,7 @@ def process_image_dataset(dataset_name, limit=np.nan, as_pandas=False):
                           "t10k-images-idx3-ubyte.gz", f_mnist_folder)
             download_file("http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-labels-idx1-ubyte.gz",
                           "t10k-labels-idx1-ubyte.gz", f_mnist_folder)
-        return format_mnist(f_mnist_folder, limit, as_pandas)
+        return format_mnist(f_mnist_folder, limit, as_pandas, flatten)
 
 
 def download_file(file_url, file_name, folder_name):
@@ -199,13 +201,13 @@ def load_mnist(path, kind='train'):
                                offset=8)
 
     with gzip.open(images_path, 'rb') as imgpath:
-        images = np.frombuffer(imgpath.read(), dtype=np.uint8,
-                               offset=16).reshape(len(labels), 784)
+        images = np.frombuffer(imgpath.read(), dtype=np.uint8, offset=16)
+        images = images.reshape(len(labels), 28, 28)
 
     return images, labels
 
 
-def format_mnist(mnist_folder, limit, as_pandas):
+def format_mnist(mnist_folder, limit, as_pandas, flatten=True):
     """
     Loads an mnist-like dataset and provides as output the train/test split plus features
     :param as_pandas: True if output has to be a Pandas Dataframe
@@ -217,8 +219,9 @@ def format_mnist(mnist_folder, limit, as_pandas):
     x_te, y_te = load_mnist(mnist_folder, kind='t10k')
 
     # Linearizes features in the 28x28 image
-    x_tr = np.stack([x.flatten() for x in x_tr])
-    x_te = np.stack([x.flatten() for x in x_te])
+    if flatten:
+        x_tr = np.stack([x.flatten() for x in x_tr])
+        x_te = np.stack([x.flatten() for x in x_te])
     x_fmnist = np.concatenate([x_tr, x_te], axis=0)
     y_fmnist = np.concatenate([y_tr, y_te], axis=0)
 

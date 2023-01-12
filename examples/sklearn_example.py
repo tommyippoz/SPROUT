@@ -16,17 +16,17 @@ if __name__ == '__main__':
     Main to calculate confidence measures for sklearn classifiers using MNIST dataset
     """
 
-    # Reading sample dataset (DIGITS)
-    x_train, x_test, y_train, y_test, label_names, feature_names = load_MNIST()
+    # Reading sample dataset (MNIST)
+    x_train, x_test, y_train, y_test, label_names, feature_names = load_MNIST(flatten=True, row_limit=20000)
 
     # Loading SPROUT wrapper for supervised learning
     sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
     sprout_obj.load_model(model_tag=MODEL_TAG, x_train=x_train, y_train=y_train, label_names=label_names)
 
     classifier = RandomForestClassifier(n_estimators=10)
-    classifier.fit(x_train=x_train, y_train=y_train)
-    y_pred = classifier.predict(x_test=x_test)
-    y_proba = classifier.predict_proba(x_test=x_test)
+    classifier.fit(x_train, y_train)
+    y_pred = classifier.predict(x_test)
+    y_proba = classifier.predict_proba(x_test)
     clf_misc = numpy.asarray(y_pred != y_test)
     clf_acc = sklearn.metrics.accuracy_score(y_test, y_pred)
     print("Fit and Prediction completed with Accuracy: " + str(clf_acc))

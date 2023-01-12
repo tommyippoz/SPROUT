@@ -13,7 +13,7 @@ MODEL_TAG = "dsn_uns"
 
 if __name__ == '__main__':
     """
-    Main to calculate confidence measures for SKLearn classifiers using NSL-KDD dataset from
+    Main to calculate confidence measures for PYOD classifiers using NSL-KDD dataset from
     https://www.kaggle.com/datasets/hassan06/nslkdd
     """
 
@@ -44,3 +44,4 @@ if __name__ == '__main__':
 
     # Printing Dataframe
     out_df.to_csv('sklearn_pyod_example.csv', index=False)
+

@@ -60,6 +60,7 @@ class SPROUTObject:
             if isinstance(data_set, pandas.DataFrame):
                 data_set = data_set.to_numpy()
             trust_scores = calculator.uncertainty_scores(data_set, y_proba, classifier)
+            trust_scores = numpy.nan_to_num(trust_scores, nan=-10, posinf=-10, neginf=-10)
             if type(trust_scores) is dict:
                 for key in trust_scores:
                     out_df[calculator.uncertainty_calculator_name() + "_" + str(key)] = trust_scores[key]
