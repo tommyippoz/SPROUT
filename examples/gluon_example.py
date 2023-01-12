@@ -20,7 +20,7 @@ if __name__ == '__main__':
     # Reading sample dataset (MNIST)
     x_train, x_test, y_train, y_test, label_names, feature_names = load_MNIST(flatten=True)
 
-    # as of now SPROUT needs flattened image inputs
+    # as of now SPROUT needs flattened inputs
     xf_train = numpy.stack([x.flatten() for x in x_train])
     xf_test = numpy.stack([x.flatten() for x in x_test])
 
