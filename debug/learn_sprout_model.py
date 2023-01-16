@@ -34,9 +34,9 @@ from sprout.utils.general_utils import load_config, choose_classifier, clean_nam
 from sprout.utils.sprout_utils import build_classifier, build_SPROUT_dataset, get_classifier_name
 
 # Vars for Generating Uncertainties
-GENERATE_UNCERTAINTIES = True
+GENERATE_UNCERTAINTIES = False
 FILE_AVOID_TAG = None
-MODEL_TYPE = 'SUP'
+MODEL_TYPE = 'UNS'
 
 # Vars for Learning Model
 MODELS_FOLDER = "../models/"
@@ -46,7 +46,8 @@ STUDY_TAG = {  # "iot_no_tn": "./datasets_measures/IoT",
     # "bio_no_tn": "./datasets_measures/Biometry_Datasets/",
     # "image_no_tn": "./datasets_measures/Image/",
     # "nids_no_tn": "./datasets_measures/NIDS/",
-    "all_sup_fast": "./datasets_measures/all_csv/"
+    # "all_sup_fast_2": "./datasets_measures/all_csv/",
+    "all_uns_fast": "./datasets_measures/all_bin_csv/"
 }
 
 MISC_RATIOS = [None, 0.05, 0.1, 0.2]
@@ -317,7 +318,7 @@ if __name__ == '__main__':
         if os.path.exists(folder_path):
             # Merging data into a unique Dataset for training Misclassification Predictors
             x_train, y_train, x_test, y_test, features, m_frac = \
-                load_uncertainty_datasets(folder_path, train_split=0.8, perf_thr=0.8)
+                load_uncertainty_datasets(folder_path, train_split=0.8, perf_thr=0.75)
 
             # Classifiers for Detection (Binary Adjudicator)
             m_frac = 0.5 if m_frac > 0.5 else m_frac

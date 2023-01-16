@@ -1,0 +1,11 @@
+Confidence Interval (0.9999/sup),0.025340952248538006
+Confidence Interval (0.5/sup),0.0253978856099663
+MaxProb Calculator,0.048272806640312124
+Entropy Calculator,0.04081178771624488
+Combined Calculator (XGBoost),0.1994332509953445
+Multiple Combined Calculator (3 - GBLsLn classifiers),0.04550174163540866
+Multiple Combined Calculator (4 - GBBBPePe classifiers),0.04581902813926451
+Multiple Combined Calculator (3 - DrRrXt classifiers),0.29214542600543053
+uncertainty calculator on 19 Neighbors_uncertainty,0.012928690340402265
+FeatureBagging Uncertainty (50/sup),0.22471287992959246
+AutoEncoder Loss (simple),0.039635550739495845

@@ -1,0 +1,12 @@
+# File that lists the calculators used to build this SPROUT object
+1: Confidence Interval (0.9999/none)
+2: Confidence Interval (0.5/none)
+3: MaxProb Calculator
+4: Entropy Calculator
+5: Combined Calculator (XGBoost)
+6: Multiple Combined Calculator (3 - GBLsLn classifiers)
+7: Multiple Combined Calculator (4 - GBBBPePe classifiers)
+8: Multiple Combined Calculator (3 - DrRrXt classifiers)
+9: uncertainty calculator on 19 Neighbors
+10: FeatureBagging Uncertainty (50/sup)
+11: AutoEncoder Loss (simple)
