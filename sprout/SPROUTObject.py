@@ -53,12 +53,12 @@ class SPROUTObject:
         out_df = pd.DataFrame()
         if y_proba is None:
             y_proba = classifier.predict_proba(data_set)
+        if isinstance(data_set, pandas.DataFrame):
+            data_set = data_set.to_numpy()
         for calculator in self.trust_calculators:
             if verbose:
                 print("Calculating Trust Strategy: " + calculator.uncertainty_calculator_name())
             start_ms = general_utils.current_ms()
-            if isinstance(data_set, pandas.DataFrame):
-                data_set = data_set.to_numpy()
             trust_scores = calculator.uncertainty_scores(data_set, y_proba, classifier)
             trust_scores = numpy.nan_to_num(trust_scores, nan=-10, posinf=-10, neginf=-10)
             if type(trust_scores) is dict:

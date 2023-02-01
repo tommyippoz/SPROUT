@@ -6,10 +6,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sprout.SPROUTObject import SPROUTObject
 from sprout.utils import sprout_utils
 from sprout.utils.dataset_utils import load_MNIST
+from sprout.utils.general_utils import current_ms
 from sprout.utils.sprout_utils import correlations
 
 MODELS_FOLDER = "../models/"
-MODEL_TAG = "dsn_sup_2"
+MODEL_TAG = "all_sup_fast_2"
 
 if __name__ == '__main__':
     """
@@ -17,7 +18,7 @@ if __name__ == '__main__':
     """
 
     # Reading sample dataset (MNIST)
-    x_train, x_test, y_train, y_test, label_names, feature_names = load_MNIST(flatten=True, row_limit=20000)
+    x_train, x_test, y_train, y_test, label_names, feature_names = load_MNIST(flatten=True, row_limit=10000)
 
     # Loading SPROUT wrapper for supervised learning
     sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
@@ -25,7 +26,9 @@ if __name__ == '__main__':
 
     classifier = RandomForestClassifier(n_estimators=10)
     classifier.fit(x_train, y_train)
+    start_pred = current_ms()
     y_pred = classifier.predict(x_test)
+    clf_time = (current_ms() - start_pred) / len(y_test)
     y_proba = classifier.predict_proba(x_test)
     clf_misc = numpy.asarray(y_pred != y_test)
     clf_acc = sklearn.metrics.accuracy_score(y_test, y_pred)
@@ -35,7 +38,9 @@ if __name__ == '__main__':
     out_df = sprout_utils.build_SPROUT_dataset(y_proba, y_pred, y_test, label_names)
 
     # Calculating Trust Measures with SPROUT
+    start_pred = current_ms()
     sp_df, adj = sprout_obj.predict_set_misclassifications(data_set=x_test, y_proba=y_proba, classifier=classifier)
+    sprout_time = (current_ms() - start_pred) / len(y_test)
     sprout_pred = sp_df["pred"].to_numpy()
 
     # Computing SPROUT Metrics
@@ -48,6 +53,8 @@ if __name__ == '__main__':
     print('SPROUT suspects %.3f of misclassifications' % (susp_misc))
     print('Classifier wrapped with SPROUT has %.3f accuracy, %.3f omission rate, '
           'and %.3f residual misclassifications' % (sp_acc, o_rate, 1-sp_acc-o_rate))
+    print('Prediction Time of the regular classifier %.3f ms per item, with SPROUT: %.3f per item'
+          % (clf_time, sprout_time))
 
     out_df = pandas.concat([out_df, sp_df.drop(columns=["pred"])], axis=1)
     correlations(out_df)
