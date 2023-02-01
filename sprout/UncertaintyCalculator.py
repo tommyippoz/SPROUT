@@ -123,8 +123,7 @@ class EntropyUncertainty(UncertaintyCalculator):
         if not isinstance(feature_values_array, np.ndarray):
             feature_values_array = feature_values_array.to_numpy()
         if len(feature_values_array) == len(proba_array):
-            for i in range(0, len(proba_array)):
-                uncertainty.append(self.uncertainty_score(proba_array[i]))
+            uncertainty = [self.uncertainty_score(proba_array[i]) for i in range(0, len(proba_array))]
         else:
             print("Items of the feature set have a different cardinality wrt probabilities")
         return np.asarray(uncertainty)
@@ -404,10 +403,9 @@ class MultiCombinedUncertainty(UncertaintyCalculator):
         :param proba_array: the probability arrays assigned by the algorithm to the data points
         :return: array of uncertainty scores
         """
-        multi_uncertainty = np.zeros(len(feature_values_array))
-        for combined_uncertainty in self.uncertainty_set:
-            multi_uncertainty = multi_uncertainty + combined_uncertainty.uncertainty_scores(feature_values_array, proba_array, classifier)
-        return multi_uncertainty / len(self.uncertainty_set)
+        multi_uncertainty = [combined_uncertainty.uncertainty_scores(feature_values_array, proba_array, classifier)
+                             for combined_uncertainty in self.uncertainty_set]
+        return numpy.average(numpy.asarray(multi_uncertainty), axis=0)
 
     def uncertainty_calculator_name(self):
         return 'Multiple Combined Calculator (' + str(self.tag) + ' classifiers)'
@@ -726,16 +724,13 @@ class FeatureBagging(UncertaintyCalculator):
             feature_values_array = feature_values_array.to_numpy()
 
         # Testing with all classifiers
-        fs_pred = []
-        for i in range(len(self.feature_sets)):
-            fs_array = feature_values_array[:, self.feature_sets[i]]
-            fs_pred.append(self.classifiers[i].predict(fs_array))
+        fs_pred = [self.classifiers[i].predict(feature_values_array[:, self.feature_sets[i]])
+                   for i in range(len(self.feature_sets))]
         fs_pred = numpy.array(fs_pred).transpose()
 
         # Calculating Uncertainty
-        uncertainty = []
-        for i in range(len(feature_values_array)):
-            uncertainty.append(sum(fs_pred[i] == predicted_classes[i]) / len(fs_pred[i]))
+        uncertainty = [sum(fs_pred[i] == predicted_classes[i]) / len(fs_pred[i])
+                       for i in range(len(feature_values_array))]
 
         return np.asarray(uncertainty)
 
