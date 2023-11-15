@@ -1,0 +1,11 @@
+Steps to create a VENV that is compaible with models that are already in SPROUT
+
+1: create an empty venv
+2: copy the 'packagesOnServer.txt' file in the root folder of your venv
+3: navigate to the folder of your venv that contains the 'pip' executable (usually venv/scripts)
+4 run the command
+ [windows] pip.exe install -r <path to packagesOnServer.txt>
+ [linux] pip install -r <path to packagesOnServer.txt>
+	replacing <path to packagesOnServer.txt> with the path where the TXT file is located
+
+Now you have a venv that you can use with SPROUT

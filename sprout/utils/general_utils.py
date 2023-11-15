@@ -1,6 +1,5 @@
 import configparser
 import os
-import resource
 import shutil
 import time
 
@@ -201,18 +200,3 @@ def clear_folder(folder_path):
                 shutil.rmtree(file_path)
         except Exception as e:
             print('Failed to delete %s. Reason: %s' % (file_path, e))
-
-
-def memory_limit(factor=2):
-    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-    resource.setrlimit(resource.RLIMIT_AS, (get_memory() * 1024 / factor, hard))
-
-
-def get_memory():
-    with open('/proc/meminfo', 'r') as mem:
-        free_memory = 0
-        for i in mem:
-            sline = i.split()
-            if str(sline[0]) in ('MemFree:', 'Buffers:', 'Cached:'):
-                free_memory += int(sline[1])
-    return free_memory
