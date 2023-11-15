@@ -109,7 +109,7 @@ def compute_datasets_uncertainties(dataset_files, d_folder, s_folder,
                     sprout_obj = build_unsupervised_object(x_train, contamination)
 
             for classifier_string in classifier_list:
-                # Building and exercising  classifier
+                # Building and  exercising  classifier
                 classifier = choose_classifier(classifier_string, features, y_label, "accuracy", contamination)
 
                 if classifier is not None:
