@@ -9,6 +9,7 @@ from pyod.models.abod import ABOD
 from pyod.models.cblof import CBLOF
 from pyod.models.cof import COF
 from pyod.models.copod import COPOD
+from pyod.models.ecod import ECOD
 from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
 from pyod.models.inne import INNE
@@ -146,8 +147,10 @@ def choose_classifier(clf_name, features, y_label, metric, contamination=None):
          return GradientBoostingClassifier(n_estimators=50)
     elif clf_name in {"COPOD"}:
         return UnsupervisedClassifier(COPOD(contamination=contamination))
+    elif clf_name in {"ECOD"}:
+        return UnsupervisedClassifier(ECOD(contamination=contamination))
     elif clf_name in {"HBOS"}:
-        return UnsupervisedClassifier(HBOS(contamination=contamination, n_bins=100))
+        return UnsupervisedClassifier(HBOS(contamination=contamination, n_bins=30))
     elif clf_name in {"MCD"}:
         return UnsupervisedClassifier(MCD(contamination=contamination))
     elif clf_name in {"PCA"}:
@@ -156,14 +159,14 @@ def choose_classifier(clf_name, features, y_label, metric, contamination=None):
         return UnsupervisedClassifier(CBLOF(contamination=contamination, alpha=0.75, beta=3))
     elif clf_name in {"OCSVM", "1SVM"}:
         return UnsupervisedClassifier(OCSVM(contamination=contamination))
-    elif clf_name in {"kNN"}:
-        return UnsupervisedClassifier(KNN(contamination=contamination))
+    elif clf_name in {"uKNN"}:
+        return UnsupervisedClassifier(KNN(contamination=contamination, n_neighbors=3))
     elif clf_name in {"LOF"}:
-        return UnsupervisedClassifier(LOF(contamination=contamination, n_neighbors=9))
+        return UnsupervisedClassifier(LOF(contamination=contamination, n_neighbors=5))
     elif clf_name in {"INNE"}:
         return UnsupervisedClassifier(INNE(contamination=contamination))
     elif clf_name in {"FastABOD", "ABOD", "FABOD"}:
-        return UnsupervisedClassifier(ABOD(contamination=contamination, method='fast', n_neighbors=9))
+        return UnsupervisedClassifier(ABOD(contamination=contamination, method='fast', n_neighbors=7))
     elif clf_name in {"COF"}:
         return UnsupervisedClassifier(COF(contamination=contamination, n_neighbors=9))
     elif clf_name in {"IFOREST", "IForest"}:

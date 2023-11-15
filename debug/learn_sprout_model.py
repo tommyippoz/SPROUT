@@ -11,10 +11,12 @@ import sklearn
 from pyod.models.abod import ABOD
 from pyod.models.cblof import CBLOF
 from pyod.models.copod import COPOD
+from pyod.models.ecod import ECOD
 from pyod.models.gmm import GMM
 from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
 from pyod.models.inne import INNE
+from pyod.models.knn import KNN
 from pyod.models.lof import LOF
 from pyod.models.mcd import MCD
 from pyod.models.pca import PCA
@@ -34,9 +36,10 @@ from sprout.utils.general_utils import load_config, choose_classifier, clean_nam
 from sprout.utils.sprout_utils import build_classifier, build_SPROUT_dataset, get_classifier_name
 
 # Vars for Generating Uncertainties
-GENERATE_UNCERTAINTIES = False
+GENERATE_UNCERTAINTIES = True
 FILE_AVOID_TAG = None
 MODEL_TYPE = 'UNS'
+SPEED_TYPE = 'ALL'
 
 # Vars for Learning Model
 MODELS_FOLDER = "../models/"
@@ -93,11 +96,17 @@ def compute_datasets_uncertainties(dataset_files, d_folder, s_folder,
             print("Preparing Trust Calculators...")
             if MODEL_TYPE == 'SUP':
                 contamination = 0
-                sprout_obj = build_fast_supervised_object(x_train, y_train, label_tags)
+                if SPEED_TYPE == 'FAST':
+                    sprout_obj = build_fast_supervised_object(x_train, y_train, label_tags)
+                else:
+                    sprout_obj = build_supervised_object(x_train, y_train, label_tags)
             else:
                 contamination = sum(y_train) / len(y_train)
                 y_train = None
-                sprout_obj = build_fast_unsupervised_object(x_train, contamination)
+                if SPEED_TYPE == 'FAST':
+                    sprout_obj = build_fast_unsupervised_object(x_train, contamination)
+                else:
+                    sprout_obj = build_unsupervised_object(x_train, contamination)
 
             for classifier_string in classifier_list:
                 # Building and exercising classifier
@@ -223,20 +232,20 @@ def build_unsupervised_object(x_train, contamination):
     sp_obj.add_calculator_confidence(x_train=x_data, y_train=None, confidence_level=0.5)
     sp_obj.add_calculator_maxprob()
     sp_obj.add_calculator_entropy(n_classes=2)
-    for cc in [[HBOS(contamination=contamination, n_bins=100), COPOD(contamination=contamination),
-                CBLOF(contamination=contamination, alpha=0.75, beta=3), PCA(contamination=contamination),
-                MCD(contamination=contamination), GMM(contamination=contamination)],
-               [ABOD(contamination=contamination, method='fast', n_neighbors=5),
-                LOF(contamination=contamination)],
-               [HBOS(contamination=contamination, n_bins=100), PCA(contamination=contamination),
-                MCD(contamination=contamination), GMM(contamination=contamination)],
-               [IForest(contamination=contamination), INNE(contamination=contamination),
-                SUOD(contamination=contamination, base_estimators=[MCD(), COPOD(), GMM(), HBOS()])
-                ]]:
+    sp_obj.add_calculator_combined(classifier=PCA(contamination=contamination),
+                                                  x_train=x_data, y_train=None, n_classes=2)
+    for cc in [[HBOS(contamination=contamination, n_bins=30), COPOD(contamination=contamination),
+                ECOD(contamination=contamination), PCA(contamination=contamination),
+                MCD(contamination=contamination)],
+               [KNN(contamination=contamination, n_neighbors=5),
+                LOF(contamination=contamination, n_neighbors=3)],
+               [CBLOF(contamination=contamination, alpha=0.75, beta=3), PCA(contamination=contamination),
+                ECOD(contamination=contamination)],
+               [IForest(contamination=contamination), INNE(contamination=contamination)]]:
         sp_obj.add_calculator_multicombined(clf_set=cc, x_train=x_data, y_train=None, n_classes=2)
     sp_obj.add_calculator_neighbour(x_train=x_data, y_train=None, label_names=["normal", "anomaly"])
     sp_obj.add_calculator_proximity(x_train=x_data)
-    sp_obj.add_calculator_featurebagging(x_train=x_data, y_train=None, n_baggers=50, bag_type='uns')
+    sp_obj.add_calculator_featurebagging(x_train=x_data, y_train=None, n_baggers=20, bag_type='uns')
     sp_obj.add_calculator_recloss(x_train=x_data)
     return sp_obj
 
@@ -305,9 +314,15 @@ if __name__ == '__main__':
                                        sup_clfs if MODEL_TYPE == 'SUP' else uns_clfs,
                                        y_label, limit_rows)
     if MODEL_TYPE == 'SUP':
-        sprout_obj = build_fast_supervised_object(None, None, None)
+        if SPEED_TYPE == 'FAST':
+            sprout_obj = build_fast_supervised_object(None, None, None)
+        else:
+            sprout_obj = build_supervised_object(None, None, None)
     else:
-        sprout_obj = build_fast_unsupervised_object(None, 0.1)
+        if SPEED_TYPE == 'FAST':
+            sprout_obj = build_fast_unsupervised_object(None, 0.1)
+        else:
+            sprout_obj = build_unsupervised_object(None, 0.1)
 
     for tag, folder_path in STUDY_TAG.items():
 
