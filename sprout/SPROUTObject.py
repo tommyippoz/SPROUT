@@ -10,12 +10,14 @@ from pyod.models.base import BaseDetector
 from sklearn.naive_bayes import GaussianNB
 
 from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval, ExternalSupervisedUncertainty, \
-    CombinedUncertainty, MultiCombinedUncertainty, NeighborsUncertainty, ProximityUncertainty, FeatureBagging, \
+    CombinedUncertainty, MultiCombinedUncertainty, NeighborsUncertainty, ProximityUncertainty, \
+    FeatureBaggingUncertainty, \
     ReconstructionLoss, \
-    ExternalUnsupervisedUncertainty, MaxProbUncertainty, AgreementUncertainty
+    ExternalUnsupervisedUncertainty, MaxProbUncertainty, AgreementUncertainty, BaggingUncertainty, BoostingUncertainty
 from sprout.utils import general_utils
+from sprout.utils.Classifier import get_classifier_name
 from sprout.utils.general_utils import get_full_class_name
-from sprout.utils.sprout_utils import get_classifier_name, read_calculators
+from sprout.utils.sprout_utils import read_calculators
 
 
 class SPROUTObject:
@@ -163,8 +165,13 @@ class SPROUTObject:
     def add_calculator_proximity(self, x_train, n_iterations=10, range=0.1, weighted=False):
         self.trust_calculators.append(ProximityUncertainty(x_train, n_iterations, range, weighted))
 
-    def add_calculator_featurebagging(self, x_train, y_train, n_baggers=50, bag_type='sup'):
-        self.trust_calculators.append(FeatureBagging(x_train, y_train, n_baggers, bag_type))
+    def add_calculator_bagging(self, base_clf, x_train, y_train, bag_rate=None, n_baggers=10, clf_type='sup', n_classes=2):
+        self.trust_calculators.append(BaggingUncertainty(base_clf, x_train, y_train, n_baggers,
+                                                         bag_rate, clf_type, n_classes))
+
+    def add_calculator_boosting(self, base_clf, x_train, y_train, n_boosters=10, clf_type='sup', n_classes=2, conf_thr=None):
+        self.trust_calculators.append(BoostingUncertainty(base_clf, x_train, y_train, n_boosters,
+                                                          clf_type, n_classes, conf_thr))
 
     def add_calculator_recloss(self, x_train, tag='simple'):
         """
@@ -253,8 +260,8 @@ class SPROUTObject:
                             calc = ProximityUncertainty(x_train=x_train, artificial_points=params["artificial_points"],
                                                         range_wideness=params["range"], weighted=params["weighted"])
                         elif "FeatureBagging" in calculator_name:
-                            calc = FeatureBagging(x_train=x_train, y_train=y_train,
-                                                  n_baggers=params["n_baggers"], bag_type=params["bag_type"])
+                            calc = FeatureBaggingUncertainty(x_train=x_train, y_train=y_train,
+                                                             n_baggers=params["n_baggers"], bag_type=params["bag_type"])
                         elif "ReconstructionLoss" in calculator_name:
                             calc = ReconstructionLoss(x_train=x_train, enc_tag=params["enc_tag"])
                         else:

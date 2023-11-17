@@ -1,6 +1,7 @@
 import csv
 import os.path
 
+import numpy
 import numpy as np
 import pandas
 import pandas as pd
@@ -9,7 +10,6 @@ import scipy
 import sklearn
 import sklearn as sk
 
-from sprout.utils.Classifier import Classifier
 from sprout.utils.general_utils import current_ms
 
 
@@ -28,69 +28,6 @@ def build_SPROUT_dataset(y_proba, y_pred, y_test, label_tags):
     out_df['is_misclassification'] = np.where(out_df['true_label'] != out_df['predicted_label'], 1, 0)
     out_df['probabilities'] = [np.array2string(y_proba[i], separator=";") for i in range(len(y_proba))]
     return out_df
-
-
-def build_classifier(classifier, x_train, y_train, x_test, y_test, verbose=True):
-    """
-    Builds and Exercises a Classifier
-    :param classifier: classifier object
-    :param x_train: train features
-    :param y_train: train label
-    :param x_test: test features
-    :param y_test: test label
-    :param verbose: True if there should be console output
-    :return: probabilities and predictions of the classifier
-    """
-    if verbose:
-        print("\nBuilding classifier: " + get_classifier_name(classifier))
-
-    if isinstance(x_train, pandas.DataFrame):
-        train_data = x_train.to_numpy()
-    else:
-        train_data = x_train
-
-    # Fitting classifier
-    start_ms = current_ms()
-    if isinstance(classifier, pyod.models.base.BaseDetector):
-        classifier.fit(train_data)
-    else:
-        classifier.fit(train_data, y_train)
-    train_ms = current_ms()
-
-    # Test features have to be a numpy array
-    if isinstance(x_test, pandas.DataFrame):
-        test_data = x_test.to_numpy()
-    else:
-        test_data = x_test
-
-    # Predicting labels
-    y_pred = classifier.predict(test_data)
-    test_time = current_ms() - train_ms
-
-    # Predicting probabilities
-    y_proba = classifier.predict_proba(test_data)
-    if isinstance(y_proba, pd.DataFrame):
-        y_proba = y_proba.to_numpy()
-
-    if verbose:
-        print(get_classifier_name(classifier) + " train/test in " + str(train_ms - start_ms) + "/" +
-              str(test_time) + " ms with Accuracy: " + str(sk.metrics.accuracy_score(y_test, y_pred)))
-
-    return y_proba, y_pred
-
-
-def get_classifier_name(clf):
-    if isinstance(clf, Classifier):
-        return clf.classifier_name()
-    else:
-        return clf.__class__.__name__
-
-
-def get_feature_importance(clf):
-    if isinstance(clf, Classifier):
-        return clf.feature_importances()
-    else:
-        return clf.feature_importances_
 
 
 def correlations(trust_df, corr_tag="INFO", print_output=True):
@@ -157,3 +94,16 @@ def read_calculators(model_folder):
                     uc_dict[row[0].strip()] = {}
                 uc_dict[row[0].strip()][row[1].strip()] = row[2].strip()
     return uc_dict
+
+
+def predictions_variability(predictions):
+    """
+    Computes the variability of predictions
+    :param predictions: numpy 2d matrix of (n_predictions, n_classes)
+    :return: variability/entropy of predictions
+    """
+    vp = 0.0
+    if predictions is not None:
+        stds = numpy.std(predictions, axis=0)
+        vp = sum(stds)
+    return vp

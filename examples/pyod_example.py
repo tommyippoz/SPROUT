@@ -10,7 +10,12 @@ from sprout.utils.dataset_utils import process_binary_tabular_dataset
 from sprout.utils.sprout_utils import correlations
 
 MODELS_FOLDER = "../models/"
-MODEL_TAG = "dsn_uns"
+MODEL_TAG = "dsn_uns_2"
+
+
+def compute_omission_metrics(y_test):
+    pass
+
 
 if __name__ == '__main__':
     """
@@ -20,7 +25,7 @@ if __name__ == '__main__':
 
     # Reading sample dataset (NSL-KDD)
     x_train, x_test, y_train, y_test, label_names, feature_names = \
-        process_binary_tabular_dataset(dataset_name="input_folder/UNSW.csv", label_name="multilabel")
+        process_binary_tabular_dataset(dataset_name="input_folder/UNSW.csv", label_name="multilabel", limit=10000)
 
     print("Preparing Trust Calculators...")
 
@@ -43,6 +48,7 @@ if __name__ == '__main__':
     # Calculating Trust Measures with SPROUT
     sp_df, adj = sprout_obj.predict_set_misclassifications(data_set=x_test, y_proba=y_proba, classifier=classifier)
     sprout_pred = sp_df["pred"].to_numpy()
+    p_metrics = compute_omission_metrics(y_test)
 
     # Computing SPROUT Metrics
     o_rate = numpy.average(sprout_pred)

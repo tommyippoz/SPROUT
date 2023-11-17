@@ -11,14 +11,17 @@ import pandas as pd
 import pyod.models.base
 import scipy.stats
 from pyod.models.copod import COPOD
+from pyod.models.feature_bagging import FeatureBagging
 from scipy.stats import stats
+from sklearn.ensemble import BaggingClassifier, AdaBoostClassifier
 from sklearn.neighbors import NearestNeighbors
 from sklearn.tree import DecisionTreeClassifier
 from tqdm import tqdm
 
 from sprout.utils.AutoEncoder import DeepAutoEncoder, SingleAutoEncoder, SingleSparseAutoEncoder
+from sprout.utils.Classifier import UnsupervisedClassifier, ConfidenceBoosting, get_classifier_name, auto_bag_rate
 from sprout.utils.general_utils import current_ms, get_full_class_name
-from sprout.utils.sprout_utils import get_classifier_name
+from sprout.utils.sprout_utils import predictions_variability
 
 
 class UncertaintyCalculator:
@@ -174,19 +177,21 @@ class NeighborsUncertainty(UncertaintyCalculator):
                                           n_jobs=-1).fit(self.x_train)
         distances, indices = near_neighbors.kneighbors(feature_values_array)
         print("kNN Search completed in " + str(current_ms() - start_time) + " ms")
-        train_classes = np.asarray(classifier.predict(self.x_train))
+        train_proba = np.asarray(classifier.predict_proba(self.x_train))
+        train_classes = numpy.argmax(train_proba, axis=1)
         if proba_array is None or proba_array.shape[0] != feature_values_array.shape[0]:
-            predict_classes = np.asarray(classifier.predict(feature_values_array))
-        else:
-            predict_classes = numpy.argmax(proba_array, axis=1)
-        neighbour_uncertainty = [0 for i in range(len(feature_values_array))]
+            proba_array = np.asarray(classifier.predict_proba(feature_values_array))
+        predict_classes = numpy.argmax(proba_array, axis=1)
+        neighbour_agreement = [0.0 for i in range(len(feature_values_array))]
+        neighbour_uncertainty = [0.0 for i in range(len(feature_values_array))]
         neighbour_c = [0 for i in range(len(feature_values_array))]
         for i in tqdm(range(len(feature_values_array))):
             predict_neighbours = train_classes[indices[i]]
             agreements = (predict_neighbours == predict_classes[i]).sum()
-            neighbour_uncertainty[i] = agreements / len(predict_neighbours)
+            neighbour_agreement[i] = agreements / len(predict_neighbours)
+            neighbour_uncertainty[i] = predictions_variability(train_proba[indices[i]])
             neighbour_c[i] = Counter(list(map(lambda x: self.labels[x], predict_neighbours))).most_common()
-        return {"uncertainty": neighbour_uncertainty, "Detail": neighbour_c}
+        return {"agreement": neighbour_agreement, "uncertainty": neighbour_uncertainty, "Detail": neighbour_c}
 
 
 class ExternalSupervisedUncertainty(UncertaintyCalculator):
@@ -228,8 +233,8 @@ class ExternalSupervisedUncertainty(UncertaintyCalculator):
         :return: array of uncertainty scores
         """
         return self.u_measure.uncertainty_scores(feature_values_array,
-                                                     self.del_clf.predict_proba(feature_values_array),
-                                                     self.del_clf)
+                                                 self.del_clf.predict_proba(feature_values_array),
+                                                 self.del_clf)
 
     def uncertainty_calculator_name(self):
         return 'External Supervised Calculator (' + get_classifier_name(self.del_clf) + '/' \
@@ -286,12 +291,12 @@ class ExternalUnsupervisedUncertainty(UncertaintyCalculator):
         """
         if isinstance(classifier, pyod.models.base.BaseDetector):
             return self.u_measure.uncertainty_scores(feature_values_array,
-                                                         self.unsupervised_predict_proba(feature_values_array),
-                                                         self.del_clf)
+                                                     self.unsupervised_predict_proba(feature_values_array),
+                                                     self.del_clf)
         else:
             return self.u_measure.uncertainty_scores(feature_values_array,
-                                                         self.del_clf.predict_proba(feature_values_array),
-                                                         self.del_clf)
+                                                     self.del_clf.predict_proba(feature_values_array),
+                                                     self.del_clf)
 
     def uncertainty_calculator_name(self):
         return 'External Unsupervised Calculator (' + get_classifier_name(self.del_clf) + '/' \
@@ -319,7 +324,7 @@ class CombinedUncertainty(UncertaintyCalculator):
             print("[Combineduncertainty] Fitting of '" + get_classifier_name(del_clf) + "' Completed in " +
                   str(current_ms() - start_time) + " ms")
         else:
-            print("[Combineduncertainty] Unable to train combined classifier - no data available")
+            print("[CombinedUncertainty] Unable to train combined classifier - no data available")
 
     def save_params(self, main_folder, tag):
         """
@@ -350,8 +355,8 @@ class CombinedUncertainty(UncertaintyCalculator):
         other_pred = self.del_clf.predict(feature_values_array)
         entropy = self.u_measure.uncertainty_scores(feature_values_array, proba_array, classifier)
         other_entropy = self.u_measure.uncertainty_scores(feature_values_array,
-                                                              self.del_clf.predict_proba(feature_values_array),
-                                                              self.del_clf)
+                                                          self.del_clf.predict_proba(feature_values_array),
+                                                          self.del_clf)
         return np.where(pred == other_pred, (entropy + other_entropy) / 2, -(entropy + other_entropy) / 2)
 
     def uncertainty_calculator_name(self):
@@ -403,8 +408,10 @@ class MultiCombinedUncertainty(UncertaintyCalculator):
         :param proba_array: the probability arrays assigned by the algorithm to the data points
         :return: array of uncertainty scores
         """
-        multi_uncertainty = [combined_uncertainty.uncertainty_scores(feature_values_array, proba_array, classifier)
-                             for combined_uncertainty in self.uncertainty_set]
+        multi_uncertainty = []
+        for combined_uncertainty in self.uncertainty_set:
+            multi_uncertainty.append(
+                combined_uncertainty.uncertainty_scores(feature_values_array, proba_array, classifier))
         return numpy.average(numpy.asarray(multi_uncertainty), axis=0)
 
     def uncertainty_calculator_name(self):
@@ -578,19 +585,10 @@ class ProximityUncertainty(UncertaintyCalculator):
     and checks if the classifier has a unified answer to all of those data points
     """
 
-    def __init__(self, x_train, artificial_points=10, range_wideness=0.1, weighted=False):
-        try:
-            self.n_artificial = int(artificial_points)
-        except:
-            self.n_artificial = 10
-        try:
-            self.range = float(range_wideness)
-        except:
-            self.range = 0.1
-        try:
-            self.weighted = weighted == "True"
-        except:
-            self.weighted = False
+    def __init__(self, x_train, artificial_points: int = 10, range_wideness: float = 0.1, weighted: bool = False):
+        self.n_artificial = int(artificial_points)
+        self.range = float(range_wideness)
+        self.weighted = weighted
 
         if x_train is not None:
             start_time = current_ms()
@@ -625,10 +623,11 @@ class ProximityUncertainty(UncertaintyCalculator):
 
         # Generating MC Artificial inputs
         mc_x = []
+        rng = np.random.default_rng()
         for i in range(len(feature_values_array)):
             features = feature_values_array[i]
-            mc_x.extend([[random.gauss(m, s) for m, s in zip(features, self.range * self.stds)]
-                         for _ in range(self.n_artificial)])
+            mc_x.extend(features + self.range * self.stds *
+                        rng.uniform(low=-1, high=1, size=(self.n_artificial, len(features))))
         mc_x = np.array(mc_x)
 
         # Calculating predictions
@@ -655,7 +654,7 @@ class ProximityUncertainty(UncertaintyCalculator):
                + ('/W' if self.weighted else '') + ')'
 
 
-class FeatureBagging(UncertaintyCalculator):
+class FeatureBaggingUncertainty(UncertaintyCalculator):
     """
     Defines a uncertainty measure that uses a Monte Carlo simulation for each class
     """
@@ -738,12 +737,132 @@ class FeatureBagging(UncertaintyCalculator):
         return 'FeatureBagging Uncertainty (' + str(self.n_baggers) + '/' + str(self.bag_type) + ')'
 
 
+class MetaClassifierUncertainty(CombinedUncertainty):
+    """
+    Defines a uncertainty measure that creates a bagging/boosting meta learner using a generic clf as a base estimator
+    """
+
+    def __init__(self, base_clf, n_base: int = 10, clf_type: str = 'sup',
+                 meta_type: str = 'bagging', n_classes: int = 2):
+        self.del_clf = base_clf
+        self.clf_type = clf_type if clf_type in {'sup', 'uns'} else 'sup'
+        self.n_base = n_base
+        self.meta_type = meta_type
+        self.u_measure = EntropyUncertainty(n_classes)
+
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate uncertainty score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        return {"clf_type": self.clf_type, "n_base": self.n_base, "meta_type": self.meta_type}
+
+    def uncertainty_calculator_name(self):
+        return 'MetaClassifier (' + str(self.meta_type) + ') Uncertainty (' + \
+               str(self.clf_type) + '-' + str(self.n_base) + ')'
+
+
+class BaggingUncertainty(MetaClassifierUncertainty):
+    """
+    Defines a uncertainty measure that creates a bagging/boosting meta learner using a generic clf as a base estimator
+    For bagging, it either uses the BaggingClassifier (sklearn) or FeatureBagging (pyod)
+    """
+
+    def __init__(self, base_clf, x_train, y_train=None, n_base: int = 10, bag_rate=None,
+                 clf_type: str = 'sup', n_classes: int = 2):
+
+        super().__init__(base_clf, n_base, clf_type, "bagging", n_classes)
+
+        self.bag_rate = None
+        if x_train is not None:
+            if isinstance(x_train, pandas.DataFrame):
+                x_train = x_train.to_numpy()
+            start_time = current_ms()
+
+            self.bag_rate = bag_rate if isinstance(bag_rate, float) and 0 < bag_rate <= 1 \
+                else auto_bag_rate(x_train.shape[1])
+            if clf_type == 'uns' or clf_type == 'UNS':
+                self.del_clf = UnsupervisedClassifier(FeatureBagging(base_estimator=base_clf.classifier, n_estimators=n_base,
+                                                                     max_features=bag_rate,
+                                                                     contamination=base_clf.contamination))
+                try:
+                    self.del_clf.fit(x_train)
+                except:
+                    self.del_clf = UnsupervisedClassifier(
+                        FeatureBagging(base_estimator=base_clf.classifier, n_estimators=n_base,
+                                       max_features=1, estimator_params={'support_fraction': 1},
+                                       contamination=base_clf.contamination))
+                    self.del_clf.fit(x_train)
+            else:
+                self.del_clf = BaggingClassifier(base_estimator=base_clf, n_estimators=n_base,
+                                                 max_features=bag_rate)
+                self.del_clf.fit(x_train, y_train)
+
+            print("[BaggingUncertainty] Fitting of Bagger(" + get_classifier_name(
+                self.del_clf) + ") Completed in " + str(current_ms() - start_time) + " ms")
+
+        else:
+            print("[BaggingUncertainty] Unable to train combined classifier - no data available")
+
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate uncertainty score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        return {"clf_type": self.clf_type, "n_base": self.n_base, "meta_type": "bagging", "bag_rate": self.bag_rate}
+
+    def uncertainty_calculator_name(self):
+        return 'BaggingUncertainty (' + str(self.clf_type) + '-' + str(self.n_base) + '-' + str(self.bag_rate) + ')'
+
+
+class BoostingUncertainty(MetaClassifierUncertainty):
+    """
+    Defines a uncertainty measure that creates a bagging/boosting meta learner using a generic clf as a base estimator
+    For boosting, it either uses the AdaBoostClassifier (sklearn) or the ConfidenceBoostingClassifier (custom, for unsupervised)
+    """
+
+    def __init__(self, base_clf, x_train, y_train=None, n_base: int = 10,
+                 clf_type: str = 'sup', n_classes: int = 2, confidence_thr=0.5):
+
+        super().__init__(base_clf, n_base, clf_type, "boosting", n_classes)
+
+        self.bag_rate = None
+        if x_train is not None:
+            if isinstance(x_train, pandas.DataFrame):
+                x_train = x_train.to_numpy()
+            start_time = current_ms()
+
+            if clf_type == 'uns' or clf_type == 'UNS':
+                self.del_clf = ConfidenceBoosting(estimator=base_clf, n_base=n_base, conf_thr=0.8)
+                self.del_clf.fit(x_train)
+            else:
+                try:
+                    self.del_clf = AdaBoostClassifier(base_estimator=base_clf, n_estimators=n_base)
+                    self.del_clf.fit(x_train, y_train)
+                except ValueError:
+                    print('[BoostingUncertainty] classifier %s is not supported, using decision trees instead'
+                          % get_classifier_name(base_clf))
+                    self.del_clf = AdaBoostClassifier(n_estimators=n_base)
+                    self.del_clf.fit(x_train, y_train)
+
+            print("[BoostingUncertainty] Fitting of Booster(" + get_classifier_name(
+                self.del_clf) + ") Completed in " + str(current_ms() - start_time) + " ms")
+
+        else:
+            print("[BoostingUncertainty] Unable to train combined classifier - no data available")
+
+    def uncertainty_calculator_name(self):
+        return 'BoostingUncertainty (' + str(self.clf_type) + '-' + str(self.n_base) + ')'
+
+
 class ReconstructionLoss(UncertaintyCalculator):
     """
     Defines a uncertainty measure that uses the reconstruction error of an autoencoder as uncertainty measure
     """
 
-    def __init__(self, x_train, enc_tag='simple'):
+    def __init__(self, x_train, enc_tag:str = 'simple'):
         self.ae = None
         self.enc_tag = enc_tag
 

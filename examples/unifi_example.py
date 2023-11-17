@@ -10,7 +10,7 @@ from sprout.utils.general_utils import current_ms
 from sprout.utils.sprout_utils import correlations
 
 MODELS_FOLDER = "../models/"
-MODEL_TAG = "all_sup_fast"
+MODEL_TAG = "dsn_sup"
 
 if __name__ == '__main__':
     """
