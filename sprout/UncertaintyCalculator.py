@@ -746,7 +746,7 @@ class MetaClassifierUncertainty(CombinedUncertainty):
                  meta_type: str = 'bagging', n_classes: int = 2):
         self.del_clf = base_clf
         self.clf_type = clf_type if clf_type in {'sup', 'uns'} else 'sup'
-        self.n_base = n_base
+        self.n_base = n_base if n_base is not None else 10
         self.meta_type = meta_type
         self.u_measure = EntropyUncertainty(n_classes)
 
@@ -783,20 +783,20 @@ class BaggingUncertainty(MetaClassifierUncertainty):
             self.bag_rate = bag_rate if isinstance(bag_rate, float) and 0 < bag_rate <= 1 \
                 else auto_bag_rate(x_train.shape[1])
             if clf_type == 'uns' or clf_type == 'UNS':
-                self.del_clf = UnsupervisedClassifier(FeatureBagging(base_estimator=base_clf.classifier, n_estimators=n_base,
-                                                                     max_features=bag_rate,
+                self.del_clf = UnsupervisedClassifier(FeatureBagging(base_estimator=base_clf.classifier, n_estimators=self.n_base,
+                                                                     max_features=self.bag_rate,
                                                                      contamination=base_clf.contamination))
                 try:
                     self.del_clf.fit(x_train)
                 except:
                     self.del_clf = UnsupervisedClassifier(
-                        FeatureBagging(base_estimator=base_clf.classifier, n_estimators=n_base,
+                        FeatureBagging(base_estimator=base_clf.classifier, n_estimators=self.n_base,
                                        max_features=1, estimator_params={'support_fraction': 1},
                                        contamination=base_clf.contamination))
                     self.del_clf.fit(x_train)
             else:
-                self.del_clf = BaggingClassifier(base_estimator=base_clf, n_estimators=n_base,
-                                                 max_features=bag_rate)
+                self.del_clf = BaggingClassifier(base_estimator=base_clf, n_estimators=self.n_base,
+                                                 max_features=self.bag_rate)
                 self.del_clf.fit(x_train, y_train)
 
             print("[BaggingUncertainty] Fitting of Bagger(" + get_classifier_name(
@@ -824,7 +824,7 @@ class BoostingUncertainty(MetaClassifierUncertainty):
     """
 
     def __init__(self, base_clf, x_train, y_train=None, n_base: int = 10,
-                 clf_type: str = 'sup', n_classes: int = 2, confidence_thr=0.5):
+                 clf_type: str = 'sup', n_classes: int = 2):
 
         super().__init__(base_clf, n_base, clf_type, "boosting", n_classes)
 
@@ -835,16 +835,16 @@ class BoostingUncertainty(MetaClassifierUncertainty):
             start_time = current_ms()
 
             if clf_type == 'uns' or clf_type == 'UNS':
-                self.del_clf = ConfidenceBoosting(estimator=base_clf, n_base=n_base, conf_thr=0.8)
+                self.del_clf = ConfidenceBoosting(estimator=base_clf, n_base=n_base)
                 self.del_clf.fit(x_train)
             else:
                 try:
-                    self.del_clf = AdaBoostClassifier(base_estimator=base_clf, n_estimators=n_base)
+                    self.del_clf = AdaBoostClassifier(base_estimator=base_clf, n_estimators=self.n_base)
                     self.del_clf.fit(x_train, y_train)
                 except ValueError:
                     print('[BoostingUncertainty] classifier %s is not supported, using decision trees instead'
                           % get_classifier_name(base_clf))
-                    self.del_clf = AdaBoostClassifier(n_estimators=n_base)
+                    self.del_clf = AdaBoostClassifier(n_estimators=self.n_base)
                     self.del_clf.fit(x_train, y_train)
 
             print("[BoostingUncertainty] Fitting of Booster(" + get_classifier_name(

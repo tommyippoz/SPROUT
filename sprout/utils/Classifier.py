@@ -477,7 +477,7 @@ class ConfidenceBoosting(UnsupervisedClassifier):
     def __init__(self, estimator, n_base: int = 10, learning_rate: float = None, sampling_ratio: float = None,
                  contamination: float = None, conf_thr: float = None, n_classes: int = 2):
         """
-        COnstructor
+        Constructor
         :param estimator: the algorithm to be used for creating base learners
         :param n_base: number of base learners (= size of the ensemble)
         :param learning_rate: learning rate for updating dataset weights

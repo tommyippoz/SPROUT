@@ -10,7 +10,7 @@ from sprout.utils.general_utils import current_ms
 from sprout.utils.sprout_utils import correlations
 
 MODELS_FOLDER = "../models/"
-MODEL_TAG = "dsn_sup"
+MODEL_TAG = "sup_bin"
 
 if __name__ == '__main__':
     """
@@ -25,15 +25,18 @@ if __name__ == '__main__':
     # It is required to feed data to SPROUT
     x_train_lin, x_test_lin, y_train_lin, y_test_lin, label_names, feature_names = load_MNIST(flatten=True, row_limit=5000)
 
+    # Here you should initialize and fit your classifier
+    classifier = RandomForestClassifier(n_estimators=10)
+    classifier.fit(x_train_lin, y_train_lin)
+
     # Loading SPROUT wrapper for supervised learning
     # The name of the model to be used to detect misclassifications is contained in MODEL_TAG
     # You can use any model tag, but I suggest 'all_sup_fast' or 'all_sup_fast_2'
     sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
-    sprout_obj.load_model(model_tag=MODEL_TAG, x_train=x_train_lin, y_train=y_train_lin, label_names=label_names)
+    sprout_obj.load_model(model_tag=MODEL_TAG, x_train=x_train_lin, y_train=y_train_lin, label_names=label_names,
+                          clf=classifier)
 
-    # Here you should initialize and fit your classifier
-    classifier = RandomForestClassifier(n_estimators=10)
-    classifier.fit(x_train_lin, y_train_lin)
+
 
     # This is for predicting class labels for the images in the test set using your classifier
     # Theoretically (?), you should not need to change that

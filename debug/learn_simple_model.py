@@ -8,24 +8,9 @@ import numpy as np
 import pandas
 import pandas as pd
 import sklearn
-from pyod.models.abod import ABOD
-from pyod.models.cblof import CBLOF
-from pyod.models.copod import COPOD
-from pyod.models.ecod import ECOD
-from pyod.models.gmm import GMM
-from pyod.models.hbos import HBOS
-from pyod.models.iforest import IForest
-from pyod.models.inne import INNE
-from pyod.models.knn import KNN
-from pyod.models.lof import LOF
-from pyod.models.mcd import MCD
-from pyod.models.pca import PCA
-from pyod.models.suod import SUOD
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB, ComplementNB
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier
 
 from sprout.SPROUTObject import SPROUTObject
