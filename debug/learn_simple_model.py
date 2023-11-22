@@ -8,28 +8,13 @@ import numpy as np
 import pandas
 import pandas as pd
 import sklearn
-from pyod.models.abod import ABOD
-from pyod.models.cblof import CBLOF
-from pyod.models.copod import COPOD
-from pyod.models.ecod import ECOD
-from pyod.models.gmm import GMM
-from pyod.models.hbos import HBOS
-from pyod.models.iforest import IForest
-from pyod.models.inne import INNE
-from pyod.models.knn import KNN
-from pyod.models.lof import LOF
-from pyod.models.mcd import MCD
-from pyod.models.pca import PCA
-from pyod.models.suod import SUOD
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB, ComplementNB
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier
 
 from sprout.SPROUTObject import SPROUTObject
-from sprout.utils.Classifier import LogisticReg, get_classifier_name, build_classifier, choose_classifier
+from sprout.classifiers.Classifier import LogisticReg, get_classifier_name, build_classifier, choose_classifier
 from sprout.utils.dataset_utils import process_tabular_dataset, process_image_dataset, is_image_dataset, \
     process_binary_tabular_dataset
 from sprout.utils.general_utils import load_config, clean_name, current_ms, clear_folder
@@ -105,13 +90,14 @@ def compute_datasets_uncertainties(dataset_files, d_folder, s_folder,
                 classifier = choose_classifier(classifier_string, features, y_label, "accuracy", contamination)
 
                 sprout_obj = copy.deepcopy(sp_obj)
-                sprout_obj.add_calculator_bagging(base_clf=classifier, x_train=x_train, y_train=y_train, n_baggers=10,
-                                              clf_type=MODEL_TYPE, bag_rate=0.8,
-                                              n_classes=len(label_tags) if label_tags is not None else 2)
-                sprout_obj.add_calculator_boosting(base_clf=classifier, x_train=x_train, y_train=y_train, n_boosters=10,
-                                               clf_type=MODEL_TYPE,
-                                               n_classes=len(label_tags) if label_tags is not None else 2,
-                                               conf_thr=0.5)
+                sprout_obj.add_calculator_bagging(base_clf=classifier, x_train=x_train, y_train=y_train,
+                                                  n_base=10, max_features=0.7, sampling_ratio=0.7,
+                                                  perc_decisors=0.5, n_decisors=None,
+                                                  n_classes=len(label_tags) if label_tags is not None else 2)
+                sprout_obj.add_calculator_boosting(base_clf=classifier, x_train=x_train, y_train=y_train,
+                                                   n_base=10, learning_rate=None, sampling_ratio=0.5,
+                                                   contamination=None, conf_thr=0.8,
+                                                   n_classes=len(label_tags) if label_tags is not None else 2)
 
                 if classifier is not None:
                     y_proba, y_pred = build_classifier(classifier, x_train, y_train, x_test, y_test)
@@ -234,8 +220,8 @@ if __name__ == '__main__':
         os.mkdir(sprout_folder)
 
     compute_datasets_uncertainties(dataset_files, dataset_folder, sprout_folder,
-                                  sup_clfs if MODEL_TYPE == 'SUP' else uns_clfs,
-                                  y_label, limit_rows)
+                                   sup_clfs if MODEL_TYPE == 'SUP' else uns_clfs,
+                                   y_label, limit_rows)
     if MODEL_TYPE == 'SUP':
         sprout_obj = build_supervised_object(None, None, None)
     else:
@@ -245,7 +231,7 @@ if __name__ == '__main__':
 
         print("---------------------------------------------------------\n"
               "           Analysis using tag:" + tag + "\n"
-              "---------------------------------------------------------\n")
+                                                       "---------------------------------------------------------\n")
 
         if os.path.exists(folder_path):
             # Merging data into a unique Dataset for training Misclassification Predictors
@@ -272,7 +258,6 @@ if __name__ == '__main__':
             # Formatting MISC_RATIOS
             if MISC_RATIOS is None or len(MISC_RATIOS) == 0:
                 MISC_RATIOS = [None]
-
 
             for clf_base in CLASSIFIERS:
                 clf_name = get_classifier_name(clf_base)

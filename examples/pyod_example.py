@@ -2,7 +2,6 @@ import numpy
 import pandas
 import sklearn
 from pyod.models.copod import COPOD
-from sklearn.ensemble import RandomForestClassifier
 
 from sprout.SPROUTObject import SPROUTObject
 from sprout.utils import sprout_utils

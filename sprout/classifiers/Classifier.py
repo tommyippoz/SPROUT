@@ -7,6 +7,7 @@ import pyod
 import sklearn
 from autogluon.tabular import TabularPredictor
 from pyod.models.abod import ABOD
+from pyod.models.base import BaseDetector
 from pyod.models.cblof import CBLOF
 from pyod.models.cof import COF
 from pyod.models.copod import COPOD
@@ -25,16 +26,20 @@ from pyod.models.so_gaal import SO_GAAL
 from pyod.models.suod import SUOD
 from pyod.models.vae import VAE
 from pytorch_tabnet.tab_model import TabNetClassifier
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, BaggingClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.utils import check_X_y
+from sklearn.utils.multiclass import unique_labels
+from sklearn.utils.validation import check_is_fitted, check_array
 from xgboost import XGBClassifier
 
 from sprout.utils.general_utils import current_ms
+
 
 # ---------------------------------- SUPPORT METHODS ------------------------------------
 
@@ -131,7 +136,7 @@ def choose_classifier(clf_name, features, y_label, metric, contamination=None):
     elif clf_name in {"HBOS"}:
         return UnsupervisedClassifier(HBOS(contamination=contamination, n_bins=30))
     elif clf_name in {"MCD"}:
-        return UnsupervisedClassifier(MCD(contamination=contamination))
+        return UnsupervisedClassifier(MCD(contamination=contamination, support_fraction=0.9))
     elif clf_name in {"PCA"}:
         return UnsupervisedClassifier(PCA(contamination=contamination))
     elif clf_name in {"CBLOF"}:
@@ -194,116 +199,175 @@ def predict_uns_proba(uns_clf, test_features):
     return proba
 
 
-class Classifier(BaseEstimator):
+class Classifier(BaseEstimator, ClassifierMixin):
     """
     Basic Abstract Class for Classifiers.
     Abstract methods are only the classifier_name, with many degrees of freedom in implementing them.
     Wraps implementations from different frameworks (if needed), sklearn and many deep learning utilities
     """
 
-    def __init__(self, classifier):
+    def __init__(self, clf):
         """
         Constructor of a generic Classifier
-        :param model: model to be used as Classifier
+        :param clf: algorithm to be used as Classifier
         """
-        self.classifier = classifier
-        self.trained = False
+        self.clf = clf
         self._estimator_type = "classifier"
-        self.classes_ = None
         self.feature_importances_ = None
         self.X_ = None
         self.y_ = None
 
-    def fit(self, x_train, y_train=None):
-        """
-        Fits a Classifier
-        :param x_train: feature set
-        :param y_train: labels
-        """
-        if y_train is not None:
-            if isinstance(x_train, pd.DataFrame):
-                self.classifier.fit(x_train.to_numpy(), y_train)
-            else:
-                self.classifier.fit(x_train, y_train)
-            self.classes_ = numpy.unique(y_train)
-        else:
-            if isinstance(x_train, pd.DataFrame):
-                self.classifier.fit(x_train.to_numpy())
-            else:
-                self.classifier.fit(x_train)
-            self.classes_ = 2
-        self.feature_importances_ = self.get_feature_importances()
-        self.trained = True
+    def fit(self, X, y=None):
 
-    def is_trained(self):
-        """
-        Flags if train was executed
-        :return: True if trained, False otherwise
-        """
-        return self.trained
+        # Check that X and y have correct shape
+        X, y = check_X_y(X, y)
 
-    def predict(self, x_test):
+        # Store the classes seen during fit + other data
+        self.classes_ = unique_labels(y)
+        self.X_ = X
+        self.y_ = y
+
+        # Train clf
+        self.clf.fit(X, y)
+        self.feature_importances_ = self.compute_feature_importances()
+
+        # Return the classifier
+        return self
+
+    def predict(self, X):
         """
         Method to compute predict of a classifier
         :return: array of predicted class
         """
-        return self.classifier.predict(x_test)
+        probas = self.predict_proba(X)
+        return numpy.argmax(probas, axis=1)
 
-    def predict_proba(self, x_test):
+    def predict_proba(self, X):
         """
         Method to compute probabilities of predicted classes
         :return: array of probabilities for each classes
         """
-        return self.classifier.predict_proba(x_test)
 
-    def predict_confidence(self, x_test):
+        # Check if fit has been called
+        check_is_fitted(self)
+        X = check_array(X)
+
+        return self.clf.predict_proba(X)
+
+    def predict_confidence(self, X):
         """
         Method to compute confidence in the predicted class
-        :return: maximum probability for each data item as default
+        :return: max probability as default
         """
-        proba = self.classifier.predict_proba(x_test)
-        return numpy.argmax(proba, axis=1)
+        probas = self.predict_proba(X)
+        return numpy.max(probas, axis=1)
 
-    def get_feature_importances(self):
+    def compute_feature_importances(self):
         """
         Outputs feature ranking in building a Classifier
         :return: ndarray containing feature ranks
         """
-        # For most SKLearn algorithms
-        if hasattr(self.classifier, 'feature_importances_') and self.classifier.feature_importances_ is not None:
-            return self.classifier.feature_importances_
-        # For statistical algorithms such as regression and LDA/QDA
-        elif hasattr(self.classifier, 'coef_') and self.classifier.coef_ is not None:
-            return numpy.sum(numpy.absolute(self.classifier.coef_), axis=0)
-        else:
-            return self.get_feature_importances()
+        if hasattr(self.clf, 'feature_importances_'):
+            return self.clf.feature_importances_
+        elif hasattr(self.clf, 'coef_'):
+            return numpy.sum(numpy.absolute(self.clf.coef_), axis=0)
+        return []
 
     def classifier_name(self):
         """
         Returns the name of the classifier (as string)
         """
-        pass
+        return self.clf.__class__.__name__
+
+    def get_params(self, deep=True):
+        return {'clf': self.clf}
+
+    def set_params(self, **parameters):
+        for parameter, value in parameters.items():
+            setattr(self.clf, parameter, value)
+        return self
 
 
-class UnsupervisedClassifier(Classifier):
+class UnsupervisedClassifier(Classifier, BaseDetector):
     """
     Wrapper for unsupervised classifiers belonging to the library PYOD
     """
 
-    def __init__(self, classifier, contamination: float = None):
-        Classifier.__init__(self, classifier)
-        self.contamination = contamination
-        self.name = classifier.__class__.__name__
+    def __init__(self, clf):
+        """
+        Constructor of a generic UnsupervisedClassifier. Assumes that clf is an algorithm from pyod
+        :param clf: pyod algorithm to be used as Classifier
+        """
+        self.clf = clf
+        self.contamination = clf.contamination
+        self._estimator_type = "classifier"
+        self.feature_importances_ = None
+        self.X_ = None
+        self.y_ = None
 
-    def predict_confidence(self, x_test):
+    def fit(self, X, y=None):
+
+        # Store the classes seen during fit + other data
+        self.classes_ = [0, 1]
+        self.X_ = X
+        self.y_ = None
+
+        # Train clf
+        self.clf.fit(X)
+        self.feature_importances_ = self.compute_feature_importances()
+
+        # Return the classifier
+        return self
+
+    def decision_function(self, X):
+        """
+        pyod function to override. Calls the wrapped classifier.
+        :param X: test set
+        :return: decision function
+        """
+        return self.clf.decision_function(X)
+
+    def predict_proba(self, X):
+        """
+        Method to compute probabilities of predicted classes.
+        It has to e overridden since PYOD's implementation of predict_proba is wrong
+        :return: array of probabilities for each classes
+        """
+
+        # Check if fit has been called
+        check_is_fitted(self)
+        X = check_array(X)
+
+        pred_score = self.decision_function(X)
+        probs = numpy.zeros((X.shape[0], 2))
+        if isinstance(self.contamination, (float, int)):
+            pred_thr = pred_score - self.clf.threshold_
+        min_pt = min(pred_thr)
+        max_pt = max(pred_thr)
+        anomaly = pred_thr > 0
+        cont = numpy.asarray([pred_thr[i] / max_pt if anomaly[i] else (pred_thr[i] / min_pt if min_pt != 0 else 0.2)
+                              for i in range(0, len(pred_thr))])
+        probs[:, 0] = 0.5 + cont / 2
+        probs[:, 1] = 1 - probs[:, 0]
+        probs[anomaly, 0], probs[anomaly, 1] = probs[anomaly, 1], probs[anomaly, 0]
+        return probs
+
+    def predict_confidence(self, X):
         """
         Method to compute confidence in the predicted class
-        :return: value if algorithm is from framework PYOD
+        :return: max probability as default
         """
-        return self.classifier.predict_confidence(x_test)
+        if isinstance(self.clf, pyod.models.base.BaseDetector):
+            return self.clf.predict_confidence(X)
+        else:
+            probas = self.predict_proba(X)
+            return numpy.max(probas, axis=1)
 
     def classifier_name(self):
-        return self.name
+        """
+        Returns the name of the classifier (as string)
+        """
+        return self.clf.__class__.__name__
 
 
 class TabNet(Classifier):
@@ -467,151 +531,3 @@ class SupportVectorMachine(Classifier):
 
     def classifier_name(self):
         return "SupportVectorMachine(kernel=" + str(self.kernel) + ")"
-
-
-class ConfidenceBoosting(UnsupervisedClassifier):
-    """
-    Class for creating Unsupervised boosting ensembles
-    """
-
-    def __init__(self, estimator, n_base: int = 10, learning_rate: float = None, sampling_ratio: float = None,
-                 contamination: float = None, conf_thr: float = None, n_classes: int = 2):
-        """
-        COnstructor
-        :param estimator: the algorithm to be used for creating base learners
-        :param n_base: number of base learners (= size of the ensemble)
-        :param learning_rate: learning rate for updating dataset weights
-        :param sampling_ratio: percentage of the dataset to be used at each iteration
-        :param contamination: percentage of anomalies. TRThis is used to automatically devise conf_thr
-        :param conf_thr: threshold of acceptance for confidence scores. Lower confidence means untrustable result
-        :param n_classes: number of classes in the problem
-        """
-        super().__init__(estimator)
-        self.classes_ = n_classes
-        self.conf_thr = conf_thr
-        if contamination is None:
-            self.contamination = estimator.contamination
-        else:
-            self.contamination = contamination
-        if n_base > 1:
-            self.n_base = n_base
-        else:
-            print("Ensembles have to be at least 2")
-            self.n_base = 10
-        if learning_rate is not None:
-            self.learning_rate = learning_rate
-        else:
-            self.learning_rate = 2
-        if sampling_ratio is not None:
-            self.sampling_ratio = sampling_ratio
-        else:
-            self.sampling_ratio = 1 / n_base ** (1 / 2)
-        self.base_learners = []
-
-    def fit(self, x_train, y_train=None):
-        """
-        Training function for the confidence boosting ensemble
-        :param y_train: labels of the train set (optional, not required for unsupervised learning)
-        :param x_train: train set
-        """
-        train_n = len(x_train)
-        samples_n = int(train_n * self.sampling_ratio)
-        weights = numpy.full(train_n, 1 / train_n)
-        for i in range(self.n_base):
-            # Draw samples
-            indexes = numpy.random.choice(len(weights), samples_n, replace=False, p=weights)
-            sample_x = numpy.asarray([x_train[i] for i in indexes])
-            # Train base learner
-            learner = copy.deepcopy(self.classifier)
-            # if unsupervised, no labels are required for training
-            if isinstance(learner, pyod.base.BaseDetector):
-                learner.fit(sample_x)
-            else:
-                learner.fit(sample_x, numpy.asarray([y_train[i] for i in indexes]))
-            if self.conf_thr is None:
-                self.conf_thr = self.define_proba_thr(x_train, learner)
-            self.base_learners.append(learner)
-            # Update Weights
-            y_proba = predict_uns_proba(learner, x_train)
-            y_conf = numpy.max(y_proba, axis=1)
-            update_flag = numpy.where(y_conf >= self.conf_thr, 0, 1)
-            weights = weights * (1 + self.learning_rate * update_flag)
-            weights = weights / sum(weights)
-        self.proba_thr = self.define_proba_thr(x_train)
-        self.feature_importances_ = self.get_feature_importances()
-        self.trained = True
-
-    def define_proba_thr(self, x_train, clf=None, delta=0.01):
-        """
-        Method for finding a confidence threshold based on the expected contamination (recursive)
-        :param x_train: train set
-        :param clf: the classifier to use for computing probabilities, or None if self.predict_proba should be used
-        :param delta: the tolerance to stop recursion
-        :return: a float value to be used as threshold for updating weights in boosting
-        """
-        target_cont = self.contamination
-        if clf is None:
-            probs = self.predict_proba(x_train)
-        else:
-            probs = clf.predict_proba(x_train)
-        p_thr = 0.5
-        left_bound = 0.5
-        right_bound = 1
-        actual_cont = numpy.average([1 if p[0] < p_thr else 0 for p in probs])
-        while abs(actual_cont - target_cont) > delta and abs(right_bound - left_bound) > 0.01:
-            if actual_cont < target_cont:
-                left_bound = p_thr
-                p_thr = (p_thr + right_bound) / 2
-            else:
-                right_bound = p_thr
-                p_thr = (p_thr + left_bound) / 2
-            actual_cont = numpy.average([1 if p[0] < p_thr else 0 for p in probs])
-        return p_thr
-
-    def predict_proba(self, x_test):
-        """
-        Method to compute prediction probabilities (i.e., normalized logits) of a classifier
-        :param x_test: the test set
-        :return: array of probabilities for each data point and each class
-        """
-        proba = numpy.zeros((x_test.shape[0], self.classes_))
-        for clf in self.base_learners:
-            predictions = clf.predict_proba(x_test)
-            proba += predictions
-        return proba / self.n_base
-
-    def predict_confidence(self, x_test):
-        """
-        Method to compute the confidence in predictions of a classifier
-        :param x_test: the test set
-        :return: array of confidence scores
-        """
-        conf = numpy.zeros(x_test.shape[0])
-        for clf in self.base_learners:
-            c_conf = clf.predict_confidence(x_test)
-            conf += c_conf
-        return conf / self.n_base
-
-    def get_feature_importances(self):
-        """
-        Placeholder, to be implemented if possible
-        :return: feature importances (to be tested)
-        """
-        fi = []
-        for clf in self.base_learners:
-            c_fi = clf.get_feature_importances()
-            fi.append(c_fi)
-        fi = numpy.asarray(fi)
-        return numpy.average(fi, axis=1)
-
-    def predict(self, x_test):
-        """
-        Method to compute predict of a classifier
-        :param x_test: the test set
-        :return: array of predicted class
-        """
-        proba = self.predict_proba(x_test)
-        return [1 if probs[0] < self.proba_thr else 0 for probs in proba]
-
-    def classifier_name(self):
-        return "ConfidenceBooster(" + str(self.n_base) + "-" + str(self.conf_thr) + "-" + str(self.learning_rate) + ")"

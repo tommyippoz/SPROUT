@@ -13,9 +13,10 @@ from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval,
     CombinedUncertainty, MultiCombinedUncertainty, NeighborsUncertainty, ProximityUncertainty, \
     FeatureBaggingUncertainty, \
     ReconstructionLoss, \
-    ExternalUnsupervisedUncertainty, MaxProbUncertainty, AgreementUncertainty, BaggingUncertainty, BoostingUncertainty
+    ExternalUnsupervisedUncertainty, MaxProbUncertainty, AgreementUncertainty, \
+    ConfidenceBaggingUncertainty, ConfidenceBoostingUncertainty
 from sprout.utils import general_utils
-from sprout.utils.Classifier import get_classifier_name
+from sprout.classifiers.Classifier import get_classifier_name
 from sprout.utils.general_utils import get_full_class_name
 from sprout.utils.sprout_utils import read_calculators
 
@@ -86,9 +87,9 @@ class SPROUTObject:
         :param confidence_level: size of the confidence interval (default: 0.9999)
         """
         self.trust_calculators.append(
-                ConfidenceInterval(x_train=x_train,
-                                   y_train=y_train,
-                                   conf_level=confidence_level))
+            ConfidenceInterval(x_train=x_train,
+                               y_train=y_train,
+                               conf_level=confidence_level))
 
     def add_calculator_entropy(self, n_classes):
         """
@@ -165,13 +166,19 @@ class SPROUTObject:
     def add_calculator_proximity(self, x_train, n_iterations=10, range=0.1, weighted=False):
         self.trust_calculators.append(ProximityUncertainty(x_train, n_iterations, range, weighted))
 
-    def add_calculator_bagging(self, base_clf, x_train, y_train, bag_rate=None, n_baggers=10, clf_type='sup', n_classes=2):
-        self.trust_calculators.append(BaggingUncertainty(base_clf, x_train, y_train, n_baggers,
-                                                         bag_rate, clf_type, n_classes))
+    def add_calculator_bagging(self, base_clf, x_train, y_train, n_base: int = 10, max_features: float = 0.7,
+                               sampling_ratio: float = 0.7, perc_decisors: float = None, n_decisors: int = None,
+                               n_classes=2):
+        self.trust_calculators.append(
+            ConfidenceBaggingUncertainty(base_clf, x_train, y_train, n_base, max_features, sampling_ratio,
+                                         perc_decisors, n_decisors, n_classes))
 
-    def add_calculator_boosting(self, base_clf, x_train, y_train, n_boosters=10, clf_type='sup', n_classes=2, conf_thr=None):
-        self.trust_calculators.append(BoostingUncertainty(base_clf, x_train, y_train, n_boosters,
-                                                          clf_type, n_classes, conf_thr))
+    def add_calculator_boosting(self, base_clf, x_train, y_train, n_base: int = 10, learning_rate: float = None,
+                                sampling_ratio: float = 0.5, contamination: float = None, conf_thr: float = 0.8,
+                                n_classes=2):
+        self.trust_calculators.append(
+            ConfidenceBoostingUncertainty(base_clf, x_train, y_train, n_base, learning_rate, sampling_ratio,
+                                          contamination, conf_thr, n_classes))
 
     def add_calculator_recloss(self, x_train, tag='simple'):
         """
@@ -231,7 +238,8 @@ class SPROUTObject:
                                                                  norm=len(label_names))
                         elif "ExternalUnsupervised" in calculator_name:
                             del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
-                            calc = ExternalUnsupervisedUncertainty(del_clf=del_clf, x_train=x_train, norm=len(label_names))
+                            calc = ExternalUnsupervisedUncertainty(del_clf=del_clf, x_train=x_train,
+                                                                   norm=len(label_names))
                         elif ".CombinedUncertainty" in calculator_name:
                             del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
                             calc = CombinedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
@@ -288,16 +296,17 @@ class SPROUTObject:
         with open(obj_folder + "uncertainty_calculators.txt", 'w') as f:
             f.write('# File that lists the calculators used to build this SPROUT object\n')
             for i in range(0, len(self.trust_calculators)):
-                f.write('%s: %s\n' % (str(i+1), self.trust_calculators[i].full_uncertainty_calculator_name()))
+                f.write('%s: %s\n' % (str(i + 1), self.trust_calculators[i].full_uncertainty_calculator_name()))
 
         # Saving a file for each uncertainty calculator
         pd = {}
         for i in range(0, len(self.trust_calculators)):
-            params_dict = self.trust_calculators[i].save_params(obj_folder + "/", "uncertainty_calculator_" + str(i+1))
+            params_dict = self.trust_calculators[i].save_params(obj_folder + "/",
+                                                                "uncertainty_calculator_" + str(i + 1))
             if params_dict is None:
                 params_dict = {}
             params_dict["calculator_class"] = get_full_class_name(self.trust_calculators[i].__class__)
-            pd["uncertainty_calculator_" + str(i+1)] = params_dict
+            pd["uncertainty_calculator_" + str(i + 1)] = params_dict
         with open(obj_folder + "uncertainty_calculator_params.csv", 'w') as f:
             f.write('uncertainty_calculator,param_name,param_value\n')
             for u_calc in pd:

@@ -8,7 +8,6 @@ import numpy as np
 import pandas
 import pandas as pd
 import sklearn
-from pyod.models.abod import ABOD
 from pyod.models.cblof import CBLOF
 from pyod.models.copod import COPOD
 from pyod.models.ecod import ECOD
@@ -20,7 +19,6 @@ from pyod.models.knn import KNN
 from pyod.models.lof import LOF
 from pyod.models.mcd import MCD
 from pyod.models.pca import PCA
-from pyod.models.suod import SUOD
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB, ComplementNB
@@ -29,7 +27,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.tree import DecisionTreeClassifier
 
 from sprout.SPROUTObject import SPROUTObject
-from sprout.utils.Classifier import LogisticReg, XGB
+from sprout.classifiers.Classifier import LogisticReg, XGB
 from sprout.utils.dataset_utils import process_tabular_dataset, process_image_dataset, is_image_dataset, \
     process_binary_tabular_dataset
 from sprout.utils.general_utils import load_config, choose_classifier, clean_name, current_ms, clear_folder

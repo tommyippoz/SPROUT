@@ -5,6 +5,7 @@ import time
 
 import numpy as np
 
+
 def load_config(file_config):
     """
     Method to load configuration parameters from input file

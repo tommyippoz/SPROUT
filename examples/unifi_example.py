@@ -7,7 +7,6 @@ from sprout.SPROUTObject import SPROUTObject
 from sprout.utils import sprout_utils
 from sprout.utils.dataset_utils import load_MNIST
 from sprout.utils.general_utils import current_ms
-from sprout.utils.sprout_utils import correlations
 
 MODELS_FOLDER = "../models/"
 MODEL_TAG = "dsn_sup"

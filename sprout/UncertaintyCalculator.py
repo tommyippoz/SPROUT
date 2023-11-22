@@ -18,8 +18,10 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.tree import DecisionTreeClassifier
 from tqdm import tqdm
 
-from sprout.utils.AutoEncoder import DeepAutoEncoder, SingleAutoEncoder, SingleSparseAutoEncoder
-from sprout.utils.Classifier import UnsupervisedClassifier, ConfidenceBoosting, get_classifier_name, auto_bag_rate
+from sprout.classifiers.AutoEncoder import DeepAutoEncoder, SingleAutoEncoder, SingleSparseAutoEncoder
+from sprout.classifiers.Classifier import UnsupervisedClassifier, get_classifier_name, auto_bag_rate
+from sprout.classifiers.ConfidenceBagging import ConfidenceBagging
+from sprout.classifiers.ConfidenceBoosting import ConfidenceBoosting
 from sprout.utils.general_utils import current_ms, get_full_class_name
 from sprout.utils.sprout_utils import predictions_variability
 
@@ -737,18 +739,16 @@ class FeatureBaggingUncertainty(UncertaintyCalculator):
         return 'FeatureBagging Uncertainty (' + str(self.n_baggers) + '/' + str(self.bag_type) + ')'
 
 
-class MetaClassifierUncertainty(CombinedUncertainty):
+class ConfidenceBaggingUncertainty(CombinedUncertainty):
     """
     Defines a uncertainty measure that creates a bagging/boosting meta learner using a generic clf as a base estimator
     """
 
-    def __init__(self, base_clf, n_base: int = 10, clf_type: str = 'sup',
-                 meta_type: str = 'bagging', n_classes: int = 2):
-        self.del_clf = base_clf
-        self.clf_type = clf_type if clf_type in {'sup', 'uns'} else 'sup'
-        self.n_base = n_base
-        self.meta_type = meta_type
-        self.u_measure = EntropyUncertainty(n_classes)
+    def __init__(self, clf, x_train, y_train=None, n_base: int = 10, max_features: float = 0.7, sampling_ratio: float = 0.7,
+                 perc_decisors: float = None, n_decisors: int = None, n_classes: int = 2):
+        super().__init__(ConfidenceBagging(clf, n_base, max_features, sampling_ratio, perc_decisors, n_decisors),
+                         x_train, y_train, n_classes)
+        self.n_classes = n_classes
 
     def save_params(self, main_folder, tag):
         """
@@ -756,54 +756,28 @@ class MetaClassifierUncertainty(CombinedUncertainty):
         :param main_folder: the folder where to save the details of the calculator
         :param tag: tag to name files
         """
-        return {"clf_type": self.clf_type, "n_base": self.n_base, "meta_type": self.meta_type}
+        return {"clf": self.del_clf.clf.__class__.__name__,
+                "n_base": self.del_clf.n_base,
+                "max_features": self.del_clf.max_features,
+                "sampling_ratio": self.del_clf.sampling_ratio,
+                "perc_decisors": self.del_clf.perc_decisors,
+                "n_decisors": self.del_clf.n_decisors,
+                "n_classes": self.n_classes}
 
     def uncertainty_calculator_name(self):
-        return 'MetaClassifier (' + str(self.meta_type) + ') Uncertainty (' + \
-               str(self.clf_type) + '-' + str(self.n_base) + ')'
+        return str(self.del_clf.classifier_name())
 
 
-class BaggingUncertainty(MetaClassifierUncertainty):
+class ConfidenceBoostingUncertainty(CombinedUncertainty):
     """
     Defines a uncertainty measure that creates a bagging/boosting meta learner using a generic clf as a base estimator
-    For bagging, it either uses the BaggingClassifier (sklearn) or FeatureBagging (pyod)
     """
 
-    def __init__(self, base_clf, x_train, y_train=None, n_base: int = 10, bag_rate=None,
-                 clf_type: str = 'sup', n_classes: int = 2):
-
-        super().__init__(base_clf, n_base, clf_type, "bagging", n_classes)
-
-        self.bag_rate = None
-        if x_train is not None:
-            if isinstance(x_train, pandas.DataFrame):
-                x_train = x_train.to_numpy()
-            start_time = current_ms()
-
-            self.bag_rate = bag_rate if isinstance(bag_rate, float) and 0 < bag_rate <= 1 \
-                else auto_bag_rate(x_train.shape[1])
-            if clf_type == 'uns' or clf_type == 'UNS':
-                self.del_clf = UnsupervisedClassifier(FeatureBagging(base_estimator=base_clf.classifier, n_estimators=n_base,
-                                                                     max_features=bag_rate,
-                                                                     contamination=base_clf.contamination))
-                try:
-                    self.del_clf.fit(x_train)
-                except:
-                    self.del_clf = UnsupervisedClassifier(
-                        FeatureBagging(base_estimator=base_clf.classifier, n_estimators=n_base,
-                                       max_features=1, estimator_params={'support_fraction': 1},
-                                       contamination=base_clf.contamination))
-                    self.del_clf.fit(x_train)
-            else:
-                self.del_clf = BaggingClassifier(base_estimator=base_clf, n_estimators=n_base,
-                                                 max_features=bag_rate)
-                self.del_clf.fit(x_train, y_train)
-
-            print("[BaggingUncertainty] Fitting of Bagger(" + get_classifier_name(
-                self.del_clf) + ") Completed in " + str(current_ms() - start_time) + " ms")
-
-        else:
-            print("[BaggingUncertainty] Unable to train combined classifier - no data available")
+    def __init__(self, clf, x_train, y_train=None, n_base: int = 10, learning_rate: float = None, sampling_ratio: float = 0.5,
+                 contamination: float = None, conf_thr: float = 0.8, n_classes: int = 2):
+        super().__init__(ConfidenceBoosting(clf, n_base, learning_rate, sampling_ratio, contamination, conf_thr),
+                         x_train, y_train, n_classes)
+        self.n_classes = n_classes
 
     def save_params(self, main_folder, tag):
         """
@@ -811,50 +785,16 @@ class BaggingUncertainty(MetaClassifierUncertainty):
         :param main_folder: the folder where to save the details of the calculator
         :param tag: tag to name files
         """
-        return {"clf_type": self.clf_type, "n_base": self.n_base, "meta_type": "bagging", "bag_rate": self.bag_rate}
+        return {"clf": self.del_clf.clf.__class__.__name__,
+                "n_base": self.del_clf.n_base,
+                "learning_rate": self.del_clf.learning_rate,
+                "sampling_ratio": self.del_clf.sampling_ratio,
+                "contamination": self.del_clf.contamination,
+                "conf_thr": self.del_clf.conf_thr,
+                "n_classes": self.n_classes}
 
     def uncertainty_calculator_name(self):
-        return 'BaggingUncertainty (' + str(self.clf_type) + '-' + str(self.n_base) + '-' + str(self.bag_rate) + ')'
-
-
-class BoostingUncertainty(MetaClassifierUncertainty):
-    """
-    Defines a uncertainty measure that creates a bagging/boosting meta learner using a generic clf as a base estimator
-    For boosting, it either uses the AdaBoostClassifier (sklearn) or the ConfidenceBoostingClassifier (custom, for unsupervised)
-    """
-
-    def __init__(self, base_clf, x_train, y_train=None, n_base: int = 10,
-                 clf_type: str = 'sup', n_classes: int = 2, confidence_thr=0.5):
-
-        super().__init__(base_clf, n_base, clf_type, "boosting", n_classes)
-
-        self.bag_rate = None
-        if x_train is not None:
-            if isinstance(x_train, pandas.DataFrame):
-                x_train = x_train.to_numpy()
-            start_time = current_ms()
-
-            if clf_type == 'uns' or clf_type == 'UNS':
-                self.del_clf = ConfidenceBoosting(estimator=base_clf, n_base=n_base, conf_thr=0.8)
-                self.del_clf.fit(x_train)
-            else:
-                try:
-                    self.del_clf = AdaBoostClassifier(base_estimator=base_clf, n_estimators=n_base)
-                    self.del_clf.fit(x_train, y_train)
-                except ValueError:
-                    print('[BoostingUncertainty] classifier %s is not supported, using decision trees instead'
-                          % get_classifier_name(base_clf))
-                    self.del_clf = AdaBoostClassifier(n_estimators=n_base)
-                    self.del_clf.fit(x_train, y_train)
-
-            print("[BoostingUncertainty] Fitting of Booster(" + get_classifier_name(
-                self.del_clf) + ") Completed in " + str(current_ms() - start_time) + " ms")
-
-        else:
-            print("[BoostingUncertainty] Unable to train combined classifier - no data available")
-
-    def uncertainty_calculator_name(self):
-        return 'BoostingUncertainty (' + str(self.clf_type) + '-' + str(self.n_base) + ')'
+        return str(self.del_clf.classifier_name())
 
 
 class ReconstructionLoss(UncertaintyCalculator):
