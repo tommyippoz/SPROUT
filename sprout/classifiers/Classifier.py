@@ -124,7 +124,7 @@ def choose_classifier(clf_name, features, y_label, metric, contamination=None):
     elif clf_name in {"RF", "RandomForest"}:
         return RandomForestClassifier(n_estimators=10)
     elif clf_name in {"TabNet", "Tabnet", "TN"}:
-        return TabNet(metric="auc", verbose=2)
+        return TabNet(metric="auc", verbose=0)
     elif clf_name in {"FAI", "FastAI", "FASTAI", "fastai"}:
         return FastAI(label_name=y_label, metric=metric)
     elif clf_name in {"GBC", "GradientBoosting"}:

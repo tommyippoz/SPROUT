@@ -212,7 +212,7 @@ class SPROUTObject:
 
         return sp_df, self.binary_adjudicator
 
-    def load_model(self, model_tag, x_train, y_train=None, label_names=[0, 1], load_calculators=True):
+    def load_model(self, model_tag, clf, x_train, y_train=None, label_names=[0, 1], load_calculators=True):
         if os.path.exists(self.models_folder):
             if model_tag in self.get_available_models():
                 model_folder = self.models_folder + str(model_tag) + "/"
@@ -266,9 +266,21 @@ class SPROUTObject:
                         elif "ProximityUncertainty" in calculator_name:
                             calc = ProximityUncertainty(x_train=x_train, artificial_points=params["artificial_points"],
                                                         range_wideness=params["range"], weighted=params["weighted"])
-                        elif "FeatureBagging" in calculator_name:
-                            calc = FeatureBaggingUncertainty(x_train=x_train, y_train=y_train,
-                                                             n_baggers=params["n_baggers"], bag_type=params["bag_type"])
+                        elif "ConfidenceBagging" in calculator_name:
+                            calc = ConfidenceBaggingUncertainty(clf=clf, x_train=x_train, y_train=y_train,
+                                                                n_base=int(params["n_base"]) if params["n_base"] != 'None' else None,
+                                                                max_features=float(params["max_features"]) if params["max_features"] != 'None' else None,
+                                                                sampling_ratio=float(params["sampling_ratio"]) if params["sampling_ratio"] != 'None' else None,
+                                                                n_decisors=int(params["n_decisors"]) if params["n_decisors"] != 'None' else None,
+                                                                n_classes=len(label_names))
+                        elif "ConfidenceBoosting" in calculator_name:
+                            calc = ConfidenceBoostingUncertainty(clf=clf, x_train=x_train, y_train=y_train,
+                                                                n_base=int(params["n_base"]) if params["n_base"] != 'None' else None,
+                                                                learning_rate=float(params["learning_rate"]) if params["learning_rate"] != 'None' else None,
+                                                                sampling_ratio=float(params["sampling_ratio"]) if params["sampling_ratio"] != 'None' else None,
+                                                                contamination=float(params["contamination"]) if params["contamination"] != 'None' else None,
+                                                                conf_thr=float(params["conf_thr"]) if params["conf_thr"] != 'None' else None,
+                                                                n_classes=len(label_names))
                         elif "ReconstructionLoss" in calculator_name:
                             calc = ReconstructionLoss(x_train=x_train, enc_tag=params["enc_tag"])
                         else:

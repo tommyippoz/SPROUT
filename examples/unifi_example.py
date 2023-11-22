@@ -9,7 +9,7 @@ from sprout.utils.dataset_utils import load_MNIST
 from sprout.utils.general_utils import current_ms
 
 MODELS_FOLDER = "../models/"
-MODEL_TAG = "sup_bin"
+MODEL_TAG = "test_sup"
 
 if __name__ == '__main__':
     """
@@ -32,10 +32,8 @@ if __name__ == '__main__':
     # The name of the model to be used to detect misclassifications is contained in MODEL_TAG
     # You can use any model tag, but I suggest 'all_sup_fast' or 'all_sup_fast_2'
     sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
-    sprout_obj.load_model(model_tag=MODEL_TAG, x_train=x_train_lin, y_train=y_train_lin, label_names=label_names,
-                          clf=classifier)
-
-
+    sprout_obj.load_model(model_tag=MODEL_TAG, clf=classifier,
+                          x_train=x_train_lin, y_train=y_train_lin, label_names=label_names)
 
     # This is for predicting class labels for the images in the test set using your classifier
     # Theoretically (?), you should not need to change that
