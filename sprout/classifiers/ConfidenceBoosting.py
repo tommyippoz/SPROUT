@@ -124,7 +124,7 @@ class ConfidenceBoosting(Classifier):
         :param X: the test set
         :return: array of probabilities for each data point and each class
         """
-        proba = numpy.zeros((X.shape[0], 2))
+        proba = numpy.zeros((X.shape[0], len(self.classes_)))
         for clf in self.base_learners:
             predictions = clf.predict_proba(X)
             proba += predictions

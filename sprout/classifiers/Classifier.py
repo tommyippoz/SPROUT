@@ -154,19 +154,13 @@ def choose_classifier(clf_name, features, y_label, metric, contamination=None):
     elif clf_name in {"COF"}:
         return UnsupervisedClassifier(COF(contamination=contamination, n_neighbors=9))
     elif clf_name in {"IFOREST", "IForest"}:
-        return UnsupervisedClassifier(IForest(contamination=contamination))
+        return UnsupervisedClassifier(IForest(contamination=contamination, n_estimators=10))
     elif clf_name in {"LODA"}:
         return UnsupervisedClassifier(LODA(contamination=contamination, n_bins=100))
     elif clf_name in {"VAE"}:
         return UnsupervisedClassifier(VAE(contamination=contamination))
     elif clf_name in {"SO_GAAL"}:
         return UnsupervisedClassifier(SO_GAAL(contamination=contamination))
-    elif clf_name in {"LSCP"}:
-        return UnsupervisedClassifier(LSCP(contamination=contamination,
-                                           detector_list=[MCD(), COPOD(), HBOS()]))
-    elif clf_name in {"SUOD"}:
-        return UnsupervisedClassifier(SUOD(contamination=contamination,
-                                           base_estimators=[MCD(), COPOD(), HBOS()]))
     else:
         pass
 
@@ -384,24 +378,26 @@ class TabNet(Classifier):
         if isinstance(x_train, pandas.DataFrame):
             x_train = x_train.to_numpy()
         if self.metric is None:
-            self.classifier.fit(X_train=x_train, y_train=y_train, max_epochs=40, batch_size=1024, eval_metric=['auc'],
-                                patience=2)
+            self.clf.fit(X_train=x_train, y_train=y_train, max_epochs=40, batch_size=1024, eval_metric=['auc'],
+                         patience=2)
         else:
-            self.classifier.fit(X_train=x_train, y_train=y_train, max_epochs=40, batch_size=1024,
-                                eval_metric=[self.metric], patience=2)
+            self.clf.fit(X_train=x_train, y_train=y_train, max_epochs=40, batch_size=1024,
+                         eval_metric=[self.metric], patience=2)
         self.classes_ = numpy.unique(y_train)
         self.feature_importances_ = self.get_feature_importances()
-        self.trained = True
+
+    def get_feature_importances(self):
+        return self.clf.feature_importances_
 
     def predict(self, x_test):
         if isinstance(x_test, pandas.DataFrame):
             x_test = x_test.to_numpy()
-        return self.classifier.predict(x_test)
+        return self.clf.predict(x_test)
 
     def predict_proba(self, x_test):
         if isinstance(x_test, pandas.DataFrame):
             x_test = x_test.to_numpy()
-        return self.classifier.predict_proba(x_test)
+        return self.clf.predict_proba(x_test)
 
     def classifier_name(self):
         return "TabNet"
@@ -429,12 +425,18 @@ class AutoGluon(Classifier):
         self.metric = metric
         self.verbose = verbose
         self.feature_importance = []
+        self.feature_names = None
 
     def fit(self, x_train, y_train):
-        df = pd.DataFrame(data=x_train.copy(), columns=['col' + str(i) for i in range(0, x_train.shape[1])])
+        path = './AutogluonModels/' + str(current_ms())
+        self.clf = TabularPredictor(label=self.label_name, eval_metric=self.metric,
+                                    path=path, verbosity=self.verbose)
+        if self.feature_names is None:
+            self.feature_names = ['col' + str(i) for i in range(0, x_train.shape[1])]
+        df = pd.DataFrame(data=x_train.copy(), columns=self.feature_names)
         df[self.label_name] = y_train
-        self.classifier.fit(train_data=df, hyperparameters={self.clf_name: {}})
-        self.feature_importances_ = self.classifier.feature_importance(df)
+        self.clf.fit(train_data=df, hyperparameters={self.clf_name: {}})
+        self.feature_importances_ = self.clf.feature_importance(df)
         self.classes_ = numpy.unique(y_train)
         self.trained = True
 
@@ -442,12 +444,12 @@ class AutoGluon(Classifier):
         return self.feature_importances_
 
     def predict(self, x_test):
-        df = pd.DataFrame(data=x_test, columns=['col' + str(i) for i in range(0, x_test.shape[1])])
-        return self.classifier.predict(df, as_pandas=False)
+        df = pd.DataFrame(data=x_test, columns=self.feature_names)
+        return self.clf.predict(df, as_pandas=False)
 
     def predict_proba(self, x_test):
-        df = pd.DataFrame(data=x_test, columns=['col' + str(i) for i in range(0, x_test.shape[1])])
-        return self.classifier.predict_proba(df, as_pandas=False)
+        df = pd.DataFrame(data=x_test, columns=self.feature_names)
+        return self.clf.predict_proba(df, as_pandas=False)
 
     def classifier_name(self):
         return "AutoGluon"

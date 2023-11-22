@@ -22,7 +22,7 @@ from sprout.utils.sprout_utils import build_SPROUT_dataset
 
 # Vars for Generating Uncertainties
 FILE_AVOID_TAG = None
-MODEL_TYPE = 'UNS'
+MODEL_TYPE = 'SUP'
 
 # Vars for Learning Model
 MODELS_FOLDER = "../models/"
@@ -91,11 +91,11 @@ def compute_datasets_uncertainties(dataset_files, d_folder, s_folder,
 
                 sprout_obj = copy.deepcopy(sp_obj)
                 sprout_obj.add_calculator_bagging(base_clf=classifier, x_train=x_train, y_train=y_train,
-                                                  n_base=10, max_features=0.7, sampling_ratio=0.7,
+                                                  n_base=10, max_features=0.7, sampling_ratio=0.5,
                                                   perc_decisors=0.5, n_decisors=None,
                                                   n_classes=len(label_tags) if label_tags is not None else 2)
                 sprout_obj.add_calculator_boosting(base_clf=classifier, x_train=x_train, y_train=y_train,
-                                                   n_base=10, learning_rate=None, sampling_ratio=0.5,
+                                                   n_base=10, learning_rate=None, sampling_ratio=1,
                                                    contamination=None, conf_thr=0.8,
                                                    n_classes=len(label_tags) if label_tags is not None else 2)
 
