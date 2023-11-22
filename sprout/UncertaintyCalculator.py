@@ -760,7 +760,6 @@ class ConfidenceBaggingUncertainty(CombinedUncertainty):
                 "n_base": self.del_clf.n_base,
                 "max_features": self.del_clf.max_features,
                 "sampling_ratio": self.del_clf.sampling_ratio,
-                "perc_decisors": self.del_clf.perc_decisors,
                 "n_decisors": self.del_clf.n_decisors,
                 "n_classes": self.n_classes}
 
