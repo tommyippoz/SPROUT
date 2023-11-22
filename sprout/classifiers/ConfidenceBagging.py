@@ -76,7 +76,7 @@ class ConfidenceBagging(Classifier):
             conf_array.append(numpy.max(predictions, axis=1))
         # 3d matrix (clf, row, probability for class)
         proba_array = numpy.asarray(proba_array)
-        # 2d matrix (clf, confidence for row)
+        # 2dim matrix (clf, confidence for row)
         conf_array = numpy.asarray(conf_array).transpose()
 
         # Choosing the most confident self.n_decisors to compute final probabilities
