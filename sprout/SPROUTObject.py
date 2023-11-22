@@ -11,7 +11,6 @@ from sklearn.naive_bayes import GaussianNB
 
 from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval, ExternalSupervisedUncertainty, \
     CombinedUncertainty, MultiCombinedUncertainty, NeighborsUncertainty, ProximityUncertainty, \
-    FeatureBaggingUncertainty, \
     ReconstructionLoss, \
     ExternalUnsupervisedUncertainty, MaxProbUncertainty, AgreementUncertainty, \
     ConfidenceBaggingUncertainty, ConfidenceBoostingUncertainty

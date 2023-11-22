@@ -655,88 +655,88 @@ class ProximityUncertainty(UncertaintyCalculator):
         return 'Proximity Uncertainty (' + str(self.n_artificial) + '/' + str(self.range) \
                + ('/W' if self.weighted else '') + ')'
 
-
-class FeatureBaggingUncertainty(UncertaintyCalculator):
-    """
-    Defines a uncertainty measure that uses a Monte Carlo simulation for each class
-    """
-
-    def __init__(self, x_train, y_train, n_baggers=10, bag_type='sup'):
-        self.feature_sets = []
-        self.classifiers = []
-        try:
-            self.n_baggers = int(n_baggers)
-        except:
-            self.n_baggers = 10
-
-        if x_train is not None:
-            if isinstance(x_train, pandas.DataFrame):
-                x_train = x_train.to_numpy()
-            n_features = x_train.shape[1]
-
-            if n_features < 20:
-                bag_rate = 0.8
-            elif n_features < 50:
-                bag_rate = 0.7
-            elif n_features < 100:
-                bag_rate = 0.6
-            else:
-                bag_rate = 0.5
-            bag_features = int(n_features * bag_rate)
-
-            for i in tqdm(range(self.n_baggers), "Building Feature Baggers"):
-                fs = random.sample(range(n_features), bag_features)
-                fs.sort()
-                self.feature_sets.append(fs)
-                if bag_type == 'uns':
-                    classifier = COPOD()
-                    classifier.fit(x_train[:, fs])
-                else:
-                    classifier = DecisionTreeClassifier()
-                    classifier.fit(x_train[:, fs], y_train)
-                    bag_type = 'sup'
-                self.classifiers.append(classifier)
-
-        else:
-            print("Unable to build feature baggers - no data available")
-
-        self.bag_type = bag_type
-
-    def save_params(self, main_folder, tag):
-        """
-        Returns the name of the strategy to calculate uncertainty score (as string)
-        :param main_folder: the folder where to save the details of the calculator
-        :param tag: tag to name files
-        """
-        return {"n_baggers": self.n_baggers, "bag_type": self.bag_type}
-
-    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
-        """
-        Returns the uncertainty after executing a given amount of simulations around the feature values
-        Score ranges from 0 (no agreement) to 1 (full agreement)
-
-        :param classifier: the classifier used for classification
-        :param feature_values_array: the feature values of the data points in the test set
-        :param proba_array: the probability arrays assigned by the algorithm to the data points
-        :return: array of uncertainty scores
-        """
-        predicted_classes = numpy.argmax(proba_array, axis=1)
-        if isinstance(feature_values_array, pd.DataFrame):
-            feature_values_array = feature_values_array.to_numpy()
-
-        # Testing with all classifiers
-        fs_pred = [self.classifiers[i].predict(feature_values_array[:, self.feature_sets[i]])
-                   for i in range(len(self.feature_sets))]
-        fs_pred = numpy.array(fs_pred).transpose()
-
-        # Calculating Uncertainty
-        uncertainty = [sum(fs_pred[i] == predicted_classes[i]) / len(fs_pred[i])
-                       for i in range(len(feature_values_array))]
-
-        return np.asarray(uncertainty)
-
-    def uncertainty_calculator_name(self):
-        return 'FeatureBagging Uncertainty (' + str(self.n_baggers) + '/' + str(self.bag_type) + ')'
+#
+# class FeatureBaggingUncertainty(UncertaintyCalculator):
+#     """
+#     Defines a uncertainty measure that uses a Monte Carlo simulation for each class
+#     """
+#
+#     def __init__(self, x_train, y_train, n_baggers=10, bag_type='sup'):
+#         self.feature_sets = []
+#         self.classifiers = []
+#         try:
+#             self.n_baggers = int(n_baggers)
+#         except:
+#             self.n_baggers = 10
+#
+#         if x_train is not None:
+#             if isinstance(x_train, pandas.DataFrame):
+#                 x_train = x_train.to_numpy()
+#             n_features = x_train.shape[1]
+#
+#             if n_features < 20:
+#                 bag_rate = 0.8
+#             elif n_features < 50:
+#                 bag_rate = 0.7
+#             elif n_features < 100:
+#                 bag_rate = 0.6
+#             else:
+#                 bag_rate = 0.5
+#             bag_features = int(n_features * bag_rate)
+#
+#             for i in tqdm(range(self.n_baggers), "Building Feature Baggers"):
+#                 fs = random.sample(range(n_features), bag_features)
+#                 fs.sort()
+#                 self.feature_sets.append(fs)
+#                 if bag_type == 'uns':
+#                     classifier = COPOD()
+#                     classifier.fit(x_train[:, fs])
+#                 else:
+#                     classifier = DecisionTreeClassifier()
+#                     classifier.fit(x_train[:, fs], y_train)
+#                     bag_type = 'sup'
+#                 self.classifiers.append(classifier)
+#
+#         else:
+#             print("Unable to build feature baggers - no data available")
+#
+#         self.bag_type = bag_type
+#
+#     def save_params(self, main_folder, tag):
+#         """
+#         Returns the name of the strategy to calculate uncertainty score (as string)
+#         :param main_folder: the folder where to save the details of the calculator
+#         :param tag: tag to name files
+#         """
+#         return {"n_baggers": self.n_baggers, "bag_type": self.bag_type}
+#
+#     def uncertainty_scores(self, feature_values_array, proba_array, classifier):
+#         """
+#         Returns the uncertainty after executing a given amount of simulations around the feature values
+#         Score ranges from 0 (no agreement) to 1 (full agreement)
+#
+#         :param classifier: the classifier used for classification
+#         :param feature_values_array: the feature values of the data points in the test set
+#         :param proba_array: the probability arrays assigned by the algorithm to the data points
+#         :return: array of uncertainty scores
+#         """
+#         predicted_classes = numpy.argmax(proba_array, axis=1)
+#         if isinstance(feature_values_array, pd.DataFrame):
+#             feature_values_array = feature_values_array.to_numpy()
+#
+#         # Testing with all classifiers
+#         fs_pred = [self.classifiers[i].predict(feature_values_array[:, self.feature_sets[i]])
+#                    for i in range(len(self.feature_sets))]
+#         fs_pred = numpy.array(fs_pred).transpose()
+#
+#         # Calculating Uncertainty
+#         uncertainty = [sum(fs_pred[i] == predicted_classes[i]) / len(fs_pred[i])
+#                        for i in range(len(feature_values_array))]
+#
+#         return np.asarray(uncertainty)
+#
+#     def uncertainty_calculator_name(self):
+#         return 'FeatureBagging Uncertainty (' + str(self.n_baggers) + '/' + str(self.bag_type) + ')'
 
 
 class ConfidenceBaggingUncertainty(CombinedUncertainty):
@@ -765,7 +765,8 @@ class ConfidenceBaggingUncertainty(CombinedUncertainty):
                 "n_classes": self.n_classes}
 
     def uncertainty_calculator_name(self):
-        return str(self.del_clf.classifier_name())
+        return "ConfidenceBagger(" + str(self.del_clf.n_base) + "-" + str(self.del_clf.n_decisors) + "-" + \
+               str(self.del_clf.max_features) + "-" + str(self.del_clf.sampling_ratio) + ")"
 
 
 class ConfidenceBoostingUncertainty(CombinedUncertainty):
@@ -794,7 +795,8 @@ class ConfidenceBoostingUncertainty(CombinedUncertainty):
                 "n_classes": self.n_classes}
 
     def uncertainty_calculator_name(self):
-        return str(self.del_clf.classifier_name())
+        return "ConfidenceBooster(" + str(self.del_clf.n_base) + "-" + str(self.del_clf.conf_thr) + "-" + \
+               str(self.del_clf.learning_rate) + "-" + str(self.del_clf.sampling_ratio) + ")"
 
 
 class ReconstructionLoss(UncertaintyCalculator):

@@ -175,7 +175,6 @@ def sample_data(x, y, ratio):
 
     return df.drop(["is_misclassification"], axis=1).to_numpy(), df["is_misclassification"].to_numpy()
 
-
 def build_supervised_object(x_train, y_train, label_tags):
     sp_obj = SPROUTObject(models_folder=MODELS_FOLDER)
     if (x_train is not None) and isinstance(x_train, pandas.DataFrame):
@@ -226,6 +225,9 @@ if __name__ == '__main__':
         sprout_obj = build_supervised_object(None, None, None)
     else:
         sprout_obj = build_unsupervised_object(None, 0.1)
+
+    sprout_obj.add_calculator_bagging(base_clf=None, x_train=None, y_train=None)
+    sprout_obj.add_calculator_boosting(base_clf=None, x_train=None, y_train=None)
 
     for tag, folder_path in STUDY_TAG.items():
 
