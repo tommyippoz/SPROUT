@@ -48,13 +48,12 @@ class ConfidenceBoosting(Classifier):
         :param X: train set
         """
         train_n = len(X)
+        self.classes_ = unique_labels(y) if y is not None else [0, 1]
         samples_n = int(train_n * self.sampling_ratio)
         weights = numpy.full(train_n, 1 / train_n)
         for learner_index in range(0, self.n_base):
             # Draw samples
-            indexes = numpy.random.choice(len(weights), samples_n, replace=False, p=weights)
-            sample_x = numpy.asarray(X[indexes, :])
-            sample_y = y[indexes] if y is not None else None
+            sample_x, sample_y = self.draw_samples(X, y, weights, samples_n)
             # Train learner
             learner = copy.deepcopy(self.clf)
             learner.fit(sample_x, sample_y)
@@ -72,10 +71,30 @@ class ConfidenceBoosting(Classifier):
             if self.contamination is not None else 0.5
 
         # Compliance with SKLEARN and PYOD
-        self.classes_ = unique_labels(y) if y is not None else [0, 1]
         self.X_ = X
         self.y_ = y
         self.feature_importances_ = self.compute_feature_importances()
+
+    def draw_samples(self, X, y, weights, samples_n):
+        indexes = numpy.random.choice(len(weights), samples_n, replace=False, p=weights)
+        sample_x = numpy.asarray(X[indexes, :])
+        # If data is labeled we also have to refine labels
+        if y is not None and hasattr(self, 'classes_') and self.classes_ is not None and len(self.classes_) > 1:
+            sample_y = y[indexes]
+            sample_labels = unique_labels(sample_y)
+            missing_labels = [item for item in self.classes_ if item not in sample_labels]
+            # And make sure that there is at least a sample for each class of the problem
+            if missing_labels is not None and len(missing_labels) > 0:
+                # For each missing class
+                for missing_class in missing_labels:
+                    miss_class_indexes = numpy.asarray(numpy.where(y == missing_class)[0])
+                    new_sampled_index = numpy.random.choice(miss_class_indexes, None, replace=False, p=None)
+                    X_missing_class = X[new_sampled_index, :]
+                    sample_x = numpy.append(sample_x, [X_missing_class], axis=0)
+                    sample_y = numpy.append(sample_y, missing_class)
+        else:
+            sample_y = None
+        return sample_x, sample_y
 
     def define_conf_thr(self, confs, target=None, delta=0.01):
         target_thr = target
@@ -161,7 +180,10 @@ class ConfidenceBoosting(Classifier):
         :return: array of predicted class
         """
         proba = self.predict_proba(X)
-        return 1.0 * (proba[:, 0] < self.proba_thr)
+        if len(self.classes_) == 2:
+            return 1.0 * (proba[:, 0] < self.proba_thr)
+        else:
+            return self.classes_[numpy.argmax(proba, axis=1)]
 
     def classifier_name(self):
         clf_name = self.clf.classifier_name() if isinstance(self.clf, Classifier) else self.clf.__class__.__name__
