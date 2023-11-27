@@ -429,6 +429,7 @@ class AutoGluon(Classifier):
 
     def fit(self, x_train, y_train):
         path = './AutogluonModels/' + str(current_ms())
+        self.classes_ = numpy.unique(y_train)
         self.clf = TabularPredictor(label=self.label_name, eval_metric=self.metric,
                                     path=path, verbosity=self.verbose)
         if self.feature_names is None:
@@ -437,7 +438,7 @@ class AutoGluon(Classifier):
         df[self.label_name] = y_train
         self.clf.fit(train_data=df, hyperparameters={self.clf_name: {}})
         self.feature_importances_ = self.clf.feature_importance(df)
-        self.classes_ = numpy.unique(y_train)
+
         self.trained = True
 
     def get_feature_importances(self):
