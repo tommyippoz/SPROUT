@@ -109,17 +109,11 @@ class ConfidenceBagging(Classifier):
         # Final averaged Result
         return proba
 
-    def predict(self, X):
-        """
-        Method to compute predict of a classifier
-        :param X: the test set
-        :return: array of predicted class
-        """
-        proba = self.predict_proba(X)
-        return self.classes_[numpy.argmax(proba, axis=1)]
-
     def classifier_name(self):
         clf_name = self.clf.classifier_name() if isinstance(self.clf, Classifier) else self.clf.__class__.__name__
+        if clf_name == 'Pipeline':
+            keys = list(self.clf.named_steps.keys())
+            clf_name = str(keys) if len(keys) != 2 else str(keys[1]).upper()
         return "ConfidenceBagger(" + str(clf_name) + "-" + \
                str(self.n_base) + "-" + str(self.n_decisors) + "-" + \
                str(self.max_features) + "-" + str(self.sampling_ratio) + ")"

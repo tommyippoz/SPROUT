@@ -181,12 +181,15 @@ class ConfidenceBoosting(Classifier):
         """
         proba = self.predict_proba(X)
         if len(self.classes_) == 2:
-            return 1.0 * (proba[:, 0] < self.proba_thr)
+            return self.classes_[1 * (proba[:, 0] < self.proba_thr)]
         else:
             return self.classes_[numpy.argmax(proba, axis=1)]
 
     def classifier_name(self):
         clf_name = self.clf.classifier_name() if isinstance(self.clf, Classifier) else self.clf.__class__.__name__
+        if clf_name == 'Pipeline':
+            keys = list(self.clf.named_steps.keys())
+            clf_name = str(keys) if len(keys) != 2 else str(keys[1]).upper()
         return "ConfidenceBooster(" + str(clf_name) + "-" + \
                str(self.n_base) + "-" + str(self.conf_thr) + "-" + \
                str(self.learning_rate) + "-" + str(self.sampling_ratio) + ")"

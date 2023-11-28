@@ -30,7 +30,10 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, BaggingClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import GaussianNB, MultinomialNB
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.utils import check_X_y
@@ -119,6 +122,10 @@ def choose_classifier(clf_name, features, y_label, metric, contamination=None):
         return BaggingClassifier(SVC(gamma='auto', probability=True), max_samples=0.1, n_estimators=10)
     elif clf_name in {"LDA"}:
         return LinearDiscriminantAnalysis()
+    elif clf_name in {"GNB", "GaussianNB"}:
+        return Pipeline([("norm", MinMaxScaler()), ("clf", GaussianNB())])
+    elif clf_name in {"MNB", "MultinomialNB"}:
+        return Pipeline([("norm", MinMaxScaler()), ("clf", MultinomialNB())])
     elif clf_name in {"Regression", "LogisticRegression", "LR"}:
         return LogisticReg()
     elif clf_name in {"RF", "RandomForest"}:
@@ -217,9 +224,12 @@ class Classifier(BaseEstimator, ClassifierMixin):
         X, y = check_X_y(X, y)
 
         # Store the classes seen during fit + other data
-        self.classes_ = unique_labels(y)
-        self.X_ = X
-        self.y_ = y
+        if y is not None:
+            self.classes_ = unique_labels(y)
+        else:
+            self.classes_ = [0, 1]
+        #self.X_ = X
+        #self.y_ = y
 
         # Train clf
         self.clf.fit(X, y)
@@ -234,7 +244,7 @@ class Classifier(BaseEstimator, ClassifierMixin):
         :return: array of predicted class
         """
         probas = self.predict_proba(X)
-        return numpy.argmax(probas, axis=1)
+        return self.classes_[numpy.argmax(probas, axis=1)]
 
     def predict_proba(self, X):
         """
@@ -345,6 +355,14 @@ class UnsupervisedClassifier(Classifier, BaseDetector):
         probs[:, 1] = 1 - probs[:, 0]
         probs[anomaly, 0], probs[anomaly, 1] = probs[anomaly, 1], probs[anomaly, 0]
         return probs
+
+    def predict(self, X):
+        """
+        Method to compute predict of a classifier
+        :return: array of predicted class
+        """
+        probas = self.predict_proba(X)
+        return numpy.argmax(probas, axis=1)
 
     def predict_confidence(self, X):
         """
@@ -520,6 +538,39 @@ class LogisticReg(Classifier):
 
     def classifier_name(self):
         return "LogisticRegression"
+
+
+class XGB(Classifier):
+    """
+    Wrapper for the sklearn.LogisticRegression algorithm
+    """
+
+    def __init__(self, n_estimators=100):
+        Classifier.__init__(self, XGBClassifier(n_estimators=n_estimators))
+        self.l_encoder = None
+
+    def fit(self, X, y=None):
+
+        # Check that X and y have correct shape
+        X, y = check_X_y(X, y)
+
+        # Store the classes seen during fit + other data
+        self.classes_ = unique_labels(y)
+        self.l_encoder = LabelEncoder()
+        y = self.l_encoder.fit_transform(y)
+
+        #self.X_ = X
+        #self.y_ = y
+
+        # Train clf
+        self.clf.fit(X, y)
+        self.feature_importances_ = self.compute_feature_importances()
+
+        # Return the classifier
+        return self
+
+    def classifier_name(self):
+        return "XGBClassifier"
 
 
 class SupportVectorMachine(Classifier):
