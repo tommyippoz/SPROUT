@@ -24,8 +24,8 @@ from xgboost import XGBClassifier
 
 # Name of the folder in which look for tabular (CSV) datasets
 from sprout.classifiers.Classifier import XGB, UnsupervisedClassifier
-from sprout.classifiers.ConfidenceBagging import ConfidenceBagging
-from sprout.classifiers.ConfidenceBoosting import ConfidenceBoosting
+from sprout.classifiers.ConfidenceBagging import ConfidenceBagging, ConfidenceBaggingWeighted
+from sprout.classifiers.ConfidenceBoosting import ConfidenceBoosting, ConfidenceBoostingWeighted
 
 # The PYOD library contains implementations of unsupervised classifiers.
 # Works only with anomaly detection (no multi-class)
@@ -44,7 +44,7 @@ TT_SPLIT = 0.5
 VERBOSE = True
 # True if we want to conduct anomaly detection.
 # This transforms multi-class labels into binary labels (rule: normal class vs others)
-BINARIZE = True
+BINARIZE = False
 
 # Set random seed for reproducibility
 random.seed(42)
@@ -99,13 +99,18 @@ def get_learners(cont_perc):
     for clf in base_learners:
         learners.append(clf)
         for n_base in [5]:
-            for n_decisors in [int(n_base / 2)]:
-                for s_ratio in [0.2]:
+            for s_ratio in [0.2]:
+                learners.append(ConfidenceBaggingWeighted(clf=clf, n_base=n_base,
+                                                          sampling_ratio=s_ratio, max_features=0.7))
+                for n_decisors in [int(n_base / 2)]:
                     learners.append(ConfidenceBagging(clf=clf, n_base=n_base, n_decisors=n_decisors,
                                                       sampling_ratio=s_ratio, max_features=0.7))
             for conf_thr in [0.9]:
                 for s_ratio in [0.05]:
                     learners.append(ConfidenceBoosting(clf=clf, n_base=n_base,
+                                                       learning_rate=2, sampling_ratio=s_ratio,
+                                                       contamination=cont_perc, conf_thr=conf_thr))
+                    learners.append(ConfidenceBoostingWeighted(clf=clf, n_base=n_base,
                                                        learning_rate=2, sampling_ratio=s_ratio,
                                                        contamination=cont_perc, conf_thr=conf_thr))
 

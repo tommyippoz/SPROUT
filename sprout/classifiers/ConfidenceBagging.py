@@ -117,3 +117,39 @@ class ConfidenceBagging(Classifier):
         return "ConfidenceBagger(" + str(clf_name) + "-" + \
                str(self.n_base) + "-" + str(self.n_decisors) + "-" + \
                str(self.max_features) + "-" + str(self.sampling_ratio) + ")"
+
+
+class ConfidenceBaggingWeighted(ConfidenceBagging):
+
+    def __init__(self, clf, n_base: int = 10, max_features: float = 0.7, sampling_ratio: float = 0.7):
+        super().__init__(clf, n_base, max_features, sampling_ratio, None, None)
+
+    def predict_proba(self, X):
+        # Scoring probabilities, ends with a
+        proba_array = []
+        conf_array = []
+        for i in range(0, self.n_base):
+            predictions = self.base_learners[i].predict_proba(X[:, self.feature_sets[i]])
+            proba_array.append(predictions)
+            conf_array.append(numpy.max(predictions, axis=1))
+        # 3d matrix (clf, row, probability for class)
+        proba_array = numpy.asarray(proba_array)
+        # 2dim matrix (clf, confidence for row)
+        conf_array = numpy.asarray(conf_array)
+
+        # Weihting probas using confidence
+        proba = numpy.zeros(proba_array[0].shape)
+        for i in range(0, X.shape[0]):
+            proba[i] = numpy.sum(proba_array[:, i, :].T*conf_array[:, i], axis=1)/numpy.sum(conf_array[:, i])
+
+        # Final averaged Result
+        return proba
+
+    def classifier_name(self):
+        clf_name = self.clf.classifier_name() if isinstance(self.clf, Classifier) else self.clf.__class__.__name__
+        if clf_name == 'Pipeline':
+            keys = list(self.clf.named_steps.keys())
+            clf_name = str(keys) if len(keys) != 2 else str(keys[1]).upper()
+        return "ConfidenceBaggerWeighted(" + str(clf_name) + "-" + \
+               str(self.n_base) + "-" + str(self.max_features) + "-" + str(self.sampling_ratio) + ")"
+
