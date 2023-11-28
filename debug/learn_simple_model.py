@@ -8,13 +8,27 @@ import numpy as np
 import pandas
 import pandas as pd
 import sklearn
+from pyod.models.cblof import CBLOF
+from pyod.models.copod import COPOD
+from pyod.models.ecod import ECOD
+from pyod.models.hbos import HBOS
+from pyod.models.iforest import IForest
+from pyod.models.inne import INNE
+from pyod.models.knn import KNN
+from pyod.models.lof import LOF
+from pyod.models.mcd import MCD
+from pyod.models.pca import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.naive_bayes import GaussianNB
+from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB, ComplementNB
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.tree import DecisionTreeClassifier
+from xgboost import XGBClassifier
 
 from sprout.SPROUTObject import SPROUTObject
-from sprout.classifiers.Classifier import LogisticReg, get_classifier_name, build_classifier, choose_classifier
+from sprout.classifiers.Classifier import LogisticReg, get_classifier_name, build_classifier, choose_classifier, \
+    UnsupervisedClassifier
 from sprout.utils.dataset_utils import process_tabular_dataset, process_image_dataset, is_image_dataset, \
     process_binary_tabular_dataset
 from sprout.utils.general_utils import load_config, clean_name, current_ms, clear_folder
@@ -23,20 +37,17 @@ from sprout.utils.sprout_utils import build_SPROUT_dataset
 # Vars for Generating Uncertainties
 FILE_AVOID_TAG = None
 MODEL_TYPE = 'SUP'
+GENERATE_UNCERTAINTIES = False
 
 # Vars for Learning Model
 MODELS_FOLDER = "../models/"
-STUDY_TAG = {  # "iot_no_tn": "./datasets_measures/IoT",
-    # "native_uns_80": "./datasets_measures/nativebindatasets/",
-    # "all_uns_80": "./datasets_measures/allbin/",
-    # "bio_no_tn": "./datasets_measures/Biometry_Datasets/",
-    # "image_no_tn": "./datasets_measures/Image/",
-    # "nids_no_tn": "./datasets_measures/NIDS/",
-    # "all_sup_fast_2": "./datasets_measures/all_csv/",
-    "test_sup": "./datasets_measures/test/"
+STUDY_TAG = {
+    "sup_all": "./datasets_measures/sup/all",
+    "sup_bin": "./datasets_measures/sup/bindatasets",
+    "sup_multi": "./datasets_measures/sup/nonbindatasets",
 }
 
-MISC_RATIOS = [None, 0.05, 0.1, 0.2]
+MISC_RATIOS = [None, 0.05, 0.1, 0.2, 0.3]
 
 
 def compute_datasets_uncertainties(dataset_files, d_folder, s_folder,
@@ -91,11 +102,11 @@ def compute_datasets_uncertainties(dataset_files, d_folder, s_folder,
 
                 sprout_obj = copy.deepcopy(sp_obj)
                 sprout_obj.add_calculator_bagging(base_clf=classifier, x_train=x_train, y_train=y_train,
-                                                  n_base=5, max_features=0.7, sampling_ratio=1,
+                                                  n_base=5, max_features=0.7, sampling_ratio=0.5,
                                                   perc_decisors=0.5, n_decisors=None,
                                                   n_classes=len(label_tags) if label_tags is not None else 2)
                 sprout_obj.add_calculator_boosting(base_clf=classifier, x_train=x_train, y_train=y_train,
-                                                   n_base=5, learning_rate=None, sampling_ratio=1,
+                                                   n_base=5, learning_rate=None, sampling_ratio=0.3,
                                                    contamination=None, conf_thr=0.9,
                                                    n_classes=len(label_tags) if label_tags is not None else 2)
 
@@ -175,18 +186,36 @@ def sample_data(x, y, ratio):
 
     return df.drop(["is_misclassification"], axis=1).to_numpy(), df["is_misclassification"].to_numpy()
 
+
 def build_supervised_object(x_train, y_train, label_tags):
     sp_obj = SPROUTObject(models_folder=MODELS_FOLDER)
     if (x_train is not None) and isinstance(x_train, pandas.DataFrame):
         x_data = x_train.to_numpy()
     else:
         x_data = x_train
-    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.5)
+    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9)
     sp_obj.add_calculator_maxprob()
     sp_obj.add_calculator_entropy(n_classes=len(label_tags) if label_tags is not None else 2)
+    sp_obj.add_calculator_external(classifier=Pipeline([("norm", MinMaxScaler()), ("clf", MultinomialNB())]),
+                                   x_train=x_data, y_train=y_train,
+                                   n_classes=len(label_tags) if label_tags is not None else 2)
+    sp_obj.add_calculator_combined(classifier=XGBClassifier(n_estimators=30), x_train=x_data, y_train=y_train,
+                                   n_classes=len(label_tags) if label_tags is not None else 2)
+    for cc in [[Pipeline([("norm", MinMaxScaler()), ("clf", GaussianNB())]),
+                LinearDiscriminantAnalysis(), LogisticReg()],
+               [Pipeline([("norm", MinMaxScaler()), ("clf", GaussianNB())]),
+                Pipeline([("norm", MinMaxScaler()), ("clf", BernoulliNB())]),
+                Pipeline([("norm", MinMaxScaler()), ("clf", MultinomialNB())]),
+                Pipeline([("norm", MinMaxScaler()), ("clf", ComplementNB())])],
+               [DecisionTreeClassifier(), RandomForestClassifier(n_estimators=10),
+                GradientBoostingClassifier(n_estimators=10)]]:
+        sp_obj.add_calculator_multicombined(clf_set=cc, x_train=x_data, y_train=y_train,
+                                            n_classes=len(label_tags) if label_tags is not None else 2)
     sp_obj.add_calculator_neighbour(x_train=x_data, y_train=y_train, label_names=label_tags)
     sp_obj.add_calculator_proximity(x_train=x_data, n_iterations=10, range=0.1)
     sp_obj.add_calculator_proximity(x_train=x_data, n_iterations=20, range=0.05)
+    sp_obj.add_calculator_recloss(x_train=x_data)
+
     return sp_obj
 
 
@@ -202,6 +231,18 @@ def build_unsupervised_object(x_train, contamination):
     sp_obj.add_calculator_entropy(n_classes=2)
     sp_obj.add_calculator_neighbour(x_train=x_data, y_train=None, label_names=["normal", "anomaly"])
     sp_obj.add_calculator_proximity(x_train=x_data)
+    sp_obj.add_calculator_combined(classifier=UnsupervisedClassifier(PCA(contamination=contamination)),
+                                   x_train=x_data, y_train=None, n_classes=2)
+    for cc in [[UnsupervisedClassifier(COPOD(contamination=contamination)),
+                UnsupervisedClassifier(ECOD(contamination=contamination))],
+               [UnsupervisedClassifier(CBLOF(contamination=contamination, alpha=0.75, beta=3)),
+                UnsupervisedClassifier(PCA(contamination=contamination)),
+                UnsupervisedClassifier(MCD(contamination=contamination, support_fraction=0.9)),
+                UnsupervisedClassifier(HBOS(contamination=contamination, n_bins=30))],
+               [UnsupervisedClassifier(IForest(contamination=contamination)),
+                UnsupervisedClassifier(INNE(contamination=contamination))]]:
+        sp_obj.add_calculator_multicombined(clf_set=cc, x_train=x_data, y_train=None, n_classes=2)
+    sp_obj.add_calculator_recloss(x_train=x_data)
     return sp_obj
 
 
@@ -218,9 +259,10 @@ if __name__ == '__main__':
     if not os.path.exists(sprout_folder):
         os.mkdir(sprout_folder)
 
-    compute_datasets_uncertainties(dataset_files, dataset_folder, sprout_folder,
-                                   sup_clfs if MODEL_TYPE == 'SUP' else uns_clfs,
-                                   y_label, limit_rows)
+    if GENERATE_UNCERTAINTIES or len(os.listdir(sprout_folder)) == 0:
+        compute_datasets_uncertainties(dataset_files, dataset_folder, sprout_folder,
+                                       sup_clfs if MODEL_TYPE == 'SUP' else uns_clfs,
+                                       y_label, limit_rows)
     if MODEL_TYPE == 'SUP':
         sprout_obj = build_supervised_object(None, None, None)
     else:
@@ -238,7 +280,7 @@ if __name__ == '__main__':
         if os.path.exists(folder_path):
             # Merging data into a unique Dataset for training Misclassification Predictors
             x_train, y_train, x_test, y_test, features, m_frac = \
-                load_uncertainty_datasets(folder_path, train_split=0.7, perf_thr=0.7)
+                load_uncertainty_datasets(folder_path, train_split=0.75, perf_thr=0.7)
 
             # Classifiers for Detection (Binary Adjudicator)
             m_frac = 0.5 if m_frac > 0.5 else m_frac

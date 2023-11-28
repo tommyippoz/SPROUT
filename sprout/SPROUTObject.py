@@ -57,6 +57,7 @@ class SPROUTObject:
             y_proba = classifier.predict_proba(data_set)
         if isinstance(data_set, pandas.DataFrame):
             data_set = data_set.to_numpy()
+        data_set = numpy.nan_to_num(data_set, nan=0, posinf=0, neginf=0)
         for calculator in self.trust_calculators:
             if verbose:
                 print("Calculating Trust Strategy: " + calculator.uncertainty_calculator_name())

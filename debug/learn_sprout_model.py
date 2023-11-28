@@ -23,31 +23,24 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB, ComplementNB
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 
 from sprout.SPROUTObject import SPROUTObject
-from sprout.classifiers.Classifier import LogisticReg, XGB
+from sprout.classifiers.Classifier import LogisticReg, choose_classifier
 from sprout.utils.dataset_utils import process_tabular_dataset, process_image_dataset, is_image_dataset, \
     process_binary_tabular_dataset
-from sprout.utils.general_utils import load_config, choose_classifier, clean_name, current_ms, clear_folder
-from sprout.utils.sprout_utils import build_classifier, build_SPROUT_dataset, get_classifier_name
+from sprout.utils.general_utils import load_config, clean_name, current_ms, clear_folder
+from sprout.utils.sprout_utils import build_SPROUT_dataset
 
 # Vars for Generating Uncertainties
 GENERATE_UNCERTAINTIES = True
 FILE_AVOID_TAG = None
 MODEL_TYPE = 'UNS'
-SPEED_TYPE = 'ALL'
 
 # Vars for Learning Model
 MODELS_FOLDER = "../models/"
-STUDY_TAG = {  # "iot_no_tn": "./datasets_measures/IoT",
-    #"native_uns_80": "./datasets_measures/nativebindatasets/",
-    #"all_uns_80": "./datasets_measures/allbin/",
-    # "bio_no_tn": "./datasets_measures/Biometry_Datasets/",
-    # "image_no_tn": "./datasets_measures/Image/",
-    # "nids_no_tn": "./datasets_measures/NIDS/",
-    # "all_sup_fast_2": "./datasets_measures/all_csv/",
+STUDY_TAG = {
     "all_uns_fast": "./datasets_measures/all_bin_csv/"
 }
 
@@ -94,17 +87,11 @@ def compute_datasets_uncertainties(dataset_files, d_folder, s_folder,
             print("Preparing Trust Calculators...")
             if MODEL_TYPE == 'SUP':
                 contamination = 0
-                if SPEED_TYPE == 'FAST':
-                    sprout_obj = build_fast_supervised_object(x_train, y_train, label_tags)
-                else:
-                    sprout_obj = build_supervised_object(x_train, y_train, label_tags)
+                sprout_obj = build_supervised_object(x_train, y_train, label_tags)
             else:
                 contamination = sum(y_train) / len(y_train)
                 y_train = None
-                if SPEED_TYPE == 'FAST':
-                    sprout_obj = build_fast_unsupervised_object(x_train, contamination)
-                else:
-                    sprout_obj = build_unsupervised_object(x_train, contamination)
+                sprout_obj = build_unsupervised_object(x_train, contamination)
 
             for classifier_string in classifier_list:
                 # Building  and  exercising  classifier
@@ -208,7 +195,8 @@ def build_supervised_object(x_train, y_train, label_tags):
                [GaussianNB(), BernoulliNB(),
                 Pipeline([("norm", MinMaxScaler()), ("clf", MultinomialNB())]),
                 Pipeline([("norm", MinMaxScaler()), ("clf", ComplementNB())])],
-               [DecisionTreeClassifier(), RandomForestClassifier(), XGB()]]:
+               [DecisionTreeClassifier(), RandomForestClassifier(n_ensembles=10),
+                GradientBoostingClassifier(n_ensembles=10)]]:
         sp_obj.add_calculator_multicombined(clf_set=cc, x_train=x_data, y_train=y_train,
                                             n_classes=len(label_tags) if label_tags is not None else 2)
     sp_obj.add_calculator_neighbour(x_train=x_data, y_train=y_train, label_names=label_tags)
@@ -312,15 +300,12 @@ if __name__ == '__main__':
                                        sup_clfs if MODEL_TYPE == 'SUP' else uns_clfs,
                                        y_label, limit_rows)
     if MODEL_TYPE == 'SUP':
-        if SPEED_TYPE == 'FAST':
-            sprout_obj = build_fast_supervised_object(None, None, None)
-        else:
-            sprout_obj = build_supervised_object(None, None, None)
+        sprout_obj = build_supervised_object(None, None, None)
     else:
-        if SPEED_TYPE == 'FAST':
-            sprout_obj = build_fast_unsupervised_object(None, 0.1)
-        else:
-            sprout_obj = build_unsupervised_object(None, 0.1)
+        sprout_obj = build_unsupervised_object(None, 0.1)
+
+    sprout_obj.add_calculator_bagging(base_clf=None, x_train=None, y_train=None)
+    sprout_obj.add_calculator_boosting(base_clf=None, x_train=None, y_train=None)
 
     for tag, folder_path in STUDY_TAG.items():
 
@@ -340,7 +325,9 @@ if __name__ == '__main__':
                            DecisionTreeClassifier(),
                            LinearDiscriminantAnalysis(),
                            RandomForestClassifier(n_estimators=10),
-                           RandomForestClassifier(n_estimators=30)
+                           RandomForestClassifier(n_estimators=30),
+                           Pipeline([('scaler', StandardScaler()), ('gnb', GaussianNB())]),
+                           Pipeline([('scaler', StandardScaler()), ('mnb', MultinomialNB())]),
                            ]
 
             # Training Binary Adjudicators to Predict Misclassifications
