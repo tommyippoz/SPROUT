@@ -34,7 +34,7 @@ from sprout.classifiers.ConfidenceBoosting import ConfidenceBoosting, Confidence
 # Works only with anomaly detection (no multi-class)
 # ------- GLOBAL VARS -----------
 
-CSV_FOLDER = "input_folder/NIDS"
+CSV_FOLDER = "input_folder/all"
 # Name of the column that contains the label in the tabular (CSV) dataset
 LABEL_NAME = 'multilabel'
 # Name of the 'normal' class in datasets. This will be used only for binary classification (anomaly detection)
@@ -72,7 +72,7 @@ def get_learners(cont_perc):
         XGB(n_estimators=30),
         DecisionTreeClassifier(),
         Pipeline([("norm", MinMaxScaler()), ("gnb", GaussianNB())]),
-        Pipeline([("norm", MinMaxScaler()), ("mnb", MultinomialNB())]),
+        #Pipeline([("norm", MinMaxScaler()), ("mnb", MultinomialNB())]),
         GradientBoostingClassifier(n_estimators=30),
         RandomForestClassifier(n_estimators=30),
         LinearDiscriminantAnalysis(),
@@ -83,8 +83,8 @@ def get_learners(cont_perc):
     cont_alg = cont_perc if cont_perc < 0.5 else 0.5
     base_learners.extend([
         UnsupervisedClassifier(PCA(contamination=cont_alg)),
-        UnsupervisedClassifier(INNE(contamination=cont_alg)),
-        UnsupervisedClassifier(MCD(contamination=cont_alg, support_fraction=0.9)),
+        UnsupervisedClassifier(INNE(contamination=cont_alg, n_estimators=10)),
+        #UnsupervisedClassifier(MCD(contamination=cont_alg, support_fraction=0.9)),
         UnsupervisedClassifier(IForest(contamination=cont_alg, n_estimators=10)),
         UnsupervisedClassifier(HBOS(contamination=cont_alg, n_bins=30)),
         UnsupervisedClassifier(CBLOF(contamination=cont_alg, alpha=0.75, beta=3, n_jobs=-1)),
@@ -101,21 +101,21 @@ def get_learners(cont_perc):
     learners = []
     for clf in base_learners:
         learners.append(clf)
-        for n_base in [5]:
-            for s_ratio in [0.2]:
+        for n_base in [5, 10]:
+            for s_ratio in [0.2, 0.5]:
                 learners.append(ConfidenceBaggingWeighted(clf=clf, n_base=n_base,
                                                           sampling_ratio=s_ratio, max_features=0.7))
                 for n_decisors in [int(n_base / 2)]:
                     learners.append(ConfidenceBagging(clf=clf, n_base=n_base, n_decisors=n_decisors,
                                                       sampling_ratio=s_ratio, max_features=0.7))
-            for conf_thr in [0.9]:
-                for s_ratio in [0.05]:
+            for conf_thr in [0.9, 0.8]:
+                for s_ratio in [0.1, 0.3]:
                     learners.append(ConfidenceBoosting(clf=clf, n_base=n_base,
                                                        learning_rate=2, sampling_ratio=s_ratio,
                                                        contamination=cont_perc, conf_thr=conf_thr))
-                    learners.append(ConfidenceBoostingWeighted(clf=clf, n_base=n_base,
-                                                       learning_rate=2, sampling_ratio=s_ratio,
-                                                       contamination=cont_perc, conf_thr=conf_thr))
+                    #learners.append(ConfidenceBoostingWeighted(clf=clf, n_base=n_base,
+                    #                                   learning_rate=2, sampling_ratio=s_ratio,
+                    #                                   contamination=cont_perc, conf_thr=conf_thr))
 
     return learners
 
@@ -165,6 +165,8 @@ if __name__ == '__main__':
                 x_no_cat = df.select_dtypes(exclude=['object']).to_numpy()
                 x_tr, x_test, y_tr, y_te = ms.train_test_split(x_no_cat, y, test_size=TT_SPLIT, shuffle=True)
 
+                index = 0
+                tot = (len(classes) - 1)*len(get_learners(0.5))
                 # Iterate over anomalies
                 for anomaly in classes:
 
@@ -220,9 +222,10 @@ if __name__ == '__main__':
                             rec_unk = numpy.average(y_test_unknowns == y_pred_unk)
 
                             # Prints metrics for binary classification + train time and model size
+                            index +=1
                             tn, fp, fn, tp = metrics.confusion_matrix(y_test, y_pred).ravel()
-                            print('%s\t-> TP: %d, TN: %d, FP: %d, FN: %d, ACC: %.3f, MCC: %.3f, REC_UNK: %.3f '
-                                  '- train time: %d ms - model size: %.3f KB' % (clf_name, tp, tn, fp, fn, acc, mcc, rec_unk,
+                            print('%d/%d %s\t-> TP: %d, TN: %d, FP: %d, FN: %d, ACC: %.3f, MCC: %.3f, REC_UNK: %.3f '
+                                  '- train time: %d ms - model size: %.3f KB' % (index, tot, clf_name, tp, tn, fp, fn, acc, mcc, rec_unk,
                                                               current_milli_time() - start_time, size / 1000.0))
 
                             # Updates CSV file form metrics of experiment
@@ -230,7 +233,7 @@ if __name__ == '__main__':
                                 # Prints result of experiment in CSV file
                                 myfile.write(full_name + "," + str(anomaly) + "," + clf_name +
                                              "," + str(len(y_test)) + ',' + str(len(y_test_unknowns)) + ',' +
-                                             str(acc) + "," + "," + str(mcc) + "," + str(rec_unk) + "," +
+                                             str(acc) + "," + str(mcc) + "," + str(rec_unk) + "," +
                                              str(current_milli_time() - start_time) + "," + str(size) + "\n")
 
                             classifier = None
