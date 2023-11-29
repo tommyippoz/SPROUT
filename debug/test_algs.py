@@ -125,7 +125,7 @@ def get_learners(cont_perc):
 if __name__ == '__main__':
 
     with open(SCORES_FILE, 'w') as f:
-        f.write("dataset_tag,clf,binary,tt_split,acc,misc,mcc,time,model_size\n")
+        f.write("dataset_tag,clf,binary,tt_split,acc,misc,mcc,ok_conf,misc_conf,time,model_size\n")
 
     # Iterating over CSV files in folder
     for dataset_file in os.listdir(CSV_FOLDER):
@@ -201,9 +201,11 @@ if __name__ == '__main__':
                     y_proba = classifier.predict_proba(x_test)
                     y_conf = numpy.max(y_proba, axis=1)
                 conf_ok = y_conf[numpy.where(y_pred == y_test)[0]]
+                conf_ok = [0.5] if len(conf_ok) == 0 else conf_ok
                 conf_ok_metrics = [numpy.min(conf_ok), numpy.median(conf_ok), numpy.average(conf_ok),
                                    numpy.max(conf_ok)]
                 conf_misc = y_conf[numpy.where(y_pred != y_test)[0]]
+                conf_misc = [0.5] if len(conf_misc) == 0 else conf_misc
                 conf_misc_metrics = [numpy.min(conf_misc), numpy.median(conf_misc), numpy.average(conf_misc),
                                      numpy.max(conf_misc)]
 
