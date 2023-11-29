@@ -11,6 +11,7 @@ import sklearn.model_selection as ms
 from joblib import dump
 from pyod.models.cblof import CBLOF
 from pyod.models.hbos import HBOS
+from pyod.models.iforest import IForest
 from pyod.models.pca import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 # Scikit-Learn algorithms
@@ -31,7 +32,7 @@ from sprout.classifiers.ConfidenceBoosting import ConfidenceBoosting, Confidence
 # Works only with anomaly detection (no multi-class)
 # ------- GLOBAL VARS -----------
 
-CSV_FOLDER = "input_folder/NIDS"
+CSV_FOLDER = "input_folder/all"
 # Name of the column that contains the label in the tabular (CSV) dataset
 LABEL_NAME = 'multilabel'
 # Name of the 'normal' class in datasets. This will be used only for binary classification (anomaly detection)
@@ -44,7 +45,7 @@ TT_SPLIT = 0.5
 VERBOSE = True
 # True if we want to conduct anomaly detection.
 # This transforms multi-class labels into binary labels (rule: normal class vs others)
-BINARIZE = False
+BINARIZE = True
 
 # Set random seed for reproducibility
 random.seed(42)
@@ -69,12 +70,12 @@ def get_learners(cont_perc):
     :return: the list of classifiers to be trained
     """
     base_learners = [
-        XGB(n_estimators=30),
+        XGB(n_estimators=20),
         DecisionTreeClassifier(),
         Pipeline([("norm", MinMaxScaler()), ("gnb", GaussianNB())]),
-        Pipeline([("norm", MinMaxScaler()), ("mnb", MultinomialNB())]),
-        GradientBoostingClassifier(n_estimators=30),
-        RandomForestClassifier(n_estimators=30),
+        #Pipeline([("norm", MinMaxScaler()), ("mnb", MultinomialNB())]),
+        #GradientBoostingClassifier(n_estimators=30),
+        RandomForestClassifier(n_estimators=20),
         LinearDiscriminantAnalysis(),
         LogisticRegression(),
     ]
@@ -85,6 +86,7 @@ def get_learners(cont_perc):
             UnsupervisedClassifier(PCA(contamination=cont_alg)),
             UnsupervisedClassifier(HBOS(contamination=cont_alg, n_bins=30)),
             UnsupervisedClassifier(CBLOF(contamination=cont_alg, alpha=0.75, beta=3, n_jobs=-1)),
+            UnsupervisedClassifier(IForest(contamination=cont_alg, n_estimators=10, n_jobs=-1)),
             # VotingClassifier(estimators=[('dt', DecisionTreeClassifier()),
             #                              ('pca', UnsupervisedClassifier(PCA(contamination=cont_alg))),
             #                              ('hbos', UnsupervisedClassifier(HBOS(contamination=cont_alg, n_bins=30)))],
@@ -98,7 +100,7 @@ def get_learners(cont_perc):
     learners = []
     for clf in base_learners:
         learners.append(clf)
-        for n_base in [5]:
+        for n_base in [5, 10]:
             for s_ratio in [0.2]:
                 learners.append(ConfidenceBaggingWeighted(clf=clf, n_base=n_base,
                                                           sampling_ratio=s_ratio, max_features=0.7))
@@ -106,7 +108,7 @@ def get_learners(cont_perc):
                     learners.append(ConfidenceBagging(clf=clf, n_base=n_base, n_decisors=n_decisors,
                                                       sampling_ratio=s_ratio, max_features=0.7))
             for conf_thr in [0.9]:
-                for s_ratio in [0.05]:
+                for s_ratio in [0.1, 0.3]:
                     learners.append(ConfidenceBoosting(clf=clf, n_base=n_base,
                                                        learning_rate=2, sampling_ratio=s_ratio,
                                                        contamination=cont_perc, conf_thr=conf_thr))
@@ -192,27 +194,41 @@ if __name__ == '__main__':
                     clf_name = str(keys) if len(keys) != 2 else str(keys[1]).upper()
 
                 # Computing metrics
-                y_proba = classifier.predict_proba(x_test)
                 y_pred = classifier.predict(x_test)
+                if hasattr(classifier, 'predict_confidence') and callable(classifier.predict_confidence):
+                    y_conf = classifier.predict_confidence(x_test)
+                else:
+                    y_proba = classifier.predict_proba(x_test)
+                    y_conf = numpy.max(y_proba, axis=1)
+                conf_ok = y_conf[numpy.where(y_pred == y_test)[0]]
+                conf_ok_metrics = [numpy.min(conf_ok), numpy.median(conf_ok), numpy.average(conf_ok),
+                                   numpy.max(conf_ok)]
+                conf_misc = y_conf[numpy.where(y_pred != y_test)[0]]
+                conf_misc_metrics = [numpy.min(conf_misc), numpy.median(conf_misc), numpy.average(conf_misc),
+                                     numpy.max(conf_misc)]
+
                 acc = metrics.accuracy_score(y_test, y_pred)
                 misc = int((1 - acc) * len(y_test))
                 mcc = abs(metrics.matthews_corrcoef(y_test, y_pred))
                 if BINARIZE:
                     # Prints metrics for binary classification + train time and model size
                     tn, fp, fn, tp = metrics.confusion_matrix(y_test, y_pred).ravel()
-                    print('%s\t-> TP: %d, TN: %d, FP: %d, FN: %d, Accuracy: %.3f, MCC: %.3f - train time: %d ms'
-                          ' - model size: %.3f KB' % (clf_name, tp, tn, fp, fn, acc, mcc,
+                    print('%s\t-> TP: %d, TN: %d, FP: %d, FN: %d, Accuracy: %.3f, MCC: %.3f, Conf Diff: %.3f - train time: %d ms'
+                          ' - model size: %.3f KB' % (clf_name, tp, tn, fp, fn, acc, mcc, (conf_ok_metrics[2] - conf_misc_metrics[2]),
                                                       current_milli_time() - start_time, size / 1000.0))
                 else:
                     # Prints just accuracy for multi-class classification problems, no confusion matrix
-                    print('%s\t-> Accuracy: %.3f - train time: %d ms - model size: %.3f KB'
-                          % (clf_name, acc, current_milli_time() - start_time, size / 1000.0))
+                    print('%s\t-> Accuracy: %.3f, Conf Diff: %.3f - train time: %d ms - model size: %.3f KB'
+                          % (clf_name, acc, (conf_ok_metrics[2] - conf_misc_metrics[2]),
+                             current_milli_time() - start_time, size / 1000.0))
 
                 # Updates CSV file form metrics of experiment
                 with open(SCORES_FILE, "a") as myfile:
                     # Prints result of experiment in CSV file
                     myfile.write(full_name + "," + clf_name + "," + str(BINARIZE) + "," +
                                  str(TT_SPLIT) + ',' + str(acc) + "," + str(misc) + "," + str(mcc) + "," +
+                                 ";".join(["{:.4f}".format(met) for met in conf_ok_metrics]) + "," +
+                                 ";".join(["{:.4f}".format(met) for met in conf_misc_metrics]) + "," +
                                  str(current_milli_time() - start_time) + "," + str(size) + "\n")
 
                 classifier = None
