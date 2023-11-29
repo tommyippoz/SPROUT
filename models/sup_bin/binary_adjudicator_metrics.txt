@@ -1,0 +1,25 @@
+analysis tag:sup_bin
+binary classifier:RandomForestClassifier
+train data size:1944648
+train data features:['Confidence Interval (0.9/sup)' 'MaxProb Calculator' 'Entropy Calculator'
+ 'External Supervised Calculator (Pipeline/entropy)'
+ 'Combined Calculator (XGBClassifier)'
+ 'Multiple Combined Calculator (3 - PeLsLn classifiers)'
+ 'Multiple Combined Calculator (4 - PePePePe classifiers)'
+ 'Multiple Combined Calculator (3 - DrRrGr classifiers)'
+ 'uncertainty calculator on 19 Neighbors_agreement'
+ 'uncertainty calculator on 19 Neighbors_uncertainty'
+ 'Proximity Uncertainty (10/0.1)' 'Proximity Uncertainty (20/0.05)'
+ 'AutoEncoder Loss (simple)' 'ConfidenceBagger(5-2-0.7-0.5)'
+ 'ConfidenceBooster(5-0.9-2-0.3)']
+original misclassification ratio of training set:0.02168798672047589
+actual misclassification ratio in training set:None
+test_mcc:0.6668861408998279
+test_acc:0.9879191504066546
+test_auc:0.7561667586545247
+test_p:0.8787399659450256
+test_r:0.5139056831922612
+test_tp:7225
+test_tn:633160
+test_fp:997
+test_fn:6834

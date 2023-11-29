@@ -1,0 +1,13 @@
+# File that lists the calculators used to build this SPROUT object
+1: Confidence Interval (0.5/none)
+2: MaxProb Calculator
+3: Entropy Calculator
+4: uncertainty calculator on 19 Neighbors
+5: Proximity Uncertainty (10/0.1)
+6: Combined Calculator (PCA)
+7: Multiple Combined Calculator (2 - CDED classifiers)
+8: Multiple Combined Calculator (4 - CFPAMDHS classifiers)
+9: Multiple Combined Calculator (2 - ItIE classifiers)
+10: AutoEncoder Loss (simple)
+11: ConfidenceBagger(10-6-0.7-0.7)
+12: ConfidenceBooster(10-0.8-2-0.5)

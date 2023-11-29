@@ -9,7 +9,7 @@ from sprout.utils.dataset_utils import load_MNIST
 from sprout.utils.general_utils import current_ms
 
 MODELS_FOLDER = "../models/"
-MODEL_TAG = "test_sup"
+MODEL_TAG = "sup_multi"
 
 if __name__ == '__main__':
     """

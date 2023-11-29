@@ -1,0 +1,13 @@
+Confidence Interval (0.5/uns),0.08951225310205983
+MaxProb Calculator,0.04469739758828037
+Entropy Calculator,0.041060203892013536
+uncertainty calculator on 19 Neighbors_agreement,0.036199950669124896
+uncertainty calculator on 19 Neighbors_uncertainty,0.04691905332893772
+Proximity Uncertainty (10/0.1),0.01942290256384688
+Combined Calculator (PCA),0.11232139465715804
+Multiple Combined Calculator (2 - CDED classifiers),0.1006798121423825
+Multiple Combined Calculator (4 - CFPAMDHS classifiers),0.16716685707401968
+Multiple Combined Calculator (2 - ItIE classifiers),0.11764571103720059
+AutoEncoder Loss (simple),0.11275514750898234
+ConfidenceBagger(5-2-0.7-0.5),0.05988797405003173
+ConfidenceBooster(5-0.9-2-0.3),0.051731342385961866

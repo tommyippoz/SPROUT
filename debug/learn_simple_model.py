@@ -36,15 +36,15 @@ from sprout.utils.sprout_utils import build_SPROUT_dataset
 
 # Vars for Generating Uncertainties
 FILE_AVOID_TAG = None
-MODEL_TYPE = 'SUP'
+MODEL_TYPE = 'UNS'
 GENERATE_UNCERTAINTIES = False
 
 # Vars for Learning Model
 MODELS_FOLDER = "../models/"
 STUDY_TAG = {
-    "sup_all": "./datasets_measures/sup/all",
-    "sup_bin": "./datasets_measures/sup/bindatasets",
-    "sup_multi": "./datasets_measures/sup/nonbindatasets",
+    "uns_all": "./datasets_measures/unsup/all",
+    #"uns_bin": "./datasets_measures/unsup/bindatasets",
+    #"uns_multi": "./datasets_measures/unsup/nonbindatasets",
 }
 
 MISC_RATIOS = [None, 0.05, 0.1, 0.2, 0.3]
@@ -285,11 +285,11 @@ if __name__ == '__main__':
             # Classifiers for Detection (Binary Adjudicator)
             m_frac = 0.5 if m_frac > 0.5 else m_frac
             CLASSIFIERS = [GradientBoostingClassifier(n_estimators=10),
-                           GradientBoostingClassifier(n_estimators=30),
+                           GradientBoostingClassifier(n_estimators=20),
                            DecisionTreeClassifier(),
                            LinearDiscriminantAnalysis(),
                            RandomForestClassifier(n_estimators=10),
-                           RandomForestClassifier(n_estimators=30),
+                           RandomForestClassifier(n_estimators=20),
                            GaussianNB(),
                            LogisticReg(),
                            ]

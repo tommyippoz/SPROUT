@@ -1,0 +1,23 @@
+analysis tag:uns_all
+binary classifier:RandomForestClassifier
+train data size:6188478
+train data features:['Confidence Interval (0.5/uns)' 'MaxProb Calculator' 'Entropy Calculator'
+ 'uncertainty calculator on 19 Neighbors_agreement'
+ 'uncertainty calculator on 19 Neighbors_uncertainty'
+ 'Proximity Uncertainty (10/0.1)' 'Combined Calculator (PCA)'
+ 'Multiple Combined Calculator (2 - CDED classifiers)'
+ 'Multiple Combined Calculator (4 - CFPAMDHS classifiers)'
+ 'Multiple Combined Calculator (2 - ItIE classifiers)'
+ 'AutoEncoder Loss (simple)' 'ConfidenceBagger(5-2-0.7-0.5)'
+ 'ConfidenceBooster(5-0.9-2-0.3)']
+original misclassification ratio of training set:0.12990066419796625
+actual misclassification ratio in training set:0.05
+test_mcc:0.8633497229941367
+test_acc:0.9701836363398385
+test_auc:0.908783654507142
+test_p:0.937254686104066
+test_r:0.8258240220858438
+test_tp:221358
+test_tn:1779963
+test_fp:14819
+test_fn:46687
