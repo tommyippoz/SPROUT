@@ -364,17 +364,6 @@ class UnsupervisedClassifier(Classifier, BaseDetector):
         probas = self.predict_proba(X)
         return numpy.argmax(probas, axis=1)
 
-    def predict_confidence(self, X):
-        """
-        Method to compute confidence in the predicted class
-        :return: max probability as default
-        """
-        if isinstance(self.clf, pyod.models.base.BaseDetector):
-            return self.clf.predict_confidence(X)
-        else:
-            probas = self.predict_proba(X)
-            return numpy.max(probas, axis=1)
-
     def classifier_name(self):
         """
         Returns the name of the classifier (as string)

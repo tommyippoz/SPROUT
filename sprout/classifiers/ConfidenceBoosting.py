@@ -157,7 +157,11 @@ class ConfidenceBoosting(Classifier):
         """
         conf = numpy.zeros(X.shape[0])
         for clf in self.base_learners:
-            c_conf = clf.predict_confidence(X)
+            if hasattr(clf, 'predict_confidence') and callable(clf.predict_confidence):
+                c_conf = clf.predict_confidence(X)
+            else:
+                y_proba = clf.predict_proba(X)
+                c_conf = numpy.max(y_proba, axis=1)
             conf += c_conf
         return conf / self.n_base
 

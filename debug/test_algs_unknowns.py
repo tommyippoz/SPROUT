@@ -72,7 +72,7 @@ def get_learners(cont_perc):
         XGB(n_estimators=30),
         DecisionTreeClassifier(),
         Pipeline([("norm", MinMaxScaler()), ("gnb", GaussianNB())]),
-        #Pipeline([("norm", MinMaxScaler()), ("mnb", MultinomialNB())]),
+        # Pipeline([("norm", MinMaxScaler()), ("mnb", MultinomialNB())]),
         GradientBoostingClassifier(n_estimators=30),
         RandomForestClassifier(n_estimators=30),
         LinearDiscriminantAnalysis(),
@@ -84,7 +84,7 @@ def get_learners(cont_perc):
     base_learners.extend([
         UnsupervisedClassifier(PCA(contamination=cont_alg)),
         UnsupervisedClassifier(INNE(contamination=cont_alg, n_estimators=10)),
-        #UnsupervisedClassifier(MCD(contamination=cont_alg, support_fraction=0.9)),
+        # UnsupervisedClassifier(MCD(contamination=cont_alg, support_fraction=0.9)),
         UnsupervisedClassifier(IForest(contamination=cont_alg, n_estimators=10)),
         UnsupervisedClassifier(HBOS(contamination=cont_alg, n_bins=30)),
         UnsupervisedClassifier(CBLOF(contamination=cont_alg, alpha=0.75, beta=3, n_jobs=-1)),
@@ -101,7 +101,7 @@ def get_learners(cont_perc):
     learners = []
     for clf in base_learners:
         learners.append(clf)
-        for n_base in [5, 10]:
+        for n_base in [5]:
             for s_ratio in [0.2, 0.5]:
                 learners.append(ConfidenceBaggingWeighted(clf=clf, n_base=n_base,
                                                           sampling_ratio=s_ratio, max_features=0.7))
@@ -109,13 +109,13 @@ def get_learners(cont_perc):
                     learners.append(ConfidenceBagging(clf=clf, n_base=n_base, n_decisors=n_decisors,
                                                       sampling_ratio=s_ratio, max_features=0.7))
             for conf_thr in [0.9, 0.8]:
-                for s_ratio in [0.1, 0.3]:
+                for s_ratio in [0.1, 0.3, 0.5]:
                     learners.append(ConfidenceBoosting(clf=clf, n_base=n_base,
                                                        learning_rate=2, sampling_ratio=s_ratio,
                                                        contamination=cont_perc, conf_thr=conf_thr))
-                    #learners.append(ConfidenceBoostingWeighted(clf=clf, n_base=n_base,
-                    #                                   learning_rate=2, sampling_ratio=s_ratio,
-                    #                                   contamination=cont_perc, conf_thr=conf_thr))
+                    learners.append(ConfidenceBoostingWeighted(clf=clf, n_base=n_base,
+                                                               learning_rate=2, sampling_ratio=s_ratio,
+                                                               contamination=cont_perc, conf_thr=conf_thr))
 
     return learners
 
@@ -126,7 +126,8 @@ def get_learners(cont_perc):
 if __name__ == '__main__':
 
     with open(SCORES_FILE, 'w') as f:
-        f.write("dataset_tag,unknown,clf,len_test,len_unk,acc,mcc,rec_unk,time,model_size\n")
+        f.write(
+            "dataset_tag,unknown,clf,len_test,len_unk,acc,mcc,rec_unk,ok_confs,misc_confs,unk_ok_confs,unk_misc_confs,time,model_size\n")
 
     # Iterating over CSV files in folder
     for dataset_file in os.listdir(CSV_FOLDER):
@@ -166,7 +167,7 @@ if __name__ == '__main__':
                 x_tr, x_test, y_tr, y_te = ms.train_test_split(x_no_cat, y, test_size=TT_SPLIT, shuffle=True)
 
                 index = 0
-                tot = (len(classes) - 1)*len(get_learners(0.5))
+                tot = (len(classes) - 1) * len(get_learners(0.5))
                 # Iterate over anomalies
                 for anomaly in classes:
 
@@ -215,18 +216,50 @@ if __name__ == '__main__':
 
                             # Computing metrics
                             y_pred = classifier.predict(x_test)
+                            if hasattr(classifier, 'predict_confidence') and callable(classifier.predict_confidence):
+                                y_conf = classifier.predict_confidence(x_test)
+                            else:
+                                y_proba = classifier.predict_proba(x_test)
+                                y_conf = numpy.max(y_proba, axis=1)
+                            conf_ok = y_conf[numpy.where(y_pred == y_test)[0]]
+                            conf_ok = [0.5] if len(conf_ok) == 0 else conf_ok
+                            conf_ok_metrics = [numpy.min(conf_ok), numpy.median(conf_ok), numpy.average(conf_ok),
+                                               numpy.max(conf_ok)]
+                            conf_misc = y_conf[numpy.where(y_pred != y_test)[0]]
+                            conf_misc = [0.5] if len(conf_misc) == 0 else conf_misc
+                            conf_misc_metrics = [numpy.min(conf_misc), numpy.median(conf_misc),
+                                                 numpy.average(conf_misc),
+                                                 numpy.max(conf_misc)]
                             acc = metrics.accuracy_score(y_test, y_pred)
                             mcc = abs(metrics.matthews_corrcoef(y_test, y_pred))
+
                             # Computing metrics for unknowns
                             y_pred_unk = classifier.predict(x_test_unknowns)
                             rec_unk = numpy.average(y_test_unknowns == y_pred_unk)
+                            if hasattr(classifier, 'predict_confidence') and callable(classifier.predict_confidence):
+                                y_conf = classifier.predict_confidence(x_test_unknowns)
+                            else:
+                                y_proba = classifier.predict_proba(x_test_unknowns)
+                                y_conf = numpy.max(y_proba, axis=1)
+                            conf_ok = y_conf[numpy.where(y_pred_unk == y_test_unknowns)[0]]
+                            conf_ok = [0.5] if len(conf_ok) == 0 else conf_ok
+                            confunk_ok_metrics = [numpy.min(conf_ok), numpy.median(conf_ok), numpy.average(conf_ok),
+                                                  numpy.max(conf_ok)]
+                            conf_misc = y_conf[numpy.where(y_pred_unk != y_test_unknowns)[0]]
+                            conf_misc = [0.5] if len(conf_misc) == 0 else conf_misc
+                            confunk_misc_metrics = [numpy.min(conf_misc), numpy.median(conf_misc),
+                                                    numpy.average(conf_misc),
+                                                    numpy.max(conf_misc)]
 
                             # Prints metrics for binary classification + train time and model size
-                            index +=1
-                            tn, fp, fn, tp = metrics.confusion_matrix(y_test, y_pred).ravel()
-                            print('%d/%d %s\t-> TP: %d, TN: %d, FP: %d, FN: %d, ACC: %.3f, MCC: %.3f, REC_UNK: %.3f '
-                                  '- train time: %d ms - model size: %.3f KB' % (index, tot, clf_name, tp, tn, fp, fn, acc, mcc, rec_unk,
-                                                              current_milli_time() - start_time, size / 1000.0))
+                            index += 1
+                            print(
+                                '%d/%d %s\t-> ACC: %.3f, MCC: %.3f, REC_UNK: %.3f, Conf Diff: %.3f, ConfUnk Diff: %.3f '
+                                '- train time: %d ms - model size: %.3f KB' %
+                                (index, tot, clf_name, acc, mcc, rec_unk,
+                                 (conf_ok_metrics[2] - conf_misc_metrics[2]),
+                                 (confunk_ok_metrics[2] - confunk_misc_metrics[2]),
+                                 current_milli_time() - start_time, size / 1000.0))
 
                             # Updates CSV file form metrics of experiment
                             with open(SCORES_FILE, "a") as myfile:
@@ -234,6 +267,10 @@ if __name__ == '__main__':
                                 myfile.write(full_name + "," + str(anomaly) + "," + clf_name +
                                              "," + str(len(y_test)) + ',' + str(len(y_test_unknowns)) + ',' +
                                              str(acc) + "," + str(mcc) + "," + str(rec_unk) + "," +
+                                             ";".join(["{:.4f}".format(met) for met in conf_ok_metrics]) + "," +
+                                             ";".join(["{:.4f}".format(met) for met in conf_misc_metrics]) + "," +
+                                             ";".join(["{:.4f}".format(met) for met in confunk_ok_metrics]) + "," +
+                                             ";".join(["{:.4f}".format(met) for met in confunk_misc_metrics]) + "," +
                                              str(current_milli_time() - start_time) + "," + str(size) + "\n")
 
                             classifier = None
