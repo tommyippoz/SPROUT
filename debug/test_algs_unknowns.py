@@ -9,6 +9,7 @@ import sklearn.metrics as metrics
 import sklearn.model_selection as ms
 # Used to save a classifier and measure its size in KB
 from joblib import dump
+from logitboost import LogitBoost
 from pyod.models.cblof import CBLOF
 from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
@@ -17,12 +18,12 @@ from pyod.models.mcd import MCD
 from pyod.models.pca import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 # Scikit-Learn algorithms
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB, MultinomialNB
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
 from xgboost import XGBClassifier
 
 # Name of the folder in which look for tabular (CSV) datasets
@@ -72,11 +73,11 @@ def get_learners(cont_perc):
         XGB(n_estimators=30),
         DecisionTreeClassifier(),
         Pipeline([("norm", MinMaxScaler()), ("gnb", GaussianNB())]),
-        # Pipeline([("norm", MinMaxScaler()), ("mnb", MultinomialNB())]),
-        GradientBoostingClassifier(n_estimators=30),
         RandomForestClassifier(n_estimators=30),
         LinearDiscriminantAnalysis(),
         LogisticRegression(),
+        ExtraTreesClassifier(n_estimators=30),
+        LogitBoost(n_estimators=30)
     ]
 
     # If binary classification, we can use unsupervised classifiers also
@@ -84,24 +85,15 @@ def get_learners(cont_perc):
     base_learners.extend([
         UnsupervisedClassifier(PCA(contamination=cont_alg)),
         UnsupervisedClassifier(INNE(contamination=cont_alg, n_estimators=10)),
-        # UnsupervisedClassifier(MCD(contamination=cont_alg, support_fraction=0.9)),
         UnsupervisedClassifier(IForest(contamination=cont_alg, n_estimators=10)),
         UnsupervisedClassifier(HBOS(contamination=cont_alg, n_bins=30)),
         UnsupervisedClassifier(CBLOF(contamination=cont_alg, alpha=0.75, beta=3, n_jobs=-1)),
-        # VotingClassifier(estimators=[('dt', DecisionTreeClassifier()),
-        #                              ('pca', UnsupervisedClassifier(PCA(contamination=cont_alg))),
-        #                              ('hbos', UnsupervisedClassifier(HBOS(contamination=cont_alg, n_bins=30)))],
-        #                  voting='soft'),
-        # UnsupervisedClassifier(HBOS(contamination=cont_alg)),
-        # GridSearchCV(estimator=ConfidenceBagging(clf=DecisionTreeClassifier()),
-        #             param_grid={'n_base': [2, 3, 5], 'max_depth': [2, None]},
-        #             scoring='accuracy')
     ])
 
     learners = []
     for clf in base_learners:
         learners.append(clf)
-        for n_base in [5]:
+        for n_base in [5, 10]:
             for s_ratio in [0.2, 0.5]:
                 learners.append(ConfidenceBaggingWeighted(clf=clf, n_base=n_base,
                                                           sampling_ratio=s_ratio, max_features=0.7))
@@ -125,11 +117,16 @@ def get_learners(cont_perc):
 
 if __name__ == '__main__':
 
-    with open(SCORES_FILE, 'w') as f:
-        f.write(
-            "dataset_tag,unknown,clf,len_test,len_unk,acc,mcc,rec_unk,ok_confs,misc_confs,unk_ok_confs,unk_misc_confs,time,model_size\n")
+    existing_exps = None
+    if os.path.exists(SCORES_FILE):
+        existing_exps = pandas.read_csv(SCORES_FILE)
+        existing_exps = existing_exps.loc[:, ['dataset_tag', 'unknown', 'clf']]
+    else:
+        with open(SCORES_FILE, 'w') as f:
+            f.write("dataset_tag,unknown,clf,len_test,len_unk,acc,mcc,rec_unk,ok_confs,misc_confs,unk_ok_confs,"
+                    "unk_misc_confs,time,model_size\n")
 
-    # Iterating over CSV files in folder
+            # Iterating over CSV files in folder
     for dataset_file in os.listdir(CSV_FOLDER):
         full_name = os.path.join(CSV_FOLDER, dataset_file)
         if full_name.endswith(".csv"):
@@ -196,83 +193,96 @@ if __name__ == '__main__':
 
                         # Loop for training and testing each learner specified by LEARNER_TAGS
                         contamination = 1 - normal_perc if normal_perc is not None else None
-                        for classifier in get_learners(contamination):
+                        learners = get_learners(contamination)
+                        i = 1
+                        for classifier in learners:
 
-                            # Training the algorithm to get a model
-                            start_time = current_milli_time()
-                            classifier.fit(x_train, y_train)
-
-                            # Quantifying size of the model
-                            dump(classifier, "clf_dump.bin", compress=9)
-                            size = os.stat("clf_dump.bin").st_size
-                            os.remove("clf_dump.bin")
-
-                            # Getting Name
+                            # Getting classifier Name
                             clf_name = classifier.classifier_name() if hasattr(classifier,
                                                                                'classifier_name') else classifier.__class__.__name__
                             if clf_name == 'Pipeline':
                                 keys = list(classifier.named_steps.keys())
                                 clf_name = str(keys) if len(keys) != 2 else str(keys[1]).upper()
 
-                            # Computing metrics
-                            y_pred = classifier.predict(x_test)
-                            if hasattr(classifier, 'predict_confidence') and callable(classifier.predict_confidence):
-                                y_conf = classifier.predict_confidence(x_test)
+                            if existing_exps is not None and (((existing_exps['dataset_tag'] == full_name) &
+                                                               (existing_exps['unknown'] == anomaly) &
+                                                               (existing_exps['clf'] == clf_name)).any()):
+                                print('%d/%d Skipping classifier %s, already in the results' % (
+                                    i, len(learners), clf_name))
+
                             else:
-                                y_proba = classifier.predict_proba(x_test)
-                                y_conf = numpy.max(y_proba, axis=1)
-                            conf_ok = y_conf[numpy.where(y_pred == y_test)[0]]
-                            conf_ok = [0.5] if len(conf_ok) == 0 else conf_ok
-                            conf_ok_metrics = [numpy.min(conf_ok), numpy.median(conf_ok), numpy.average(conf_ok),
-                                               numpy.max(conf_ok)]
-                            conf_misc = y_conf[numpy.where(y_pred != y_test)[0]]
-                            conf_misc = [0.5] if len(conf_misc) == 0 else conf_misc
-                            conf_misc_metrics = [numpy.min(conf_misc), numpy.median(conf_misc),
-                                                 numpy.average(conf_misc),
-                                                 numpy.max(conf_misc)]
-                            acc = metrics.accuracy_score(y_test, y_pred)
-                            mcc = abs(metrics.matthews_corrcoef(y_test, y_pred))
 
-                            # Computing metrics for unknowns
-                            y_pred_unk = classifier.predict(x_test_unknowns)
-                            rec_unk = numpy.average(y_test_unknowns == y_pred_unk)
-                            if hasattr(classifier, 'predict_confidence') and callable(classifier.predict_confidence):
-                                y_conf = classifier.predict_confidence(x_test_unknowns)
-                            else:
-                                y_proba = classifier.predict_proba(x_test_unknowns)
-                                y_conf = numpy.max(y_proba, axis=1)
-                            conf_ok = y_conf[numpy.where(y_pred_unk == y_test_unknowns)[0]]
-                            conf_ok = [0.5] if len(conf_ok) == 0 else conf_ok
-                            confunk_ok_metrics = [numpy.min(conf_ok), numpy.median(conf_ok), numpy.average(conf_ok),
-                                                  numpy.max(conf_ok)]
-                            conf_misc = y_conf[numpy.where(y_pred_unk != y_test_unknowns)[0]]
-                            conf_misc = [0.5] if len(conf_misc) == 0 else conf_misc
-                            confunk_misc_metrics = [numpy.min(conf_misc), numpy.median(conf_misc),
-                                                    numpy.average(conf_misc),
-                                                    numpy.max(conf_misc)]
+                                # Training the algorithm to get a model
+                                start_time = current_milli_time()
+                                classifier.fit(x_train, y_train)
 
-                            # Prints metrics for binary classification + train time and model size
-                            index += 1
-                            print(
-                                '%d/%d %s\t-> ACC: %.3f, MCC: %.3f, REC_UNK: %.3f, Conf Diff: %.3f, ConfUnk Diff: %.3f '
-                                '- train time: %d ms - model size: %.3f KB' %
-                                (index, tot, clf_name, acc, mcc, rec_unk,
-                                 (conf_ok_metrics[2] - conf_misc_metrics[2]),
-                                 (confunk_ok_metrics[2] - confunk_misc_metrics[2]),
-                                 current_milli_time() - start_time, size / 1000.0))
+                                # Quantifying size of the model
+                                dump(classifier, "clf_dump.bin", compress=9)
+                                size = os.stat("clf_dump.bin").st_size
+                                os.remove("clf_dump.bin")
 
-                            # Updates CSV file form metrics of experiment
-                            with open(SCORES_FILE, "a") as myfile:
-                                # Prints result of experiment in CSV file
-                                myfile.write(full_name + "," + str(anomaly) + "," + clf_name +
-                                             "," + str(len(y_test)) + ',' + str(len(y_test_unknowns)) + ',' +
-                                             str(acc) + "," + str(mcc) + "," + str(rec_unk) + "," +
-                                             ";".join(["{:.4f}".format(met) for met in conf_ok_metrics]) + "," +
-                                             ";".join(["{:.4f}".format(met) for met in conf_misc_metrics]) + "," +
-                                             ";".join(["{:.4f}".format(met) for met in confunk_ok_metrics]) + "," +
-                                             ";".join(["{:.4f}".format(met) for met in confunk_misc_metrics]) + "," +
-                                             str(current_milli_time() - start_time) + "," + str(size) + "\n")
+                                # Computing metrics
+                                y_pred = classifier.predict(x_test)
+                                if hasattr(classifier, 'predict_confidence') and callable(
+                                        classifier.predict_confidence):
+                                    y_conf = classifier.predict_confidence(x_test)
+                                else:
+                                    y_proba = classifier.predict_proba(x_test)
+                                    y_conf = numpy.max(y_proba, axis=1)
+                                conf_ok = y_conf[numpy.where(y_pred == y_test)[0]]
+                                conf_ok = [0.5] if len(conf_ok) == 0 else conf_ok
+                                conf_ok_metrics = [numpy.min(conf_ok), numpy.median(conf_ok), numpy.average(conf_ok),
+                                                   numpy.max(conf_ok)]
+                                conf_misc = y_conf[numpy.where(y_pred != y_test)[0]]
+                                conf_misc = [0.5] if len(conf_misc) == 0 else conf_misc
+                                conf_misc_metrics = [numpy.min(conf_misc), numpy.median(conf_misc),
+                                                     numpy.average(conf_misc),
+                                                     numpy.max(conf_misc)]
+                                acc = metrics.accuracy_score(y_test, y_pred)
+                                mcc = abs(metrics.matthews_corrcoef(y_test, y_pred))
+
+                                # Computing metrics for unknowns
+                                y_pred_unk = classifier.predict(x_test_unknowns)
+                                rec_unk = numpy.average(y_test_unknowns == y_pred_unk)
+                                if hasattr(classifier, 'predict_confidence') and callable(
+                                        classifier.predict_confidence):
+                                    y_conf = classifier.predict_confidence(x_test_unknowns)
+                                else:
+                                    y_proba = classifier.predict_proba(x_test_unknowns)
+                                    y_conf = numpy.max(y_proba, axis=1)
+                                conf_ok = y_conf[numpy.where(y_pred_unk == y_test_unknowns)[0]]
+                                conf_ok = [0.5] if len(conf_ok) == 0 else conf_ok
+                                confunk_ok_metrics = [numpy.min(conf_ok), numpy.median(conf_ok), numpy.average(conf_ok),
+                                                      numpy.max(conf_ok)]
+                                conf_misc = y_conf[numpy.where(y_pred_unk != y_test_unknowns)[0]]
+                                conf_misc = [0.5] if len(conf_misc) == 0 else conf_misc
+                                confunk_misc_metrics = [numpy.min(conf_misc), numpy.median(conf_misc),
+                                                        numpy.average(conf_misc),
+                                                        numpy.max(conf_misc)]
+
+                                # Prints metrics for binary classification + train time and model size
+                                print(
+                                    '%d/%d %s\t-> ACC: %.3f, MCC: %.3f, REC_UNK: %.3f, Conf Diff: %.3f, ConfUnk Diff: %.3f '
+                                    '- train time: %d ms - model size: %.3f KB' %
+                                    (index, tot, clf_name, acc, mcc, rec_unk,
+                                     (conf_ok_metrics[2] - conf_misc_metrics[2]),
+                                     (confunk_ok_metrics[2] - confunk_misc_metrics[2]),
+                                     current_milli_time() - start_time, size / 1000.0))
+
+                                # Updates CSV file form metrics of experiment
+                                with open(SCORES_FILE, "a") as myfile:
+                                    # Prints result of experiment in CSV file
+                                    myfile.write(full_name + "," + str(anomaly) + "," + clf_name +
+                                                 "," + str(len(y_test)) + ',' + str(len(y_test_unknowns)) + ',' +
+                                                 str(acc) + "," + str(mcc) + "," + str(rec_unk) + "," +
+                                                 ";".join(["{:.4f}".format(met) for met in conf_ok_metrics]) + "," +
+                                                 ";".join(["{:.4f}".format(met) for met in conf_misc_metrics]) + "," +
+                                                 ";".join(["{:.4f}".format(met) for met in confunk_ok_metrics]) + "," +
+                                                 ";".join(
+                                                     ["{:.4f}".format(met) for met in confunk_misc_metrics]) + "," +
+                                                 str(current_milli_time() - start_time) + "," + str(size) + "\n")
 
                             classifier = None
+                            index += 1
             else:
                 print('Dataset does not have more than 2 classes, no way to simulating unknowns')
