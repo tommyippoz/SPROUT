@@ -6,6 +6,7 @@ import pandas as pd
 import pyod
 import sklearn
 from autogluon.tabular import TabularPredictor
+from logitboost import LogitBoost
 from pyod.models.abod import ABOD
 from pyod.models.base import BaseDetector
 from pyod.models.cblof import CBLOF
@@ -130,6 +131,8 @@ def choose_classifier(clf_name, features, y_label, metric, contamination=None):
         return LogisticReg()
     elif clf_name in {"RF", "RandomForest"}:
         return RandomForestClassifier(n_estimators=10)
+    elif clf_name in {"LB", "LogBoost", "LogitBoost"}:
+        return LogitBoost(n_estimators=10)
     elif clf_name in {"TabNet", "Tabnet", "TN"}:
         return TabNet(metric="auc", verbose=0)
     elif clf_name in {"FAI", "FastAI", "FASTAI", "fastai"}:
