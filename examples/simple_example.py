@@ -12,7 +12,7 @@ if __name__ == '__main__':
     Main to calculate confidence measures for SKLEARN classifiers using NSL-KDD dataset from
     https://www.kaggle.com/datasets/hassan06/nslkdd
     """
-    # Reading sample dataset (NSL-KDD)
+    # Reading sample dataset (NSLKDD)
     x_train, x_test, y_train, y_test, label_names, feature_names = \
         process_binary_tabular_dataset(dataset_name="input_folder/NSLKDD.csv", label_name="multilabel", limit=100000)
 
