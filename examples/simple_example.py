@@ -16,7 +16,7 @@ if __name__ == '__main__':
     x_train, x_test, y_train, y_test, label_names, feature_names = \
         process_binary_tabular_dataset(dataset_name="input_folder/NSLKDD.csv", label_name="multilabel", limit=100000)
 
-    # Initializes classifier
+    # Initializes  classifier
     clf = DecisionTreeClassifier()
 
     # Exercises the clf and the SPROUT wrapper
