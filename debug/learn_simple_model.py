@@ -289,8 +289,7 @@ if __name__ == '__main__':
                            RandomForestClassifier(n_estimators=10),
                            RandomForestClassifier(n_estimators=20),
                            GaussianNB(),
-                           LogisticReg(),
-                           ]
+                           LogisticReg()]
 
             # Training Binary Adjudicators to Predict Misclassifications
             best_clf = None

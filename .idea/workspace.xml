@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="b298bc03-6995-4dcf-8028-ddf396458b6a" name="Changes" comment="refactor">
-      <change beforePath="$PROJECT_DIR$/examples/simple_example.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/simple_example.py" afterDir="false" />
+    <list default="true" id="b298bc03-6995-4dcf-8028-ddf396458b6a" name="Changes" comment="refactor 2">
+      <change afterPath="$PROJECT_DIR$/debug/learn_dnn_misc_detector.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/debug/learn_simple_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/debug/learn_simple_model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/debug/learn_sprout_model.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/debug/process_results.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/debug/sprout_single_dataset.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/debug/test_algs.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/debug/test_algs_unknowns.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -28,7 +35,6 @@
     </file-type-list>
   </component>
   <component name="HighlightingSettingsPerFile">
-    <setting file="file://$PROJECT_DIR$/debug/test_algs.py" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/sprout/classifiers/Classifier.py" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="MarkdownSettingsMigration">
@@ -407,7 +413,14 @@
       <option name="project" value="LOCAL" />
       <updated>1717499606739</updated>
     </task>
-    <option name="localTasksCounter" value="33" />
+    <task id="LOCAL-00033" summary="refactor 2">
+      <created>1717507061943</created>
+      <option name="number" value="00033" />
+      <option name="presentableId" value="LOCAL-00033" />
+      <option name="project" value="LOCAL" />
+      <updated>1717507061943</updated>
+    </task>
+    <option name="localTasksCounter" value="34" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -442,7 +455,8 @@
     <MESSAGE value="confboost weighted" />
     <MESSAGE value="test unks" />
     <MESSAGE value="refactor" />
-    <option name="LAST_COMMIT_MESSAGE" value="refactor" />
+    <MESSAGE value="refactor 2" />
+    <option name="LAST_COMMIT_MESSAGE" value="refactor 2" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -461,11 +475,6 @@
           <url>file://$PROJECT_DIR$/venv/lib/python3.8/site-packages/pyod/models/abod.py</url>
           <line>24</line>
           <option name="timeStamp" value="30" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/debug/um_scorer.py</url>
-          <line>107</line>
-          <option name="timeStamp" value="42" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
