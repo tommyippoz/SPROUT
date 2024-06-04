@@ -14,22 +14,20 @@ from pyod.models.cblof import CBLOF
 from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
 from pyod.models.inne import INNE
-from pyod.models.mcd import MCD
 from pyod.models.pca import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 # Scikit-Learn algorithms
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.naive_bayes import GaussianNB, MultinomialNB
+from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
-from xgboost import XGBClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sprout.classifiers.ConfidenceBagging import ConfidenceBagging, ConfidenceBaggingWeighted
+from sprout.classifiers.ConfidenceBoosting import ConfidenceBoosting, ConfidenceBoostingWeighted
 
 # Name of the folder in which look for tabular (CSV) datasets
 from sprout.classifiers.Classifier import XGB, UnsupervisedClassifier
-from sprout.classifiers.ConfidenceBagging import ConfidenceBagging, ConfidenceBaggingWeighted
-from sprout.classifiers.ConfidenceBoosting import ConfidenceBoosting, ConfidenceBoostingWeighted
 
 # The PYOD library contains implementations of unsupervised classifiers.
 # Works only with anomaly detection (no multi-class)

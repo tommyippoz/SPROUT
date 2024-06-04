@@ -14,11 +14,40 @@ from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval,
     ReconstructionLoss, \
     ExternalUnsupervisedUncertainty, MaxProbUncertainty, AgreementUncertainty, \
     ConfidenceBaggingUncertainty, ConfidenceBoostingUncertainty
-from sprout.utils import general_utils
 from sprout.classifiers.Classifier import get_classifier_name
-from sprout.utils.general_utils import get_full_class_name
-from sprout.utils.sprout_utils import read_calculators
+from sprout.utils import general_utils
+from sprout.utils.general_utils import get_full_class_name, current_ms
+from sprout.utils.sprout_utils import read_calculators, compute_omission_metrics
 
+
+def exercise_wrapper(model_tag, models_folder, classifier, x_train, y_train, x_test, y_test, label_names, verbose=True):
+    # Creating classifier clf
+    if verbose:
+        print("\nBuilding classifier: " + get_classifier_name(classifier))
+    start_ms = current_ms()
+    classifier.fit(x_train, y_train)
+    train_ms = current_ms()
+    y_pred = classifier.predict(x_test)
+    test_time = current_ms() - train_ms
+    train_time = train_ms - start_ms
+
+    # Loading SPROUT object with a specific tag amongst those existing
+    sprout_obj = SPROUTObject(models_folder=models_folder)
+    sprout_obj.load_model(model_tag=model_tag, clf=classifier,
+                          x_train=x_train, y_train=y_train, label_names=label_names)
+    start_ms = current_ms()
+    sprout_df, sprout_pred = sprout_obj.exercise(x=x_test, y=y_test, classifier=classifier, verbose=verbose)
+    sprout_time = current_ms() - start_ms
+
+    # Computing metrics and printing results
+    metrics = compute_omission_metrics(y_test, sprout_pred, y_pred)
+    metrics['train_time'] = train_time
+    metrics['test_time'] = test_time
+    metrics['sprout_time'] = sprout_time
+    metrics['clf_name'] = get_classifier_name(classifier)
+    metrics['sprout_tag'] = model_tag
+
+    return metrics
 
 class SPROUTObject:
 
@@ -218,7 +247,8 @@ class SPROUTObject:
             if model_tag in self.get_available_models():
                 model_folder = self.models_folder + str(model_tag) + "/"
                 self.binary_adjudicator = joblib.load(model_folder + "binary_adj_model.joblib")
-                print("Loaded Binary Adjudicator '" + get_classifier_name(self.binary_adjudicator) + "'")
+                print("Loaded Binary Adjudicator '%s' for wrapper '%s'" %
+                      (get_classifier_name(self.binary_adjudicator), model_tag))
                 if load_calculators:
                     u_calcs = read_calculators(model_folder)
                     self.trust_calculators = []
@@ -325,3 +355,44 @@ class SPROUTObject:
                 params_dict = pd[u_calc]
                 for key, value in params_dict.items():
                     f.write('%s,%s,%s\n' % (str(u_calc), str(key), str(value)))
+
+    def exercise(self, x, y, classifier, verbose=True):
+        """
+        Exercised the SPROUT wrapper on a test set (x,y). Assumes that the binary adjudicator is ready,
+        meaning that the object has already been loaded successfully
+        :param x: the test features x_test
+        :param y: the test label y_test
+        :param classifier: the classifier object
+        :param verbose: True if debug information has to be shown
+        :return: the pandas.DataFrame containing all data plus an array of predictions of the wrapper
+        """
+        if isinstance(x, pandas.DataFrame):
+            out_df = x.copy()
+        else:
+            out_df = pandas.DataFrame(data=x)
+        out_df.reset_index(drop=True, inplace=True)
+        out_df['true_label'] = y
+        clf_pred = classifier.predict(x)
+        out_df['predicted_label'] = clf_pred
+        out_df['is_misclassification'] = numpy.where(out_df['true_label'] != out_df['predicted_label'], 1, 0)
+        y_proba = classifier.predict_proba(x)
+        out_df['probabilities'] = [numpy.array2string(y_proba[i], separator=";") for i in range(len(y_proba))]
+
+        if self.binary_adjudicator is not None:
+            # Calculating Trust Measures with SPROUT
+            sp_df = self.compute_set_trust(data_set=x, classifier=classifier, verbose=verbose)
+            sp_df = sp_df.select_dtypes(exclude=['object'])
+            sp_df.reset_index(drop=True, inplace=True)
+            out_df = pd.concat([out_df, sp_df], axis=1)
+
+            # Predict misclassifications with SPROUT
+            predictions_df, clf = self.predict_misclassifications(sp_df)
+            misc_pred = predictions_df["pred"].to_numpy()
+            out_df["misc_pred"] = misc_pred
+            sprout_pred = numpy.where(misc_pred == 0, clf_pred, None)
+            out_df["sprout_pred"] = sprout_pred
+
+            return out_df, sprout_pred
+        else:
+            print('Unable to load SPROUT model')
+            return out_df, clf_pred

@@ -17,18 +17,17 @@ from pyod.models.inne import INNE
 from pyod.models.pca import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 # Scikit-Learn algorithms
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.naive_bayes import GaussianNB, MultinomialNB
+from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
-
-# Name of the folder in which look for tabular (CSV) datasets
-from sprout.classifiers.Classifier import XGB, UnsupervisedClassifier
 from sprout.classifiers.ConfidenceBagging import ConfidenceBagging, ConfidenceBaggingWeighted
 from sprout.classifiers.ConfidenceBoosting import ConfidenceBoosting, ConfidenceBoostingWeighted
+
+# Name of the folder in which look for tabular (CSV) datasets
+from sprout.classifiers.Classifier import XGB, UnsupervisedClassifier, FastAI
 
 # The PYOD library contains implementations of unsupervised classifiers.
 # Works only with anomaly detection (no multi-class)
@@ -72,6 +71,7 @@ def get_learners(cont_perc):
     :return: the list of classifiers to be trained
     """
     base_learners = [
+        FastAI(label_name=LABEL_NAME, metric='accuracy'),
         XGB(n_estimators=30),
         DecisionTreeClassifier(),
         Pipeline([("norm", MinMaxScaler()), ("gnb", GaussianNB())]),
@@ -95,7 +95,7 @@ def get_learners(cont_perc):
     learners = []
     for clf in base_learners:
         learners.append(clf)
-        for n_base in [5, 10]:
+        for n_base in [10]:
             for s_ratio in [0.2, 0.5]:
                 learners.append(ConfidenceBaggingWeighted(clf=clf, n_base=n_base,
                                                           sampling_ratio=s_ratio, max_features=0.7))

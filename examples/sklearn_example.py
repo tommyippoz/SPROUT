@@ -4,63 +4,53 @@ import sklearn
 from sklearn.ensemble import RandomForestClassifier
 
 from sprout.SPROUTObject import SPROUTObject
+from sprout.classifiers.Classifier import get_classifier_name
 from sprout.utils import sprout_utils
-from sprout.utils.dataset_utils import load_MNIST
+from sprout.utils.dataset_utils import load_MNIST, process_binary_tabular_dataset
 from sprout.utils.general_utils import current_ms
-from sprout.utils.sprout_utils import correlations
+from sprout.utils.sprout_utils import correlations, compute_omission_metrics
 
 MODELS_FOLDER = "../models/"
-MODEL_TAG = "all_sup_fast"
+MODEL_TAG = "sup_all"
 
 if __name__ == '__main__':
     """
-    Main to calculate confidence measures for sklearn classifiers using MNIST dataset
+    Main to calculate confidence measures for SKLEARN classifiers using NSL-KDD dataset from
+    https://www.kaggle.com/datasets/hassan06/nslkdd
     """
 
-    # Reading sample dataset (MNIST)
-    x_train, x_test, y_train, y_test, label_names, feature_names = load_MNIST(flatten=False, row_limit=5000)
+    # Reading sample dataset (NSL-KDD)
+    x_train, x_test, y_train, y_test, label_names, feature_names = \
+        process_binary_tabular_dataset(dataset_name="input_folder/NSLKDD.csv", label_name="multilabel", limit=10000)
 
-    # Loading SPROUT wrapper for supervised learning
-    sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
-    sprout_obj.load_model(model_tag=MODEL_TAG, x_train=x_train, y_train=y_train, label_names=label_names)
 
+    # Creating classifier clf
     classifier = RandomForestClassifier(n_estimators=10)
+    print("\nBuilding classifier: " + get_classifier_name(classifier))
+    start_ms = current_ms()
     classifier.fit(x_train, y_train)
-    start_pred = current_ms()
+    train_ms = current_ms()
     y_pred = classifier.predict(x_test)
-    clf_time = (current_ms() - start_pred) / len(y_test)
-    y_proba = classifier.predict_proba(x_test)
-    clf_misc = numpy.asarray(y_pred != y_test)
-    clf_acc = sklearn.metrics.accuracy_score(y_test, y_pred)
-    print("Fit and Prediction completed with Accuracy: " + str(clf_acc))
+    test_time = current_ms() - train_ms
+    train_time = train_ms - start_ms
 
-    # Initializing SPROUT dataset for output
-    out_df = sprout_utils.build_SPROUT_dataset(y_proba, y_pred, y_test, label_names)
+    # Loading SPROUT object with a specific tag amongst those existing
+    sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
+    sprout_obj.load_model(model_tag=MODEL_TAG, clf=classifier,
+                          x_train=x_train, y_train=y_train, label_names=label_names)
+    sprout_df, sprout_pred = sprout_obj.exercise(x=x_test, y=y_test, classifier=classifier)
+    # optional for printing all data to CSV file
+    # sprout_df.to_csv('sprout_sklearn_df.csv', index=False)
 
-    # Calculating Trust Measures with SPROUT
-    start_pred = current_ms()
-    sp_df, adj = sprout_obj.predict_set_misclassifications(data_set=x_test, y_proba=y_proba, classifier=classifier)
-    sprout_time = (current_ms() - start_pred) / len(y_test)
-    sprout_pred = sp_df["pred"].to_numpy()
+    # Computing metrics and printing results
+    metrics = compute_omission_metrics(y_test, sprout_pred, y_pred)
 
-    # Computing SPROUT Metrics
-    o_rate = numpy.average(sprout_pred)
-    susp_misc = sum(sprout_pred*clf_misc) / sum(clf_misc)
-    sp_acc = numpy.average((1-clf_misc)*(1-sprout_pred))
-
-    print('\n------------  SPROUT Report  ------------------\n')
-    print('Regular classifier has accuracy of %.3f and %.3f misclassifications' % (clf_acc, 1-clf_acc))
-    print('SPROUT suspects %.3f of misclassifications' % (susp_misc))
-    print('Classifier wrapped with SPROUT has %.3f accuracy, %.3f omission rate, '
-          'and %.3f residual misclassifications' % (sp_acc, o_rate, 1-sp_acc-o_rate))
-    print('Prediction Time of the regular classifier %.3f ms per item, with SPROUT: %.3f per item'
-          % (clf_time, sprout_time))
-
-    out_df = pandas.concat([out_df, sp_df.drop(columns=["pred"])], axis=1)
-    correlations(out_df)
-
-    # Printing Dataframe
-    out_df["clf_pred"] = y_pred
-    out_df["true_label"] = y_test
-    out_df["sprout_omit"] = sp_df["pred"]
-    out_df.to_csv('sprout_sklearn_df.csv', index=False)
+    print("\n\t---------- RESULTS ----------\n"
+          "Classifier %s has \n\taccuracy(alpha)=%.3f and \n\tmisclassifications(eps)=%.3f" %
+          (get_classifier_name(classifier), metrics['alpha'], metrics['eps']))
+    print("Applying the '%s' wrapper gives \n"
+          "\tresidual accuracy(alpha_w)=%.3f, \n"
+          "\tresidual misclassifications(eps_w)=%.3f, \n"
+          "\tomissions(phi)=%.3f,\n"
+          "\tcorrect omissions(phim ratio)=%.3f" %
+          (MODEL_TAG, metrics['alpha_w'], metrics['eps_w'], metrics['phi'], metrics['phi_m_ratio']))

@@ -3,12 +3,11 @@ import os.path
 
 import numpy
 import numpy as np
-import pandas as pd
 import scipy
 import sklearn
 
 
-def build_SPROUT_dataset(y_proba, y_pred, y_test, label_tags):
+def build_SPROUT_dataset(x_test, y_proba, y_pred, y_test, label_tags):
     """
     Prepares DataFrame to output SPROUT results
     :param y_proba: probabilities assigned by the classifier
@@ -17,7 +16,8 @@ def build_SPROUT_dataset(y_proba, y_pred, y_test, label_tags):
     :param label_tags: Names of the classes
     :return: a DataFrame with 4 columns
     """
-    out_df = pd.DataFrame()
+    out_df = x_test.copy()
+    out_df.reset_index(drop=True, inplace=True)
     out_df['true_label'] = list(map(lambda x: label_tags[x], y_test))
     out_df['predicted_label'] = list(map(lambda x: label_tags[x], y_pred))
     out_df['is_misclassification'] = np.where(out_df['true_label'] != out_df['predicted_label'], 1, 0)
@@ -102,3 +102,26 @@ def predictions_variability(predictions):
         stds = numpy.std(predictions, axis=0)
         vp = sum(stds)
     return vp
+
+
+def compute_omission_metrics(y_true, y_wrapper, y_clf, reject_tag=None):
+    """
+    Assumes that y_clf may have omissions, labeled as 'reject_tag'
+    :param y_true: the ground truth labels
+    :param y_wrapper: the prediction of the SPROUT (wrapper) classifier
+    :param y_clf: the prediction of the regular classifier
+    :param reject_tag: the tag used to label rejections, default is None
+    :return: a dictionary of metrics
+    """
+    met_dict = {}
+    met_dict['alpha'] = sklearn.metrics.accuracy_score(y_true, y_clf)
+    met_dict['eps'] = 1 - met_dict['alpha']
+    met_dict['phi'] = numpy.count_nonzero(y_wrapper == reject_tag) / len(y_true)
+    met_dict['alpha_w'] = sum(y_true == y_wrapper) / len(y_true)
+    met_dict['eps_w'] = 1 - met_dict['alpha_w'] - met_dict['phi']
+    met_dict['phi_c'] = sum(numpy.where((y_wrapper == reject_tag) & (y_clf == y_true), 1, 0))/len(y_true)
+    met_dict['phi_m'] = sum(numpy.where((y_wrapper == reject_tag) & (y_clf != y_true), 1, 0)) / len(y_true)
+    met_dict['eps_gain'] = 0 if met_dict['eps'] == 0 else (met_dict['eps'] - met_dict['eps_w']) / met_dict['eps']
+    met_dict['phi_m_ratio'] = 0 if met_dict['phi'] == 0 else met_dict['phi_m'] / met_dict['phi']
+    met_dict['overall'] = 2*met_dict['eps_gain']*met_dict['phi_m_ratio']/(met_dict['eps_gain'] + met_dict['phi_m_ratio'])
+    return met_dict

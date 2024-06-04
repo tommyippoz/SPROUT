@@ -1,5 +1,3 @@
-import copy
-
 import numpy
 import pandas
 import pandas as pd
@@ -19,12 +17,10 @@ from pyod.models.inne import INNE
 from pyod.models.knn import KNN
 from pyod.models.loda import LODA
 from pyod.models.lof import LOF
-from pyod.models.lscp import LSCP
 from pyod.models.mcd import MCD
 from pyod.models.ocsvm import OCSVM
 from pyod.models.pca import PCA
 from pyod.models.so_gaal import SO_GAAL
-from pyod.models.suod import SUOD
 from pyod.models.vae import VAE
 from pytorch_tabnet.tab_model import TabNetClassifier
 from sklearn.base import BaseEstimator, ClassifierMixin
@@ -118,7 +114,7 @@ def choose_classifier(clf_name, features, y_label, metric, contamination=None):
     elif clf_name in {"DT", "DTree", "DecisionTree"}:
         return DecisionTreeClassifier()
     elif clf_name in {"KNN", "knn", "kNN", "KNeighbours"}:
-        return KNeighbors(k=11)
+        return KNeighborsClassifier(n_neighbors=11, n_jobs=-1, algorithm="kd_tree")
     elif clf_name in {"SVM"}:
         return BaggingClassifier(SVC(gamma='auto', probability=True), max_samples=0.1, n_estimators=10)
     elif clf_name in {"LDA"}:
@@ -500,19 +496,6 @@ class MXNet(AutoGluon):
 
     def classifier_name(self):
         return "MXNet"
-
-
-class KNeighbors(Classifier):
-    """
-    Wrapper for the sklearn.kNN algorithm
-    """
-
-    def __init__(self, k):
-        super().__init__(self, KNeighborsClassifier(n_neighbors=k, n_jobs=-1, algorithm="kd_tree"))
-        self.k = k
-
-    def classifier_name(self):
-        return str(self.k) + "NearestNeighbors"
 
 
 class LogisticReg(Classifier):

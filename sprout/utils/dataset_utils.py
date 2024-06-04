@@ -97,7 +97,7 @@ def download_file(file_url, file_name, folder_name):
         shutil.copyfileobj(response, out_file)
 
 
-def process_tabular_dataset(dataset_name, label_name, limit):
+def process_tabular_dataset(dataset_name, label_name, limit, train_size=0.7, shuffle=True, l_encoding=True):
     """
     Method to process an input dataset as CSV
     :param limit: integer to cut dataset if needed.
@@ -109,7 +109,8 @@ def process_tabular_dataset(dataset_name, label_name, limit):
     df = pd.read_csv(dataset_name, sep=",")
 
     # Shuffle
-    df = df.sample(frac=1.0)
+    if shuffle:
+        df = df.sample(frac=1.0)
     df = df.fillna(0)
     df = df.replace('null', 0)
 
@@ -117,9 +118,13 @@ def process_tabular_dataset(dataset_name, label_name, limit):
     if (np.isfinite(limit)) & (limit < len(df.index)):
         df = df[0:limit]
 
-    encoding = pd.factorize(df[label_name])
-    y_enc = encoding[0]
-    labels = encoding[1]
+    if l_encoding:
+        encoding = pd.factorize(df[label_name])
+        y_enc = encoding[0]
+        labels = encoding[1]
+    else:
+        y_enc = df[label_name]
+        labels = numpy.unique(y_enc)
 
     # Basic Pre-Processing
     print("Dataset loaded: " + str(len(df.index)) + " items and " + str(len(labels)) + " labels")
@@ -128,7 +133,7 @@ def process_tabular_dataset(dataset_name, label_name, limit):
     x = df.drop(columns=[label_name])
     x_no_cat = x.select_dtypes(exclude=['object'])
     feature_list = x_no_cat.columns
-    x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_no_cat, y_enc, test_size=0.5, shuffle=True)
+    x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_no_cat, y_enc, test_size=1-train_size, shuffle=shuffle)
 
     return x_tr, x_te, y_tr, y_te, labels, feature_list
 

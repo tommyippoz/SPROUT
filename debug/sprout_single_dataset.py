@@ -6,15 +6,14 @@ import pandas as pd
 import sklearn
 
 from sprout.SPROUTObject import SPROUTObject
+from sprout.classifiers.Classifier import choose_classifier, get_classifier_name, build_classifier
 from sprout.utils import dataset_utils, sprout_utils
-from sprout.utils.general_utils import load_config, choose_classifier, clean_name
-from sprout.utils.sprout_utils import get_classifier_name
+from sprout.utils.general_utils import load_config, clean_name
 
 MODELS_FOLDER = "../models/"
-MODEL_TAGS = ["bio", "full", "image", "iot", "hw", "nids",
-              "bio_no_tn", "full_no_tn", "image_no_tn", "iot_no_tn", "hw_no_tn", "nids_no_tn"]
+MODEL_TAGS = ['sup_all']
 OUTPUT_FOLDER = "./output_folder/"
-OUTPUT_LOG_FILE = "single_sprout.csv"
+OUTPUT_LOG_FILE = "grid_sprout.csv"
 
 if __name__ == '__main__':
     """
@@ -23,11 +22,14 @@ if __name__ == '__main__':
     """
 
     # Reading preferences
-    dataset_files, d_folder, s_folder, classifier_list, y_label, limit_rows = load_config("config.cfg")
+    dataset_files, d_folder, s_folder, s_clf, u_clf, y_label, limit_rows = load_config("config.cfg")
 
     with open(OUTPUT_FOLDER + OUTPUT_LOG_FILE, 'w') as f:
         f.write('dataset,classifier,detector_tag,detector_classifier,classifier_acc,detector_acc,detector_mcc,' +
                 'SPROUT_availability,SPROUT_accuracy\n')
+
+    if MODEL_TAGS is None:
+        MODEL_TAGS = os.listdir(MODELS_FOLDER)
 
     for dataset_file in dataset_files:
 
@@ -38,29 +40,32 @@ if __name__ == '__main__':
                 " - limit " + str(limit_rows) if np.isfinite(limit_rows) else ""))
             if dataset_file.endswith('.csv'):
                 x_train, x_test, y_train, y_test, label_tags, features = \
-                    dataset_utils.process_tabular_dataset(dataset_file, y_label, limit_rows)
+                    dataset_utils.process_tabular_dataset(dataset_file, y_label, limit_rows, shuffle=True)
             else:
                 x_train, x_test, y_train, y_test, label_tags, features = \
                     dataset_utils.process_image_dataset(dataset_file, limit_rows)
 
-            for tag in MODEL_TAGS:
-                print("Loading SPROUT Model for tag '" + str(tag) + "' ...")
-                sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
-                sprout_obj.load_model(model_tag=tag, x_train=x_train, y_train=y_train, label_names=label_tags)
+            for classifier_string in s_clf:
+                # Building and exercising classifier
+                classifier = choose_classifier(classifier_string, features, y_label, "accuracy")
+                y_proba, y_pred = build_classifier(classifier, x_train, y_train, x_test, y_test)
 
-                for classifier_string in classifier_list:
-                    # Building and exercising classifier
-                    classifier = choose_classifier(classifier_string, features, y_label, "accuracy")
-                    y_proba, y_pred = sprout_utils.build_classifier(classifier, x_train, y_train, x_test, y_test)
+                for tag in MODEL_TAGS:
+                    print("Loading SPROUT Model for tag '" + str(tag) + "' ...")
+                    sprout_obj = SPROUTObject(models_folder=MODELS_FOLDER)
+                    sprout_obj.load_model(model_tag=tag, clf=classifier,
+                                          x_train=x_train, y_train=y_train, label_names=label_tags)
+
                     clf_acc = sklearn.metrics.accuracy_score(y_test, y_pred)
                     y_misc = numpy.multiply(y_pred != y_test, 1)
 
                     # Initializing SPROUT dataset for output
-                    out_df = sprout_utils.build_SPROUT_dataset(y_proba, y_pred, y_test, label_tags)
+                    out_df = sprout_utils.build_SPROUT_dataset(x_test, y_proba, y_pred, y_test, label_tags)
 
                     # Calculating Trust Measures with SPROUT
                     sp_df = sprout_obj.compute_set_trust(data_set=x_test, classifier=classifier)
                     sp_df = sp_df.select_dtypes(exclude=['object'])
+                    sp_df.reset_index(drop=True, inplace=True)
                     out_df = pd.concat([out_df, sp_df], axis=1)
 
                     # Predict misclassifications with SPROUT
@@ -69,7 +74,7 @@ if __name__ == '__main__':
 
                     # Printing Dataframe
                     file_out = OUTPUT_FOLDER + clean_name(dataset_file, d_folder) + "_" + \
-                               sprout_utils.get_classifier_name(classifier) + '.csv'
+                               get_classifier_name(classifier) + '.csv'
                     if not os.path.exists(os.path.dirname(file_out)):
                         os.mkdir(os.path.dirname(file_out))
                     out_df["SPROUT_pred"] = y_pred
