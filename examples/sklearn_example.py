@@ -1,14 +1,10 @@
-import numpy
-import pandas
-import sklearn
 from sklearn.ensemble import RandomForestClassifier
 
 from sprout.SPROUTObject import SPROUTObject
 from sprout.classifiers.Classifier import get_classifier_name
-from sprout.utils import sprout_utils
-from sprout.utils.dataset_utils import load_MNIST, process_binary_tabular_dataset
+from sprout.utils.dataset_utils import process_binary_tabular_dataset
 from sprout.utils.general_utils import current_ms
-from sprout.utils.sprout_utils import correlations, compute_omission_metrics
+from sprout.utils.sprout_utils import compute_omission_metrics
 
 MODELS_FOLDER = "../models/"
 MODEL_TAG = "sup_all"

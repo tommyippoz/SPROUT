@@ -1,14 +1,8 @@
-import numpy
-import pandas
-import sklearn
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 
-from sprout.SPROUTObject import SPROUTObject, exercise_wrapper
+from sprout.SPROUTObject import exercise_wrapper
 from sprout.classifiers.Classifier import get_classifier_name
-from sprout.utils import sprout_utils
 from sprout.utils.dataset_utils import load_MNIST
-from sprout.utils.general_utils import current_ms
 
 MODELS_FOLDER = "../models/"
 MODEL_TAG = "sup_multi"

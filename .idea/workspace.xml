@@ -1,31 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="b298bc03-6995-4dcf-8028-ddf396458b6a" name="Changes" comment="test unks">
-      <change afterPath="$PROJECT_DIR$/debug/um_scorer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/TrustML.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/TrustML.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/debug/config.cfg" beforeDir="false" afterPath="$PROJECT_DIR$/debug/config.cfg" afterDir="false" />
+    <list default="true" id="b298bc03-6995-4dcf-8028-ddf396458b6a" name="Changes" comment="refactor">
       <change beforePath="$PROJECT_DIR$/debug/learn_simple_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/debug/learn_simple_model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/debug/learn_sprout_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/debug/learn_sprout_model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/debug/process_results.py" beforeDir="false" afterPath="$PROJECT_DIR$/debug/process_results.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/debug/sprout_single_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/debug/sprout_single_dataset.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/debug/test_algs.py" beforeDir="false" afterPath="$PROJECT_DIR$/debug/test_algs.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/debug/test_algs_unknowns.py" beforeDir="false" afterPath="$PROJECT_DIR$/debug/test_algs_unknowns.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/AutoGluonClassifier.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/old/AutoGluonClassifier.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/gluon_example.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/pyod_example.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/simple_example.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/simple_example.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/examples/sklearn_example.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/sklearn_example.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/sklearn_pyod_example.csv" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/tabnet_example.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/unifi_example.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/simple_example.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprout/SPROUTObject.py" beforeDir="false" afterPath="$PROJECT_DIR$/sprout/SPROUTObject.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprout/UncertaintyCalculator.py" beforeDir="false" afterPath="$PROJECT_DIR$/sprout/UncertaintyCalculator.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprout/classifiers/Classifier.py" beforeDir="false" afterPath="$PROJECT_DIR$/sprout/classifiers/Classifier.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprout/classifiers/ConfidenceBagging.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprout/classifiers/ConfidenceBoosting.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/sprout/utils/dataset_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/sprout/utils/dataset_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprout/utils/sprout_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/sprout/utils/sprout_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sprout/utils/general_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/sprout/utils/general_utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -63,6 +51,7 @@
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">
+    <property name="ASKED_MARK_IGNORED_FILES_AS_EXCLUDED" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$/debug" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
@@ -394,7 +383,21 @@
       <option name="project" value="LOCAL" />
       <updated>1701442831673</updated>
     </task>
-    <option name="localTasksCounter" value="28" />
+    <task id="LOCAL-00028" summary="refactor">
+      <created>1717498767710</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1717498767710</updated>
+    </task>
+    <task id="LOCAL-00029" summary="refactor">
+      <created>1717498797972</created>
+      <option name="number" value="00029" />
+      <option name="presentableId" value="LOCAL-00029" />
+      <option name="project" value="LOCAL" />
+      <updated>1717498797972</updated>
+    </task>
+    <option name="localTasksCounter" value="30" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -428,7 +431,8 @@
     <MESSAGE value="bugfix confboost" />
     <MESSAGE value="confboost weighted" />
     <MESSAGE value="test unks" />
-    <option name="LAST_COMMIT_MESSAGE" value="test unks" />
+    <MESSAGE value="refactor" />
+    <option name="LAST_COMMIT_MESSAGE" value="refactor" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
