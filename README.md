@@ -56,7 +56,7 @@ SPROUT can wrap any classifier you may want to use, provided that the classifier
 
 Assuming the classifier has such a structure, a SPROUT analysis with three calculators can be set up as it can be seen in the `examples` folder
 
-[Simple sample:](https://github.com/tommyippoz/SPROUT/blob/8f5f494becdb59201c5adde117b179f7315f0223/examples/simple_example.py#L23)
+[Simple sample:](https://github.com/tommyippoz/SPROUT/blob/8f5f494becdb59201c5adde117b179f7315f0223/examples/simple_example.py#L1-L23)
 
 ## Citation and Credits
 
