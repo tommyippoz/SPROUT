@@ -54,9 +54,10 @@ SPROUT can wrap any classifier you may want to use, provided that the classifier
 - classifier.predict(test_set): takes a 2D ndarray and returns an array of predictions for each item of test_set
 - classifier.predict_proba(test_set): takes a 2D ndarray and returns a 2D ndarray where each line contains probabilities for a given data point in the test_set
 
-
-
 Assuming the classifier has such a structure, a SPROUT analysis with three calculators can be set up as it can be seen in the `examples` folder
+SImple sample:
+
+examples/simple_example.py#L1-L6
 
 ## Citation and Credits
 
