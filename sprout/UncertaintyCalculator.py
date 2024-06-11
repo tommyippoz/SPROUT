@@ -10,12 +10,13 @@ import pandas
 import pandas as pd
 import pyod.models.base
 import scipy.stats
+from confens.classifiers.ConfidenceBagging import ConfidenceBagging
+from confens.classifiers.ConfidenceBoosting import ConfidenceBoosting
 from pyod.models.copod import COPOD
 from scipy.stats import stats
 from sklearn.neighbors import NearestNeighbors
 from sklearn.tree import DecisionTreeClassifier
-from src.classifiers.ConfidenceBagging import ConfidenceBagging
-from src.classifiers.ConfidenceBoosting import ConfidenceBoosting
+
 from tqdm import tqdm
 
 from sprout.classifiers.AutoEncoder import DeepAutoEncoder, SingleAutoEncoder, SingleSparseAutoEncoder
