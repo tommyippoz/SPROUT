@@ -3,11 +3,12 @@ import os.path
 
 import numpy
 import numpy as np
+import pandas as pd
 import scipy
 import sklearn
 
 
-def build_SPROUT_dataset(x_test, y_proba, y_pred, y_test, label_tags):
+def build_SPROUT_dataset(y_proba, y_pred, y_test, label_tags):
     """
     Prepares DataFrame to output SPROUT results
     :param y_proba: probabilities assigned by the classifier
@@ -16,7 +17,8 @@ def build_SPROUT_dataset(x_test, y_proba, y_pred, y_test, label_tags):
     :param label_tags: Names of the classes
     :return: a DataFrame with 4 columns
     """
-    out_df = x_test.copy()
+    # out_df = x_test.copy()
+    out_df = pd.DataFrame()
     out_df.reset_index(drop=True, inplace=True)
     out_df['true_label'] = list(map(lambda x: label_tags[x], y_test))
     out_df['predicted_label'] = list(map(lambda x: label_tags[x], y_pred))

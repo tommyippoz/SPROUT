@@ -71,7 +71,7 @@ class SPROUTObject:
         item = data_point.reshape(-1, 1).transpose()
         return self.compute_set_trust(item, classifier, classifier.predict_prob(item), verbose, as_pandas)
 
-    def compute_set_trust(self, data_set, classifier, y_proba=None, verbose=True, as_pandas=True):
+    def compute_set_trust(self, dataloader, data_set, classifier, y_proba=None, verbose=True, as_pandas=True):
         """
         Outputs an array / DataFrame containing trust measures for each data point in the dataset
         :param data_set: test dataset
@@ -83,7 +83,7 @@ class SPROUTObject:
         """
         out_df = pd.DataFrame()
         if y_proba is None:
-            y_proba = classifier.predict_proba(data_set)
+            y_proba = classifier.predict_proba(dataloader)
         if isinstance(data_set, pandas.DataFrame):
             data_set = data_set.to_numpy()
         data_set = numpy.nan_to_num(data_set, nan=0, posinf=0, neginf=0)
@@ -91,7 +91,8 @@ class SPROUTObject:
             if verbose:
                 print("Calculating Trust Strategy: " + calculator.uncertainty_calculator_name())
             start_ms = general_utils.current_ms()
-            trust_scores = calculator.uncertainty_scores(data_set, y_proba, classifier)
+            # y_proba = y_proba.numpy()
+            trust_scores = calculator.uncertainty_scores(dataloader, y_proba, classifier)
             trust_scores = numpy.nan_to_num(trust_scores, nan=-10, posinf=-10, neginf=-10)
             if type(trust_scores) is dict:
                 for key in trust_scores:
@@ -209,13 +210,13 @@ class SPROUTObject:
             ConfidenceBoostingUncertainty(base_clf, x_train, y_train, n_base, learning_rate, sampling_ratio,
                                           contamination, conf_thr, n_classes))
 
-    def add_calculator_recloss(self, x_train, tag='simple'):
+    def add_calculator_recloss(self, x_train, tag='conv'):
         """
         External Trust Calculator using Bayes (CM3 in the paper)
         :param x_train: features in the train set
         :param tag: tagstring to initialize autoencoder
         """
-        self.trust_calculators.append(ReconstructionLoss(x_train=x_train, enc_tag=tag))
+        self.trust_calculators.append(ReconstructionLoss(dataloader=x_train, enc_tag=tag))
 
     def predict_set_misclassifications(self, data_set, classifier, y_proba=None, verbose=True, as_pandas=True):
         trust_set = self.compute_set_trust(data_set, classifier, y_proba, verbose, as_pandas)

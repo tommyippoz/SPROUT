@@ -1,0 +1,7 @@
+LICENSE
+README.md
+setup.py
+sprout_ml.egg-info/PKG-INFO
+sprout_ml.egg-info/SOURCES.txt
+sprout_ml.egg-info/dependency_links.txt
+sprout_ml.egg-info/top_level.txt

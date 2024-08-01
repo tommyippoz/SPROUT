@@ -16,9 +16,13 @@ from pyod.models.copod import COPOD
 from scipy.stats import stats
 from sklearn.neighbors import NearestNeighbors
 from sklearn.tree import DecisionTreeClassifier
+import torch
+from torch.utils.data import DataLoader
+import torch.nn as nn
+import torch.optim as optim
 
 from tqdm import tqdm
-
+from model import *
 from sprout.classifiers.AutoEncoder import DeepAutoEncoder, SingleAutoEncoder, SingleSparseAutoEncoder
 from sprout.classifiers.Classifier import get_classifier_name
 from sprout.utils.general_utils import current_ms, get_full_class_name
@@ -131,6 +135,40 @@ class EntropyUncertainty(UncertaintyCalculator):
         else:
             print("Items of the feature set have a different cardinality wrt probabilities")
         return np.asarray(uncertainty)
+
+    def uncertainty_scores(self, feature_values_array: DataLoader, proba_array, classifier):
+        """
+        Method to compute uncertainty score for a set of data points
+        :param classifier: the classifier used for classification
+        :param feature_values_array: the feature values of the data points in the test set
+        :param proba_array: the probability arrays assigned by the algorithm to the data points
+        :return: array of uncertainty scores
+        """
+        uncertainty = []
+
+        # Convert DataLoader to NumPy array if needed
+        if isinstance(feature_values_array, DataLoader):
+            all_features = []
+            for batch in feature_values_array:
+                if isinstance(batch, tuple):
+                    batch = batch[0]  # if DataLoader returns (data, label) tuples, take only the data
+                if isinstance(batch, torch.Tensor):
+                    all_features.append(batch.numpy())
+                else:
+                    all_features.append(np.array(batch))
+            feature_values_array = np.concatenate(all_features, axis=0)
+
+        # Check if feature_values_array is a NumPy array now
+        if isinstance(feature_values_array, np.ndarray):
+            if len(feature_values_array) == len(proba_array):
+                uncertainty = [self.uncertainty_score(proba_array[i]) for i in range(len(proba_array))]
+            else:
+                print("Items of the feature set have a different cardinality wrt probabilities")
+        else:
+            print("Feature values array could not be converted to NumPy array")
+
+        return np.asarray(uncertainty)
+
 
     def uncertainty_calculator_name(self):
         return 'Entropy Calculator'
@@ -560,7 +598,8 @@ class ConfidenceInterval(UncertaintyCalculator):
         :return: array of uncertainty scores
         """
         uncertainty = []
-        predicted_labels = numpy.argmax(proba_array, axis=1)
+        # predicted_labels = numpy.argmax(proba_array, axis=1)
+        predicted_labels = proba_array
         if isinstance(feature_values_array, pandas.DataFrame):
             feature_values_array = feature_values_array.to_numpy()
         if len(feature_values_array) == len(proba_array):
@@ -858,6 +897,79 @@ class ReconstructionLoss(UncertaintyCalculator):
         except:
             loss_tr = 0
         return np.asarray(loss_tr)
+
+    def uncertainty_calculator_name(self):
+        return 'AutoEncoder Loss (' + str(self.enc_tag) + ')'
+
+class ReconstructionLoss(UncertaintyCalculator):
+    """
+    Defines an uncertainty measure that uses the reconstruction error of an autoencoder as uncertainty measure.
+    """
+
+    def __init__(self, dataloader, enc_tag: str = 'conv'):
+        self.ae = None
+        self.enc_tag = enc_tag
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        # Assuming DataLoader provides batches of data
+        x_train, _ = next(iter(dataloader))  # Get one batch to initialize autoencoder
+        if x_train is not None:
+            _, channels, _, _ = x_train.shape
+            # print("Channels is the Function ",channels)
+            if enc_tag == 'conv':
+                self.ae = ConvAutoEncoder(channels).to(self.device)
+            else:
+                raise ValueError(f"Unsupported encoder type: {enc_tag}")
+
+            # Normalize data
+            self.dataloader = dataloader
+            self.ae.train()
+            optimizer = optim.Adam(self.ae.parameters(), lr=0.001)
+            criterion = nn.MSELoss()
+            epochs = 1
+
+            for epoch in range(epochs):  # 50 epochs
+                epoch_loss = 0.0  # Initialize epoch_loss
+                for batch, _ in tqdm.tqdm(dataloader, desc=f"Epoch {epoch + 1}/{epochs}"):
+                    batch = batch.to(self.device)
+                    optimizer.zero_grad()
+                    outputs = self.ae(batch)
+                    loss = criterion(outputs, batch)
+                    loss.backward()
+                    optimizer.step()
+                    epoch_loss += loss.item()
+                print(f"Epoch {epoch + 1}/{epochs}, Loss: {epoch_loss / len(dataloader)}")
+
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate uncertainty score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        return {"enc_tag": self.enc_tag}
+
+    def uncertainty_scores(self, dataloader, proba_array, classifier):
+        """
+        Returns the uncertainty after executing a given amount of simulations around the feature values.
+        Score ranges from 0 (no agreement) to 1 (full agreement).
+
+        :param classifier: the classifier used for classification
+        :param dataloader: DataLoader for the test set
+        :param proba_array: the probability arrays assigned by the algorithm to the data points
+        :return: array of uncertainty scores
+        """
+        all_losses = []
+        self.ae.eval()
+        criterion = nn.MSELoss()
+        with torch.no_grad():
+            for batch,_ in tqdm.tqdm(dataloader, desc="Evaluating"):
+                # if isinstance(batch, tuple) and len(batch) == 2:
+                #     batch, _ = batch  # Unpack if dataloader returns (data, label)
+                batch = batch.to(self.device)
+                outputs = self.ae(batch)
+                loss = criterion(outputs, batch)
+                all_losses.append(loss.cpu().numpy())
+        return np.asarray(all_losses)
 
     def uncertainty_calculator_name(self):
         return 'AutoEncoder Loss (' + str(self.enc_tag) + ')'
