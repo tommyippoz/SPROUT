@@ -342,7 +342,7 @@ if __name__ == '__main__':
                 clear_folder(models_details_folder)
 
             # Stores details of the SPROUT object used to build the Binary Adjudicator
-            sprout_obj.save_object(models_details_folder)
+            sprout_obj.save_uncertainty_calculators(models_details_folder)
 
             # Storing the classifier to be used for Predicting Misclassifications of a Generic Classifier.
             model_file = models_details_folder + "binary_adj_model.joblib"

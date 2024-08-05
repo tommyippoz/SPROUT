@@ -2,7 +2,7 @@ from sklearn.tree import DecisionTreeClassifier
 
 from sprout.SPROUTObject import exercise_wrapper
 from sprout.classifiers.Classifier import get_classifier_name
-from sprout.utils.dataset_utils import load_MNIST, process_binary_tabular_dataset
+from sprout.utils.dataset_utils import process_binary_tabular_dataset
 
 MODELS_FOLDER = "../models/"
 MODEL_TAG = "sup_multi"
@@ -20,7 +20,7 @@ if __name__ == '__main__':
     clf = DecisionTreeClassifier()
 
     # Exercises the clf and the SPROUT wrapper
-    metrics = exercise_wrapper(MODEL_TAG, MODELS_FOLDER, clf, x_train, y_train, x_test, y_test, label_names, verbose=True)
+    metrics = exercise_wrapper(MODEL_TAG, MODELS_FOLDER, clf, x_train, y_train, None, None, x_test, y_test, label_names, verbose=True)
 
     print("\n\t---------- RESULTS ----------\n"
           "Classifier %s has \n\taccuracy(alpha)=%.3f and \n\tmisclassifications(eps)=%.3f" %

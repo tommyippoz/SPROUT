@@ -4,33 +4,19 @@ import os
 import joblib
 import matplotlib.pyplot as plt
 import numpy
-import numpy as np
 import pandas
 import pandas as pd
 import sklearn
-from pyod.models.cblof import CBLOF
-from pyod.models.copod import COPOD
-from pyod.models.ecod import ECOD
-from pyod.models.hbos import HBOS
-from pyod.models.iforest import IForest
-from pyod.models.inne import INNE
-from pyod.models.mcd import MCD
-from pyod.models.pca import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB, ComplementNB
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
 from debug.learn_simple_model import sample_data
 from sprout.SPROUTObject import SPROUTObject
-from sprout.classifiers.Classifier import LogisticReg, get_classifier_name, build_classifier, choose_classifier, \
-    UnsupervisedClassifier
-from sprout.utils.dataset_utils import process_tabular_dataset, process_image_dataset, is_image_dataset, \
-    process_binary_tabular_dataset
-from sprout.utils.general_utils import load_config, clean_name, current_ms, clear_folder
+from sprout.classifiers.Classifier import LogisticReg, get_classifier_name
+from sprout.utils.general_utils import current_ms, clear_folder
 from sprout.utils.sprout_utils import build_SPROUT_dataset
 
 # The folder where to put the new misclassification detector
@@ -276,7 +262,7 @@ if __name__ == '__main__':
             clear_folder(models_details_folder)
 
         # Stores details of the SPROUT object used to build the Binary Adjudicator
-        sprout_obj.save_object(models_details_folder)
+        sprout_obj.save_uncertainty_calculators(models_details_folder)
 
         # Storing the classifier to be used for Predicting Misclassifications of a Generic Classifier.
         model_file = models_details_folder + "binary_adj_model.joblib"

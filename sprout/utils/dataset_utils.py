@@ -138,9 +138,11 @@ def process_tabular_dataset(dataset_name, label_name, limit, train_size=0.7, shu
     return x_tr, x_te, y_tr, y_te, labels, feature_list
 
 
-def process_binary_tabular_dataset(dataset_name, label_name, limit=numpy.nan):
+def process_binary_tabular_dataset(dataset_name, label_name, limit=numpy.nan, test_size=0.3, val_size=None):
     """
     Method to process an input dataset as CSV
+    :param val_size: the size of the validation set (None if no validation)
+    :param test_size: the size of the test set, default 30%
     :param limit: integer to cut dataset if needed.
     :param dataset_name: name of the file (CSV) containing the dataset
     :param label_name: name of the feature containing the label
@@ -168,9 +170,16 @@ def process_binary_tabular_dataset(dataset_name, label_name, limit=numpy.nan):
     x = df.drop(columns=[label_name])
     x_no_cat = x.select_dtypes(exclude=['object'])
     feature_list = x_no_cat.columns
-    x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_no_cat, y_enc, test_size=0.5, shuffle=True)
 
-    return x_tr, x_te, y_tr, y_te, ["normal", "anomaly"], feature_list
+    # Train-Val-Test split
+    x_tr, x_te, y_tr, y_te = sk.model_selection.train_test_split(x_no_cat, y_enc, test_size=test_size, shuffle=True)
+    if val_size is not None:
+        x_tr, x_va, y_tr, y_va = sk.model_selection.train_test_split(x_tr, y_tr, test_size=(val_size/(1-test_size)), shuffle=True)
+    else:
+        x_va = None
+        y_va = None
+
+    return x_tr, x_te, x_va, y_va, y_tr, y_te, ["normal", "anomaly"], feature_list
 
 
 def is_image_dataset(dataset_name):

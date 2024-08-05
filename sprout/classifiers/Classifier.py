@@ -106,7 +106,15 @@ def build_classifier(classifier, x_train, y_train, x_test, y_test, verbose=True)
     return y_proba, y_pred
 
 
-def choose_classifier(clf_name, features, y_label, metric, contamination=None):
+def choose_classifier(clf_name, y_label, metric, contamination=None):
+    """
+    Returns classifier object from string description
+    :param clf_name: string description of the classifier
+    :param y_label: name of label column
+    :param metric: target metric/loss for training
+    :param contamination: used for unsupervised classifiers, fration of anomalies in train set
+    :return: a classifier object
+    """
     if contamination is not None and contamination > 0.5:
         contamination = 0.5
     if clf_name in {"XGB", "XGBoost"}:
@@ -237,6 +245,13 @@ class Classifier(BaseEstimator, ClassifierMixin):
         # Return the classifier
         return self
 
+    def feature_importances(self):
+        """
+        Returns feature importances
+        :return: a list
+        """
+        return self.feature_importances_
+
     def predict(self, X):
         """
         Method to compute predict of a classifier
@@ -345,6 +360,8 @@ class UnsupervisedClassifier(Classifier, BaseDetector):
         probs = numpy.zeros((X.shape[0], 2))
         if isinstance(self.contamination, (float, int)):
             pred_thr = pred_score - self.clf.threshold_
+        else:
+            pred_thr = 0.5
         min_pt = min(pred_thr)
         max_pt = max(pred_thr)
         anomaly = pred_thr > 0

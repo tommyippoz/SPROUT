@@ -16,7 +16,6 @@ from pyod.models.copod import COPOD
 from scipy.stats import stats
 from sklearn.neighbors import NearestNeighbors
 from sklearn.tree import DecisionTreeClassifier
-
 from tqdm import tqdm
 
 from sprout.classifiers.AutoEncoder import DeepAutoEncoder, SingleAutoEncoder, SingleSparseAutoEncoder

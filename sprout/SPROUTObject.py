@@ -17,10 +17,28 @@ from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval,
 from sprout.classifiers.Classifier import get_classifier_name
 from sprout.utils import general_utils
 from sprout.utils.general_utils import get_full_class_name, current_ms
-from sprout.utils.sprout_utils import read_calculators, compute_omission_metrics
+from sprout.utils.sprout_utils import read_adjudicator_calculators, compute_omission_metrics, train_binary_adjudicator
 
 
-def exercise_wrapper(model_tag, models_folder, classifier, x_train, y_train, x_test, y_test, label_names, verbose=True):
+def exercise_wrapper(model_data, models_folder: str, classifier, x_train, y_train,
+                     x_val, y_val, x_test, y_test, label_names: list, verbose=True) -> dict:
+    """
+    Exercises an experiment that takes a classifier, exercises it alone and using a SPROUTObject
+    The object is either loaded (if model tag is a string pointing to an existing model) or
+    created from scratch (if model is a SPROUTObject)
+    :param model_data: the SPROUTObject (if from scratch) or a tag for loading existing object
+    :param models_folder: folder where existing models are
+    :param classifier: the main classifier
+    :param x_train: train data
+    :param y_train: train labels
+    :param x_val: validation data (can be None)
+    :param y_val: validation labels (can be None)
+    :param x_test: test data
+    :param y_test: test labels
+    :param label_names: name of the classes of the problem (possible labels as list)
+    :param verbose: True if debug information has to be shown
+    :return: a dictionary with metrics
+    """
     # Creating classifier clf
     if verbose:
         print("\nBuilding classifier: " + get_classifier_name(classifier))
@@ -31,10 +49,14 @@ def exercise_wrapper(model_tag, models_folder, classifier, x_train, y_train, x_t
     test_time = current_ms() - train_ms
     train_time = train_ms - start_ms
 
-    # Loading SPROUT object with a specific tag amongst those existing
-    sprout_obj = SPROUTObject(models_folder=models_folder)
-    sprout_obj.load_model(model_tag=model_tag, clf=classifier,
-                          x_train=x_train, y_train=y_train, label_names=label_names)
+    # Loading SPROUT object with a specific tag amongst those existing, or training from scratch
+    if not isinstance(model_data, SPROUTObject):
+        sprout_obj = SPROUTObject(models_folder=models_folder)
+        sprout_obj.load_model(model_tag=model_data, clf=classifier,
+                              x_train=x_train, y_train=y_train, label_names=label_names)
+    else:
+        sprout_obj = copy.deepcopy(model_data)
+        sprout_obj.train_model(classifier, x_train, y_train, x_val, y_val)
     start_ms = current_ms()
     sprout_df, sprout_pred = sprout_obj.exercise(x=x_test, y=y_test, classifier=classifier, verbose=verbose)
     sprout_time = current_ms() - start_ms
@@ -45,9 +67,10 @@ def exercise_wrapper(model_tag, models_folder, classifier, x_train, y_train, x_t
     metrics['test_time'] = test_time
     metrics['sprout_time'] = sprout_time
     metrics['clf_name'] = get_classifier_name(classifier)
-    metrics['sprout_tag'] = model_tag
+    metrics['sprout_tag'] = model_data
 
     return metrics
+
 
 class SPROUTObject:
 
@@ -217,107 +240,127 @@ class SPROUTObject:
         """
         self.trust_calculators.append(ReconstructionLoss(x_train=x_train, enc_tag=tag))
 
-    def predict_set_misclassifications(self, data_set, classifier, y_proba=None, verbose=True, as_pandas=True):
-        trust_set = self.compute_set_trust(data_set, classifier, y_proba, verbose, as_pandas)
-        return self.predict_misclassifications(trust_set)
-
-    def predict_data_misclassifications(self, data_point, classifier, verbose=True, as_pandas=True):
-        trust_data = self.compute_data_trust(data_point, classifier, verbose, as_pandas)
-        return self.predict_misclassifications(trust_data)
-
-    def predict_misclassifications(self, trust_set):
-        if self.binary_adjudicator is not None:
-            sp_df = copy.deepcopy(trust_set)
-            if isinstance(sp_df, pandas.DataFrame):
-                x_test = sp_df.select_dtypes(exclude=['object'])
-                x_test = x_test.to_numpy()
-            else:
-                x_test = sp_df
-            x_test = numpy.nan_to_num(x_test)
-            predictions = self.binary_adjudicator.predict(x_test)
-            sp_df["pred"] = predictions
-
+    def train_model(self, main_clf, x_train, y_train, x_val, y_val, features: list = None):
+        """
+        Trains the binary adjudicator from scratch
+        :param main_clf: the main classifier to be wrapped with the SPROUTObject
+        :param x_train: train data for uncertainty measures
+        :param y_train: train label for uncertainty measures
+        :param x_val: validation/test data for binary adjudicator
+        :param y_val: validation/test labels for binary adjudicator
+        :param features: the names of features of the original dataset (used for feature importance)
+        :return:
+        """
+        if os.path.exists(self.models_folder):
+            if features is None and isinstance(x_train, pandas.DataFrame):
+                features = x_train.columns.to_numpy()
+            unc_train = self.compute_set_trust(data_set=x_train, classifier=main_clf, verbose=False)
+            unc_train = unc_train.select_dtypes(exclude=['object']).to_numpy()
+            unc_val = self.compute_set_trust(data_set=x_val, classifier=main_clf, verbose=False)
+            unc_val = unc_val.select_dtypes(exclude=['object']).to_numpy()
+            misc_train = numpy.asarray(1 * (main_clf.predict(x_train) != y_train))
+            misc_val = numpy.asarray(1 * (main_clf.predict(x_val) != y_val))
+            self.binary_adjudicator, f_imp, ba_metrics = \
+                train_binary_adjudicator(unc_train, misc_train, unc_val, misc_val, features, verbose=False)
         else:
-            print("Need to load a model for binary adjudication first")
+            print("Models folder '" + self.models_folder + "' does not exist")
 
-        return sp_df, self.binary_adjudicator
+        return self.binary_adjudicator
 
-    def load_model(self, model_tag, clf, x_train, y_train=None, label_names=[0, 1], load_calculators=True):
+    def load_model(self, model_tag: str, clf, x_train, y_train=None, label_names: list = [0, 1]):
+        """
+        Loads an existing object (adjudicator + uncertainty calculators) specified by a tag.
+        The tag has to match the name of a subfolder of the models_folder.
+        :param model_tag: name of the object to load
+        :param clf: base classifier to be wrapped in the SPROUTObject
+        :param x_train: train data for uncertainty calculators
+        :param y_train: train labels for uncertainty calculators
+        :param label_names: names of the labels
+        :return:
+        """
         if os.path.exists(self.models_folder):
             if model_tag in self.get_available_models():
                 model_folder = self.models_folder + str(model_tag) + "/"
                 self.binary_adjudicator = joblib.load(model_folder + "binary_adj_model.joblib")
                 print("Loaded Binary Adjudicator '%s' for wrapper '%s'" %
                       (get_classifier_name(self.binary_adjudicator), model_tag))
-                if load_calculators:
-                    u_calcs = read_calculators(model_folder)
-                    self.trust_calculators = []
-                    for uc_tag in u_calcs:
-                        params = u_calcs[uc_tag]
-                        calculator_name = params["calculator_class"]
-                        if "Entropy" in calculator_name:
-                            calc = EntropyUncertainty(norm=len(label_names))
-                        elif "MaxProb" in calculator_name:
-                            calc = MaxProbUncertainty()
-                        elif "Neighbors" in calculator_name:
-                            calc = NeighborsUncertainty(x_train=x_train, y_train=y_train,
-                                                        k=params["n_neighbors"], labels=label_names)
-                        elif "ExternalSupervised" in calculator_name:
-                            del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
-                            calc = ExternalSupervisedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
-                                                                 norm=len(label_names))
-                        elif "ExternalUnsupervised" in calculator_name:
-                            del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
-                            calc = ExternalUnsupervisedUncertainty(del_clf=del_clf, x_train=x_train,
-                                                                   norm=len(label_names))
-                        elif ".CombinedUncertainty" in calculator_name:
-                            del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
-                            calc = CombinedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
-                                                       norm=len(label_names))
-                        elif "MultiCombinedUncertainty" in calculator_name:
-                            del_clfs = []
-                            clf_files = fnmatch.filter(os.listdir(model_folder), uc_tag + '*.joblib')
-                            clf_files.sort(reverse=False)
-                            for clf_name in clf_files:
-                                del_clf = joblib.load(model_folder + clf_name)
-                                del_clfs.append(del_clf)
-                            calc = MultiCombinedUncertainty(clf_set=del_clfs, x_train=x_train, y_train=y_train,
-                                                            norm=len(label_names))
-                        elif "AgreementUncertainty" in calculator_name:
-                            del_clfs = []
-                            clf_files = fnmatch.filter(os.listdir(model_folder), uc_tag + '*.joblib')
-                            clf_files.sort(reverse=False)
-                            for clf_name in clf_files:
-                                del_clf = joblib.load(model_folder + clf_name)
-                                del_clfs.append(del_clf)
-                            calc = AgreementUncertainty(clf_set=del_clfs, x_train=x_train)
-                        elif "ConfidenceInterval" in calculator_name:
-                            calc = ConfidenceInterval(conf_level=params["confidence_level"],
-                                                      x_train=x_train, y_train=y_train)
-                        elif "ProximityUncertainty" in calculator_name:
-                            calc = ProximityUncertainty(x_train=x_train, artificial_points=params["artificial_points"],
-                                                        range_wideness=params["range"], weighted=params["weighted"])
-                        elif "ConfidenceBagging" in calculator_name:
-                            calc = ConfidenceBaggingUncertainty(clf=clf, x_train=x_train, y_train=y_train,
-                                                                n_base=int(params["n_base"]) if params["n_base"] != 'None' else None,
-                                                                max_features=float(params["max_features"]) if params["max_features"] != 'None' else None,
-                                                                sampling_ratio=float(params["sampling_ratio"]) if params["sampling_ratio"] != 'None' else None,
-                                                                n_decisors=int(params["n_decisors"]) if params["n_decisors"] != 'None' else None,
-                                                                n_classes=len(label_names))
-                        elif "ConfidenceBoosting" in calculator_name:
-                            calc = ConfidenceBoostingUncertainty(clf=clf, x_train=x_train, y_train=y_train,
-                                                                n_base=int(params["n_base"]) if params["n_base"] != 'None' else None,
-                                                                learning_rate=float(params["learning_rate"]) if params["learning_rate"] != 'None' else None,
-                                                                sampling_ratio=float(params["sampling_ratio"]) if params["sampling_ratio"] != 'None' else None,
-                                                                contamination=float(params["contamination"]) if params["contamination"] != 'None' else None,
-                                                                conf_thr=float(params["conf_thr"]) if params["conf_thr"] != 'None' else None,
-                                                                n_classes=len(label_names))
-                        elif "ReconstructionLoss" in calculator_name:
-                            calc = ReconstructionLoss(x_train=x_train, enc_tag=params["enc_tag"])
-                        else:
-                            calc = None
-                        if calc is not None:
-                            self.trust_calculators.append(calc)
+                u_calcs = read_adjudicator_calculators(model_folder)
+                self.trust_calculators = []
+                for uc_tag in u_calcs:
+                    params = u_calcs[uc_tag]
+                    calculator_name = params["calculator_class"]
+                    if "Entropy" in calculator_name:
+                        calc = EntropyUncertainty(norm=len(label_names))
+                    elif "MaxProb" in calculator_name:
+                        calc = MaxProbUncertainty()
+                    elif "Neighbors" in calculator_name:
+                        calc = NeighborsUncertainty(x_train=x_train, y_train=y_train,
+                                                    k=params["n_neighbors"], labels=label_names)
+                    elif "ExternalSupervised" in calculator_name:
+                        del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
+                        calc = ExternalSupervisedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
+                                                             norm=len(label_names))
+                    elif "ExternalUnsupervised" in calculator_name:
+                        del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
+                        calc = ExternalUnsupervisedUncertainty(del_clf=del_clf, x_train=x_train,
+                                                               norm=len(label_names))
+                    elif ".CombinedUncertainty" in calculator_name:
+                        del_clf = joblib.load(model_folder + uc_tag + "_del_clf.joblib")
+                        calc = CombinedUncertainty(del_clf=del_clf, x_train=x_train, y_train=y_train,
+                                                   norm=len(label_names))
+                    elif "MultiCombinedUncertainty" in calculator_name:
+                        del_clfs = []
+                        clf_files = fnmatch.filter(os.listdir(model_folder), uc_tag + '*.joblib')
+                        clf_files.sort(reverse=False)
+                        for clf_name in clf_files:
+                            del_clf = joblib.load(model_folder + clf_name)
+                            del_clfs.append(del_clf)
+                        calc = MultiCombinedUncertainty(clf_set=del_clfs, x_train=x_train, y_train=y_train,
+                                                        norm=len(label_names))
+                    elif "AgreementUncertainty" in calculator_name:
+                        del_clfs = []
+                        clf_files = fnmatch.filter(os.listdir(model_folder), uc_tag + '*.joblib')
+                        clf_files.sort(reverse=False)
+                        for clf_name in clf_files:
+                            del_clf = joblib.load(model_folder + clf_name)
+                            del_clfs.append(del_clf)
+                        calc = AgreementUncertainty(clf_set=del_clfs, x_train=x_train)
+                    elif "ConfidenceInterval" in calculator_name:
+                        calc = ConfidenceInterval(conf_level=params["confidence_level"],
+                                                  x_train=x_train, y_train=y_train)
+                    elif "ProximityUncertainty" in calculator_name:
+                        calc = ProximityUncertainty(x_train=x_train, artificial_points=params["artificial_points"],
+                                                    range_wideness=params["range"], weighted=params["weighted"])
+                    elif "ConfidenceBagging" in calculator_name:
+                        calc = ConfidenceBaggingUncertainty(clf=clf, x_train=x_train, y_train=y_train,
+                                                            n_base=int(params["n_base"]) if params[
+                                                                                                "n_base"] != 'None' else None,
+                                                            max_features=float(params["max_features"]) if params[
+                                                                                                              "max_features"] != 'None' else None,
+                                                            sampling_ratio=float(params["sampling_ratio"]) if
+                                                            params["sampling_ratio"] != 'None' else None,
+                                                            n_decisors=int(params["n_decisors"]) if params[
+                                                                                                        "n_decisors"] != 'None' else None,
+                                                            n_classes=len(label_names))
+                    elif "ConfidenceBoosting" in calculator_name:
+                        calc = ConfidenceBoostingUncertainty(clf=clf, x_train=x_train, y_train=y_train,
+                                                             n_base=int(params["n_base"]) if params[
+                                                                                                 "n_base"] != 'None' else None,
+                                                             learning_rate=float(params["learning_rate"]) if params[
+                                                                                                                 "learning_rate"] != 'None' else None,
+                                                             sampling_ratio=float(params["sampling_ratio"]) if
+                                                             params["sampling_ratio"] != 'None' else None,
+                                                             contamination=float(params["contamination"]) if params[
+                                                                                                                 "contamination"] != 'None' else None,
+                                                             conf_thr=float(params["conf_thr"]) if params[
+                                                                                                       "conf_thr"] != 'None' else None,
+                                                             n_classes=len(label_names))
+                    elif "ReconstructionLoss" in calculator_name:
+                        calc = ReconstructionLoss(x_train=x_train, enc_tag=params["enc_tag"])
+                    else:
+                        calc = None
+                    if calc is not None:
+                        self.trust_calculators.append(calc)
 
             else:
                 print("Model '" + str(model_tag) + "' does not exist")
@@ -333,7 +376,12 @@ class SPROUTObject:
         """
         return [f.name for f in os.scandir(self.models_folder) if f.is_dir()]
 
-    def save_object(self, obj_folder):
+    def save_uncertainty_calculators(self, obj_folder: str):
+        """
+        Saves calculators of the SPROUTObject
+        :param obj_folder: the folder in which to save the object.
+        :return: nothing
+        """
         # Save general info about calculators into a unique file
         with open(obj_folder + "uncertainty_calculators.txt", 'w') as f:
             f.write('# File that lists the calculators used to build this SPROUT object\n')
@@ -386,13 +434,18 @@ class SPROUTObject:
             out_df = pd.concat([out_df, sp_df], axis=1)
 
             # Predict misclassifications with SPROUT
-            predictions_df, clf = self.predict_misclassifications(sp_df)
-            misc_pred = predictions_df["pred"].to_numpy()
-            out_df["misc_pred"] = misc_pred
-            sprout_pred = numpy.where(misc_pred == 0, clf_pred, None)
-            out_df["sprout_pred"] = sprout_pred
+            if self.binary_adjudicator is not None:
+                x_test = sp_df.select_dtypes(exclude=['object']).to_numpy()
+                x_test = numpy.nan_to_num(x_test)
+                misc_pred = self.binary_adjudicator.predict(x_test)
+                out_df["misc_pred"] = misc_pred
+                sprout_pred = numpy.where(misc_pred == 0, clf_pred, None)
+                out_df["sprout_pred"] = sprout_pred
+            else:
+                print("Need to load a model for binary adjudication first")
 
             return out_df, sprout_pred
+
         else:
             print('Unable to load SPROUT model')
             return out_df, clf_pred
