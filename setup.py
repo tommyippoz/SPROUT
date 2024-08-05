@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
      name='sprout-ml',
-     version='0.2',
+     version='0.3',
      scripts=[],
      author="Tommaso Zoppi",
      author_email="tommaso.zoppi@unifi.it",
@@ -14,7 +14,7 @@ setuptools.setup(
      long_description=long_description,
      long_description_content_type="text/markdown",
      url="https://github.com/tommyippoz/SPROUT",
-     keywords=['machine learning', 'safety wrapper', 'safety monitor', 'uncertainty measures', 'ensamble'],
+     keywords=['machine learning', 'safety wrapper', 'safety monitor', 'uncertainty measures', 'ensemble'],
      packages=setuptools.find_packages(),
      classifiers=[
          "Programming Language :: Python :: 3",
