@@ -171,12 +171,12 @@ class NeighborsUncertainty(UncertaintyCalculator):
         :return: dictionary of two arrays: uncertainty and Detail
         """
         start_time = current_ms()
-        print("Starting kNN search ...")
+        #print("Starting kNN search ...")
         near_neighbors = NearestNeighbors(n_neighbors=self.n_neighbors,
                                           algorithm='kd_tree',
                                           n_jobs=-1).fit(self.x_train)
         distances, indices = near_neighbors.kneighbors(feature_values_array)
-        print("kNN Search completed in " + str(current_ms() - start_time) + " ms")
+        #print("kNN Search completed in " + str(current_ms() - start_time) + " ms")
         train_proba = np.asarray(classifier.predict_proba(self.x_train))
         train_classes = numpy.argmax(train_proba, axis=1)
         if proba_array is None or proba_array.shape[0] != feature_values_array.shape[0]:
@@ -185,7 +185,7 @@ class NeighborsUncertainty(UncertaintyCalculator):
         neighbour_agreement = [0.0 for i in range(len(feature_values_array))]
         neighbour_uncertainty = [0.0 for i in range(len(feature_values_array))]
         neighbour_c = [0 for i in range(len(feature_values_array))]
-        for i in tqdm(range(len(feature_values_array))):
+        for i in range(len(feature_values_array)):
             predict_neighbours = train_classes[indices[i]]
             agreements = (predict_neighbours == predict_classes[i]).sum()
             neighbour_agreement[i] = agreements / len(predict_neighbours)

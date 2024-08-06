@@ -251,19 +251,16 @@ class SPROUTObject:
         :param features: the names of features of the original dataset (used for feature importance)
         :return:
         """
-        if os.path.exists(self.models_folder):
-            if features is None and isinstance(x_train, pandas.DataFrame):
-                features = x_train.columns.to_numpy()
-            unc_train = self.compute_set_trust(data_set=x_train, classifier=main_clf, verbose=False)
-            unc_train = unc_train.select_dtypes(exclude=['object']).to_numpy()
-            unc_val = self.compute_set_trust(data_set=x_val, classifier=main_clf, verbose=False)
-            unc_val = unc_val.select_dtypes(exclude=['object']).to_numpy()
-            misc_train = numpy.asarray(1 * (main_clf.predict(x_train) != y_train))
-            misc_val = numpy.asarray(1 * (main_clf.predict(x_val) != y_val))
-            self.binary_adjudicator, f_imp, ba_metrics = \
-                train_binary_adjudicator(unc_train, misc_train, unc_val, misc_val, features, verbose=False)
-        else:
-            print("Models folder '" + self.models_folder + "' does not exist")
+        if features is None and isinstance(x_train, pandas.DataFrame):
+            features = x_train.columns.to_numpy()
+        unc_train = self.compute_set_trust(data_set=x_train, classifier=main_clf, verbose=False)
+        unc_train = unc_train.select_dtypes(exclude=['object']).to_numpy()
+        unc_val = self.compute_set_trust(data_set=x_val, classifier=main_clf, verbose=False)
+        unc_val = unc_val.select_dtypes(exclude=['object']).to_numpy()
+        misc_train = numpy.asarray(1 * (main_clf.predict(x_train) != y_train))
+        misc_val = numpy.asarray(1 * (main_clf.predict(x_val) != y_val))
+        self.binary_adjudicator, f_imp, ba_metrics = \
+            train_binary_adjudicator(unc_train, misc_train, unc_val, misc_val, features, verbose=False)
 
         return self.binary_adjudicator
 
