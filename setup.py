@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
      name='sprout-ml',
-     version='0.3',
+     version='0.4',
      scripts=[],
      author="Tommaso Zoppi",
      author_email="tommaso.zoppi@unifi.it",

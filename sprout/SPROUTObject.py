@@ -434,18 +434,34 @@ class SPROUTObject:
             out_df = pd.concat([out_df, sp_df], axis=1)
 
             # Predict misclassifications with SPROUT
-            if self.binary_adjudicator is not None:
-                x_test = sp_df.select_dtypes(exclude=['object']).to_numpy()
-                x_test = numpy.nan_to_num(x_test)
-                misc_pred = self.binary_adjudicator.predict(x_test)
-                out_df["misc_pred"] = misc_pred
-                sprout_pred = numpy.where(misc_pred == 0, clf_pred, None)
-                out_df["sprout_pred"] = sprout_pred
-            else:
-                print("Need to load a model for binary adjudication first")
+            x_test = sp_df.select_dtypes(exclude=['object']).to_numpy()
+            x_test = numpy.nan_to_num(x_test)
+            misc_pred = self.binary_adjudicator.predict(x_test)
+            out_df["misc_pred"] = misc_pred
+            sprout_pred = numpy.where(misc_pred == 0, clf_pred, None)
+            out_df["sprout_pred"] = sprout_pred
 
             return out_df, sprout_pred
 
         else:
             print('Unable to load SPROUT model')
             return out_df, clf_pred
+
+    def predict_misclassifications(self, x, classifier, verbose=True) -> numpy.ndarray:
+        """
+        Predicts on a test set
+        :param x: the test features x_test
+        :param classifier: the classifier object
+        :param verbose: True if debug information has to be shown
+        :return: a ndarray
+        """
+        if self.binary_adjudicator is not None:
+            # Calculating Trust Measures with SPROUT
+            unc_m = self.compute_set_trust(data_set=x, classifier=classifier, verbose=verbose)
+            x_test = unc_m.select_dtypes(exclude=['object']).to_numpy()
+            x_test = numpy.nan_to_num(x_test)
+            misc_pred = self.binary_adjudicator.predict(x_test)
+            return misc_pred
+        else:
+            print("Adjudicator is not trained")
+            return None
