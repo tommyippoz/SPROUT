@@ -199,7 +199,7 @@ class ExternalSupervisedUncertainty(UncertaintyCalculator):
     Defines a uncertainty measure that runs an external classifer and calculates its confidence in the result
     """
 
-    def __init__(self, del_clf, x_train, y_train, norm=2, unc_measure='entropy'):
+    def __init__(self, del_clf, x_train, y_train, norm=2, unc_measure='entropy', verbose=False):
         self.del_clf = del_clf
         if unc_measure == 'entropy':
             self.u_measure = EntropyUncertainty(norm)
@@ -211,7 +211,8 @@ class ExternalSupervisedUncertainty(UncertaintyCalculator):
             if isinstance(x_train, pandas.DataFrame):
                 x_train = x_train.to_numpy()
             self.del_clf.fit(x_train, y_train)
-            print("[ExternalSupuncertainty] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
+            if verbose:
+                print("[ExternalSupuncertainty] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
         else:
             print("[ExternalSupuncertainty] Unable to train the supervised classifier - no data available")
 
@@ -246,7 +247,7 @@ class ExternalUnsupervisedUncertainty(UncertaintyCalculator):
     Defines a uncertainty measure that runs an external classifer and calculates its confidence in the result
     """
 
-    def __init__(self, del_clf, x_train, norm=2, unc_measure='entropy'):
+    def __init__(self, del_clf, x_train, norm=2, unc_measure='entropy', verbose=False):
         self.del_clf = del_clf
         if unc_measure == 'entropy':
             self.u_measure = EntropyUncertainty(norm)
@@ -258,7 +259,8 @@ class ExternalUnsupervisedUncertainty(UncertaintyCalculator):
             if isinstance(x_train, pandas.DataFrame):
                 x_train = x_train.to_numpy()
             self.del_clf.fit(x_train)
-            print("[ExternalUnsuncertainty] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
+            if verbose:
+                print("[ExternalUnsuncertainty] Fitting of '" + get_classifier_name(del_clf) + "' Completed")
         else:
             print("[ExternalUnsuncertainty] Unable to train the supervised classifier - no data available")
 
@@ -309,7 +311,7 @@ class CombinedUncertainty(UncertaintyCalculator):
     It uses the main classifier plus the additional classifier to calculate an unified confidence score
     """
 
-    def __init__(self, del_clf, x_train, y_train=None, norm=2):
+    def __init__(self, del_clf, x_train, y_train=None, norm=2, verbose=False):
         self.del_clf = del_clf
         self.u_measure = EntropyUncertainty(norm)
         if x_train is not None:
@@ -321,8 +323,9 @@ class CombinedUncertainty(UncertaintyCalculator):
                 self.del_clf.fit(x_train)
             else:
                 self.del_clf.fit(x_train, y_train)
-            print("[Combineduncertainty] Fitting of '" + get_classifier_name(del_clf) + "' Completed in " +
-                  str(current_ms() - start_time) + " ms")
+            if verbose:
+                print("[Combineduncertainty] Fitting of '" + get_classifier_name(del_clf) + "' Completed in " +
+                    str(current_ms() - start_time) + " ms")
         else:
             print("[CombinedUncertainty] Unable to train combined classifier - no data available")
 
@@ -369,7 +372,7 @@ class MultiCombinedUncertainty(UncertaintyCalculator):
     It uses the main classifier plus the additional classifier to calculate an unified confidence score
     """
 
-    def __init__(self, clf_set, x_train, y_train=None, norm=2):
+    def __init__(self, clf_set, x_train, y_train=None, norm=2, verbose=False):
         self.uncertainty_set = []
         self.tag = ""
         start_time = current_ms()
@@ -377,8 +380,9 @@ class MultiCombinedUncertainty(UncertaintyCalculator):
             self.uncertainty_set.append(CombinedUncertainty(clf, x_train, y_train, norm))
             self.tag = self.tag + get_classifier_name(clf)[0] + get_classifier_name(clf)[-1]
         self.tag = str(len(self.uncertainty_set)) + " - " + self.tag
-        print("[MultiCombineduncertainty] Fitting of " + str(len(clf_set)) + " classifiers completed in "
-              + str(current_ms() - start_time) + " ms")
+        if verbose:
+            print("[MultiCombineduncertainty] Fitting of " + str(len(clf_set)) + " classifiers completed in "
+                  + str(current_ms() - start_time) + " ms")
 
     def save_params(self, main_folder, tag):
         """
@@ -424,7 +428,7 @@ class AgreementUncertainty(UncertaintyCalculator):
     It uses the main classifier plus the additional classifier to calculate an unified confidence score
     """
 
-    def __init__(self, clf_set, x_train, y_train=None):
+    def __init__(self, clf_set, x_train, y_train=None, verbose=False):
         self.clfs = []
         self.tag = ""
         start_time = current_ms()
@@ -444,8 +448,9 @@ class AgreementUncertainty(UncertaintyCalculator):
             self.clfs.append(clf)
             self.tag = self.tag + get_classifier_name(clf)[0] + get_classifier_name(clf)[-1]
         self.tag = str(len(self.clfs)) + " - " + self.tag
-        print("[Agreementuncertainty] Fitting of " + str(len(clf_set)) + " classifiers completed in "
-              + str(current_ms() - start_time) + " ms")
+        if verbose:
+            print("[Agreementuncertainty] Fitting of " + str(len(clf_set)) + " classifiers completed in "
+                  + str(current_ms() - start_time) + " ms")
 
     def save_params(self, main_folder, tag):
         """
@@ -585,7 +590,7 @@ class ProximityUncertainty(UncertaintyCalculator):
     and checks if the classifier has a unified answer to all of those data points
     """
 
-    def __init__(self, x_train, artificial_points: int = 10, range_wideness: float = 0.1, weighted: bool = False):
+    def __init__(self, x_train, artificial_points: int = 10, range_wideness: float = 0.1, weighted: bool = False, verbose=False):
         self.n_artificial = int(artificial_points)
         self.range = float(range_wideness)
         self.weighted = weighted
@@ -595,7 +600,8 @@ class ProximityUncertainty(UncertaintyCalculator):
             if isinstance(x_train, pd.DataFrame):
                 x_train = x_train.to_numpy()
             self.stds = numpy.std(x_train, axis=0)
-            print("Proximity Uncertainty initialized in " + str(current_ms() - start_time) + " ms")
+            if verbose:
+                print("Proximity Uncertainty initialized in " + str(current_ms() - start_time) + " ms")
         else:
             print("Proximity Uncertainty failed to initialize - no data available")
 
