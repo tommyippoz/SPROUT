@@ -6,6 +6,7 @@ import pandas as pd
 from torchvision.transforms import ToTensor
 import numpy as np
 import os
+print("Test")
 class CustomDataset(Dataset):
     def __init__(self, data_dir, transform=None):
         self.data_dir = data_dir
