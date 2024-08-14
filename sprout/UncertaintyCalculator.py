@@ -128,47 +128,14 @@ class EntropyUncertainty(UncertaintyCalculator):
         :return: array of uncertainty scores
         """
         uncertainty = []
-        if not isinstance(feature_values_array, np.ndarray):
-            feature_values_array = feature_values_array.to_numpy()
+        if not isinstance(feature_values_array, DataLoader):
+            if not isinstance(feature_values_array, np.ndarray):
+                feature_values_array = feature_values_array.to_numpy()
         if len(feature_values_array) == len(proba_array):
             uncertainty = [self.uncertainty_score(proba_array[i]) for i in range(0, len(proba_array))]
         else:
             print("Items of the feature set have a different cardinality wrt probabilities")
         return np.asarray(uncertainty)
-
-    def uncertainty_scores(self, feature_values_array: DataLoader, proba_array, classifier):
-        """
-        Method to compute uncertainty score for a set of data points
-        :param classifier: the classifier used for classification
-        :param feature_values_array: the feature values of the data points in the test set
-        :param proba_array: the probability arrays assigned by the algorithm to the data points
-        :return: array of uncertainty scores
-        """
-        uncertainty = []
-
-        # Convert DataLoader to NumPy array if needed
-        if isinstance(feature_values_array, DataLoader):
-            all_features = []
-            for batch in feature_values_array:
-                if isinstance(batch, tuple):
-                    batch = batch[0]  # if DataLoader returns (data, label) tuples, take only the data
-                if isinstance(batch, torch.Tensor):
-                    all_features.append(batch.numpy())
-                else:
-                    all_features.append(np.array(batch))
-            feature_values_array = np.concatenate(all_features, axis=0)
-
-        # Check if feature_values_array is a NumPy array now
-        if isinstance(feature_values_array, np.ndarray):
-            if len(feature_values_array) == len(proba_array):
-                uncertainty = [self.uncertainty_score(proba_array[i]) for i in range(len(proba_array))]
-            else:
-                print("Items of the feature set have a different cardinality wrt probabilities")
-        else:
-            print("Feature values array could not be converted to NumPy array")
-
-        return np.asarray(uncertainty)
-
 
     def uncertainty_calculator_name(self):
         return 'Entropy Calculator'
@@ -352,14 +319,18 @@ class CombinedUncertainty(UncertaintyCalculator):
         self.del_clf = del_clf
         self.u_measure = EntropyUncertainty(norm)
         if x_train is not None:
-            if isinstance(x_train, pandas.DataFrame):
-                x_train = x_train.to_numpy()
+            if not isinstance(x_train, DataLoader):
+                if isinstance(x_train, pandas.DataFrame):
+                    x_train = x_train.to_numpy()
             start_time = current_ms()
 
             if isinstance(self.del_clf, pyod.models.base.BaseDetector):
                 self.del_clf.fit(x_train)
             else:
-                self.del_clf.fit(x_train, y_train)
+                if not isinstance(x_train, DataLoader):
+                    self.del_clf.fit(x_train, y_train)
+                else:
+                    self.del_clf.fit(x_train)
             print("[Combineduncertainty] Fitting of '" + get_classifier_name(del_clf) + "' Completed in " +
                   str(current_ms() - start_time) + " ms")
         else:
@@ -387,10 +358,17 @@ class CombinedUncertainty(UncertaintyCalculator):
         :param proba_array: the probability arrays assigned by the algorithm to the data points
         :return: array of uncertainty scores
         """
-        if proba_array is None or proba_array.shape[0] != feature_values_array.shape[0]:
-            pred = classifier.predict(feature_values_array)
+        if isinstance(feature_values_array, np.ndarray):
+            if proba_array is None or proba_array.shape[0] != feature_values_array.shape[0]:
+                pred = classifier.predict(feature_values_array)
+            else:
+                pred = numpy.argmax(proba_array, axis=1)
         else:
-            pred = numpy.argmax(proba_array, axis=1)
+            if proba_array is None:
+                pred = classifier.predict(feature_values_array)
+            else:
+                pred = numpy.argmax(proba_array, axis=1)
+        custom_pred = self.del_clf.predict_proba(feature_values_array)
         other_pred = self.del_clf.predict(feature_values_array)
         entropy = self.u_measure.uncertainty_scores(feature_values_array, proba_array, classifier)
         other_entropy = self.u_measure.uncertainty_scores(feature_values_array,
