@@ -192,7 +192,7 @@ class ImageClassifier(Model):
         self.num_epochs = num_epochs
         self.labels = None
         self.predictions = None
-        self.device = None
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = None
         self.train = False
         self.save_dir = save_dir
@@ -203,10 +203,10 @@ class ImageClassifier(Model):
         raise NotImplementedError("Subclasses must implement the create_model method.")
 
     # @append_class_name
-    def fit(self, device, dataset):
+    def fit(self, dataset):
         early_stopping = EarlyStopping(patience=5, delta=0.001)
         self.dataset = dataset
-        self.device = device
+        # self.device = device
         if self.model is None:
             raise ValueError("Model not created. Call create_model() before fitting.")
         if not os.path.exists(self.log_file):
@@ -215,7 +215,7 @@ class ImageClassifier(Model):
             print(f"==============Performing Training on Train Dataset with {self.model_name}==============")
             optimizer = torch.optim.SGD(self.model.parameters(), lr=0.01, momentum=0.9)
             criterion = nn.CrossEntropyLoss()
-            self.model = self.model.to(device)  # Move the model to the device
+            self.model = self.model.to(self.device)  # Move the model to the device
             self.train = True
             for epoch in range(self.num_epochs):
                 self.model.train()

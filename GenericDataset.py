@@ -1,6 +1,6 @@
 import torch
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, Dataset, TensorDataset
+from torch.utils.data import DataLoader, Dataset, TensorDataset, Subset
 from PIL import Image
 import pandas as pd
 from torchvision.transforms import ToTensor
@@ -99,6 +99,16 @@ class GenericDatasetLoader:
 
         return subset_dataloader
 
+    def extract_labels(self, dataloader):
+        labels_list = []
+
+        # Iterate over the DataLoader
+        for _, labels in dataloader:
+            # Append labels to the list
+            labels_list.extend(labels.numpy())  # Convert tensor to numpy array and extend the list
+
+        # Convert the list to a numpy array
+        return np.array(labels_list)
     def dataloader_to_numpy(self, dataloader):
         data_list = []
         labels_list = []
@@ -128,8 +138,10 @@ class GenericDatasetLoader:
     def load_cifar(self, split='train'):
         if split == 'train':
             dataset = datasets.CIFAR10(root=self.root_dir, train=True, transform=self.transform, download=True)
+            # dataset = Subset(dataset, list(range(100)))
         else:
             dataset = datasets.CIFAR10(root=self.root_dir, train=False, transform=self.transform, download=True)
+            # dataset = Subset(dataset, list(range(50)))
 
         return dataset
 

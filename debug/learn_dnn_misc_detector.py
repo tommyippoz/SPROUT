@@ -1,6 +1,7 @@
 import copy
 import os
-
+import torch
+from torchvision import transforms
 import joblib
 import matplotlib.pyplot as plt
 import numpy
@@ -8,6 +9,8 @@ import numpy as np
 import pandas
 import pandas as pd
 import sklearn
+from PIL import Image
+from GenericDataset import *
 from pyod.models.cblof import CBLOF
 from pyod.models.copod import COPOD
 from pyod.models.ecod import ECOD
@@ -21,9 +24,10 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB, ComplementNB
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler
+from model import *
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
-
+from sklearn.model_selection import train_test_split
 from debug.learn_simple_model import sample_data
 from sprout.SPROUTObject import SPROUTObject
 from sprout.classifiers.Classifier import LogisticReg, get_classifier_name, build_classifier, choose_classifier, \
@@ -32,6 +36,7 @@ from sprout.utils.dataset_utils import process_tabular_dataset, process_image_da
     process_binary_tabular_dataset
 from sprout.utils.general_utils import load_config, clean_name, current_ms, clear_folder
 from sprout.utils.sprout_utils import build_SPROUT_dataset
+from torch.utils.data import DataLoader, Subset
 
 # The folder where to put the new misclassification detector
 MODELS_FOLDER = "../models/"
@@ -40,11 +45,14 @@ TMP_FOLDER = "tmp"
 # The name of the new misclassification detector
 MODEL_TAG = "dnn_misc_detector"
 # The folder from which image datasets are gonna be loaded
-TRAIN_DATA_FOLDER = ""
+TRAIN_DATA_FOLDER = "/home/fahad/Project/SPROUT/dataset/custom/"
 # This is to down-sample or over-sample the percentage of misclassified predictions
 # in the training set of the misclassification detector
 MISC_RATIOS = [None, 0.05, 0.1, 0.2, 0.3]
-
+# Number of Channels
+CHANNELS = 0
+# Check if CUDA is available
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # -------------------------------------------------------------------------------------------------------
 # FUNCTIONS THAT YOU HAVE TO IMPLEMENT
 
@@ -53,17 +61,55 @@ def get_dnn_classifiers():
     This should return a list of classifier objects (Model objects in your code) that you want to use for image class.
     :return: a list of classifier objects
     """
-    return []
+    models = []
+    model_name = ['ResNet', 'AlexNet']
+    model = ResNet(num_classes=10, channel=CHANNELS, num_epochs=1, save_dir=TMP_FOLDER)
+    model.create_model()
+    models.append(model)
 
+    return models
 
+def get_del_classifiers():
+    """
+    This should return a classifier objects (Model objects in your code) that you want to use as a checker classifier.
+    :return: a classifier object
+    """
+    model = AlexNet(num_classes=10, channel=CHANNELS, num_epochs=1, save_dir=TMP_FOLDER)
+    model.create_model()
+
+    return model
 def read_image_dataset(dataset_file):
+
     """
     This is something that you have to implement
     Has to return 5 items: x_train, y_train, x_test, y_test, labels
     :param dataset_file: the input you need to understand which dataset (and how) you have to read
     :return: x_train, y_train, x_test, y_test, labels
     """
-    pass
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,))
+    ])
+    custom_data = GenericDatasetLoader(dataset_name=dataset_file, root_dir = TRAIN_DATA_FOLDER, transform= transform, batch_size=1)
+
+    train_loader = custom_data.create_dataloader(split='train')
+
+    test_loader = custom_data.create_dataloader(split='test')
+
+    y_test = custom_data.extract_labels(test_loader)
+    # test_loader = custom_data.get_subset_from_dataloader(test_loader,100)
+    global CHANNELS
+    CHANNELS = custom_data.get_num_channels(train_loader)
+    # CHANNELS = 3
+    print('Number of Channels: ',CHANNELS)
+    # X_train, y_train = custom_data.dataloader_to_numpy(train_loader)
+    # X_test, y_test = custom_data.dataloader_to_numpy(test_loader)
+
+    label_tags = train_loader.dataset.classes
+
+    # return train_loader, test_loader, X_train, X_test, y_train, y_test, label_tags
+    return train_loader, test_loader, y_test, label_tags
 
 
 def list_image_datasets():
@@ -72,7 +118,8 @@ def list_image_datasets():
     One item per dataset
     :return:
     """
-    pass
+    dataset_name = ['CIFAR10']
+    return dataset_name
 
 # -------------------------------------------------------------------------------------------------------
 
@@ -93,21 +140,26 @@ def compute_datasets_uncertainties():
             print("Processing Dataset " + dataset_file + "'")
 
             # Reading Dataset
-            x_train, x_test, y_train, y_test, label_tags = read_image_dataset(dataset_file)
+            # train_loader, test_loader,x_train, x_test, y_train, y_test, label_tags = read_image_dataset(dataset_file)
+            train_loader, test_loader, y_test, label_tags = read_image_dataset(dataset_file)
+
 
             print("Preparing Uncertainty Calculators...")
-            sp_obj = build_supervised_object(x_train, y_train, label_tags)
+            sp_obj = build_supervised_object(train_loader, test_loader, label_tags)
 
             for classifier in get_dnn_classifiers():
                 sprout_obj = copy.deepcopy(sp_obj)
-                # Building  and  exercising  classifier
-                classifier.fit(x_train, y_train)
-                y_proba = classifier.predict_proba(x_test)
-                y_pred = classifier.predict(x_test)
+                # Building and exercising classifier
+                print(DEVICE)
+                classifier.fit(dataset = train_loader)
+                # classifier.load_model('/home/fahad/Project/SPROUT/debug/tmp/ResNet_0_model_weights.pth')
+                y_proba = classifier.predict_proba(test_loader)
+                y_pred = classifier.predict(test_loader)
+
 
                 # Calculating Trust Measures with SPROUT
                 out_df = build_SPROUT_dataset(y_proba, y_pred, y_test, label_tags)
-                q_df = sprout_obj.compute_set_trust(data_set=x_test, classifier=classifier)
+                q_df = sprout_obj.compute_set_trust(data_set = test_loader, classifier=classifier, y_proba=y_proba)
                 out_df = pd.concat([out_df, q_df], axis=1)
 
                 # Printing Dataframe containing uncertainty measures
@@ -170,18 +222,22 @@ def load_uncertainty_datasets(train_split=0.5, avoid_tags=[], perf_thr=None,
 # Sume UM are alreay there, you can change them at will
 def build_supervised_object(x_train, y_train, label_tags):
     sp_obj = SPROUTObject(models_folder=MODELS_FOLDER)
-    if (x_train is not None) and isinstance(x_train, pandas.DataFrame):
-        x_data = x_train.to_numpy()
-    else:
-        x_data = x_train
-    # UM1
-    sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9)
+    classifier = get_del_classifiers()
+    # if (x_train is not None) and isinstance(x_train, pandas.DataFrame):
+    #     x_data = x_train.to_numpy()
+    # else:
+    #     x_data = x_train
+    # # Add UM as much as possible
+    # # UM1
+    # sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9)
     # UM2
     sp_obj.add_calculator_maxprob()
     # UM3
     sp_obj.add_calculator_entropy(n_classes=len(label_tags))
     # UM9
-    sp_obj.add_calculator_recloss(x_train=x_data)
+    sp_obj.add_calculator_recloss(x_train=x_train)
+
+    sp_obj.add_calculator_combined(classifier= classifier, x_train=x_train,y_train = y_train, n_classes=len(label_tags))
     return sp_obj
 
 
@@ -197,15 +253,15 @@ if __name__ == '__main__':
     # This is to compute the uncertainty measures for image classifiers in each datasets and saving to files
     # The files will then be used at a later stage for creating the train/test set for the misclassification detector
     compute_datasets_uncertainties()
-
-    sprout_obj = build_supervised_object(None, None, None)
+    #
+    # sprout_obj =  (None, None, None)
     if os.path.exists(TRAIN_DATA_FOLDER):
         # Merging data into a unique Dataset for training Misclassification Predictors
         # As it is now the train/test split is set to 75-25
         # The perf_thr is there to set a threshold for the quality of data used for learning the misclassification detector
         # The higher the perf_thr, the more data will be discarded (less data, better quality)
         x_train, y_train, x_test, y_test, features, m_frac = \
-            load_uncertainty_datasets(TMP_FOLDER, train_split=0.75, perf_thr=0.7)
+            load_uncertainty_datasets(train_split=0.75, perf_thr=0.08)
 
         # Classifiers for Detection (Binary Adjudicators)
         # All of them will be tested and only the best will be chosen as the model for the misc. detector
