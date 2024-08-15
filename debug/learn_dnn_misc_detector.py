@@ -78,6 +78,18 @@ def get_del_classifiers():
     model.create_model()
 
     return model
+
+def get_list_del_classifiers():
+    """
+    This should return a classifier objects (Model objects in your code) that you want to use as a checker classifier.
+    :return: a classifier object
+    """
+    models = []
+    model = AlexNet(num_classes=10, channel=CHANNELS, num_epochs=1, save_dir=TMP_FOLDER)
+    model.create_model()
+    models.append(model)
+
+    return models
 def read_image_dataset(dataset_file):
 
     """
@@ -222,13 +234,13 @@ def load_uncertainty_datasets(train_split=0.5, avoid_tags=[], perf_thr=None,
 # Sume UM are alreay there, you can change them at will
 def build_supervised_object(x_train, y_train, label_tags):
     sp_obj = SPROUTObject(models_folder=MODELS_FOLDER)
-    classifier = get_del_classifiers()
+    classifier = get_list_del_classifiers()
     # if (x_train is not None) and isinstance(x_train, pandas.DataFrame):
     #     x_data = x_train.to_numpy()
     # else:
     #     x_data = x_train
     # # Add UM as much as possible
-    # # UM1
+    # UM1
     # sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9)
     # UM2
     sp_obj.add_calculator_maxprob()
@@ -237,7 +249,8 @@ def build_supervised_object(x_train, y_train, label_tags):
     # UM9
     sp_obj.add_calculator_recloss(x_train=x_train)
 
-    sp_obj.add_calculator_combined(classifier= classifier, x_train=x_train,y_train = y_train, n_classes=len(label_tags))
+    sp_obj.add_calculator_combined(classifier= classifier[0], x_train=x_train,y_train = y_train, n_classes=len(label_tags))
+    sp_obj.add_calculator_multicombined(clf_set=classifier, x_train=x_train, y_train=y_train, n_classes=len(label_tags))
     return sp_obj
 
 

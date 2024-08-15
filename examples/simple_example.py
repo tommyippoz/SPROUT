@@ -1,5 +1,7 @@
-from sklearn.tree import DecisionTreeClassifier
+import sys
+# sys.path.append('/home/fahad/Project/SPROUT')
 
+from sklearn.tree import DecisionTreeClassifier
 from sprout.SPROUTObject import exercise_wrapper
 from sprout.classifiers.Classifier import get_classifier_name
 from sprout.utils.dataset_utils import load_MNIST, process_binary_tabular_dataset

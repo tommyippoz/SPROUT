@@ -1,11 +1,14 @@
+import sys
+sys.path.append('/home/fahad/Project/SPROUT')
 from sklearn.ensemble import RandomForestClassifier
 
 from sprout.SPROUTObject import SPROUTObject
 from sprout.classifiers.Classifier import get_classifier_name
-from sprout.utils.dataset_utils import process_binary_tabular_dataset
+from sprout.utils.dataset_utils import process_binary_tabular_dataset, process_image_dataset
 from sprout.utils.general_utils import current_ms
 from sprout.utils.sprout_utils import compute_omission_metrics
-
+import sys,os
+sys.path.append('/home/fahad/Project/SPROUT/sprout')
 MODELS_FOLDER = "../models/"
 MODEL_TAG = "sup_all"
 
@@ -16,8 +19,8 @@ if __name__ == '__main__':
     """
 
     # Reading sample dataset (NSL-KDD)
-    x_train, x_test, y_train, y_test, label_names, feature_names = \
-        process_binary_tabular_dataset(dataset_name="input_folder/NSLKDD.csv", label_name="multilabel", limit=10000)
+    x_train, x_test, y_train, y_test, label_names, feature_names = process_image_dataset(dataset_name="MNIST", limit=10000)
+    # process_binary_tabular_dataset(dataset_name="input_folder/NSLKDD.csv", label_name="multilabel", limit=10000)
 
 
     # Creating classifier clf
