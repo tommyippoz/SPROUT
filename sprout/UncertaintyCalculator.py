@@ -176,27 +176,67 @@ class NeighborsUncertainty(UncertaintyCalculator):
         :param classifier: the classifier used for classification
         :return: dictionary of two arrays: uncertainty and Detail
         """
+        np_data = []
+        for data_batch, _ in self.x_train:
+            # Assuming data_batch is of shape (batch_size, channels, height, width)
+            batch_data = data_batch.numpy()
+            # Flatten each image (batch_size, channels, height, width) -> (batch_size, channels * height * width)
+            batch_data_flattened = batch_data.reshape(batch_data.shape[0], -1)
+            np_data.append(batch_data_flattened)
+        np_data = np.concatenate(np_data, axis=0)
+
+        np_feature_values_array = []
+        for data_batch, _ in feature_values_array:
+            # Assuming data_batch is of shape (batch_size, channels, height, width)
+            batch_data = data_batch.numpy()
+            # Flatten each image (batch_size, channels, height, width) -> (batch_size, channels * height * width)
+            batch_data_flattened = batch_data.reshape(batch_data.shape[0], -1)
+            np_feature_values_array.append(batch_data_flattened)
+        np_feature_values_array = np.concatenate(np_feature_values_array, axis=0)
+
+
         start_time = current_ms()
         print("Starting kNN search ...")
-        near_neighbors = NearestNeighbors(n_neighbors=self.n_neighbors,
-                                          algorithm='kd_tree',
-                                          n_jobs=-1).fit(self.x_train)
-        distances, indices = near_neighbors.kneighbors(feature_values_array)
+        if not isinstance(self.x_train, DataLoader):
+            near_neighbors = NearestNeighbors(n_neighbors=self.n_neighbors,
+                                              algorithm='kd_tree',
+                                              n_jobs=-1).fit(self.x_train)
+            distances, indices = near_neighbors.kneighbors(feature_values_array)
+        else:
+            near_neighbors = NearestNeighbors(n_neighbors=self.n_neighbors,
+                                              algorithm='kd_tree',
+                                              n_jobs=-1).fit(np_data)
+            distances, indices = near_neighbors.kneighbors(np_feature_values_array)
+
         print("kNN Search completed in " + str(current_ms() - start_time) + " ms")
         train_proba = np.asarray(classifier.predict_proba(self.x_train))
         train_classes = numpy.argmax(train_proba, axis=1)
-        if proba_array is None or proba_array.shape[0] != feature_values_array.shape[0]:
+        if not isinstance(feature_values_array, DataLoader):
+            if proba_array is None or proba_array.shape[0] != feature_values_array.shape[0]:
+                proba_array = np.asarray(classifier.predict_proba(feature_values_array))
+                predict_classes = numpy.argmax(proba_array, axis=1)
+                neighbour_agreement = [0.0 for i in range(len(feature_values_array))]
+                neighbour_uncertainty = [0.0 for i in range(len(feature_values_array))]
+                neighbour_c = [0 for i in range(len(feature_values_array))]
+                for i in tqdm.tqdm(range(len(feature_values_array))):
+                    predict_neighbours = train_classes[indices[i]]
+                    agreements = (predict_neighbours == predict_classes[i]).sum()
+                    neighbour_agreement[i] = agreements / len(predict_neighbours)
+                    neighbour_uncertainty[i] = predictions_variability(train_proba[indices[i]])
+                    neighbour_c[i] = Counter(list(map(lambda x: self.labels[x], predict_neighbours))).most_common()
+
+        else:
             proba_array = np.asarray(classifier.predict_proba(feature_values_array))
-        predict_classes = numpy.argmax(proba_array, axis=1)
-        neighbour_agreement = [0.0 for i in range(len(feature_values_array))]
-        neighbour_uncertainty = [0.0 for i in range(len(feature_values_array))]
-        neighbour_c = [0 for i in range(len(feature_values_array))]
-        for i in tqdm(range(len(feature_values_array))):
-            predict_neighbours = train_classes[indices[i]]
-            agreements = (predict_neighbours == predict_classes[i]).sum()
-            neighbour_agreement[i] = agreements / len(predict_neighbours)
-            neighbour_uncertainty[i] = predictions_variability(train_proba[indices[i]])
-            neighbour_c[i] = Counter(list(map(lambda x: self.labels[x], predict_neighbours))).most_common()
+            predict_classes = numpy.argmax(proba_array, axis=1)
+            neighbour_agreement = [0.0 for i in range(len(np_feature_values_array))]
+            neighbour_uncertainty = [0.0 for i in range(len(np_feature_values_array))]
+            neighbour_c = [0 for i in range(len(np_feature_values_array))]
+            for i in tqdm.tqdm(range(len(np_feature_values_array))):
+                predict_neighbours = train_classes[indices[i]]
+                agreements = (predict_neighbours == predict_classes[i]).sum()
+                neighbour_agreement[i] = agreements / len(predict_neighbours)
+                neighbour_uncertainty[i] = predictions_variability(train_proba[indices[i]])
+                neighbour_c[i] = Counter(list(map(lambda x: self.labels[x], predict_neighbours))).most_common()
         return {"agreement": neighbour_agreement, "uncertainty": neighbour_uncertainty, "Detail": neighbour_c}
 
 

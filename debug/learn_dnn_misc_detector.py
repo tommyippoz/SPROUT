@@ -110,7 +110,7 @@ def read_image_dataset(dataset_file):
     test_loader = custom_data.create_dataloader(split='test')
 
     y_test = custom_data.extract_labels(test_loader)
-    # test_loader = custom_data.get_subset_from_dataloader(test_loader,100)
+
     global CHANNELS
     CHANNELS = custom_data.get_num_channels(train_loader)
     # CHANNELS = 3
@@ -244,13 +244,14 @@ def build_supervised_object(x_train, y_train, label_tags):
     # sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9)
     # UM2
     sp_obj.add_calculator_maxprob()
-    # UM3
+    # # UM3
     sp_obj.add_calculator_entropy(n_classes=len(label_tags))
-    # UM9
+    # # UM9
     sp_obj.add_calculator_recloss(x_train=x_train)
-
+    #
     sp_obj.add_calculator_combined(classifier= classifier[0], x_train=x_train,y_train = y_train, n_classes=len(label_tags))
     sp_obj.add_calculator_multicombined(clf_set=classifier, x_train=x_train, y_train=y_train, n_classes=len(label_tags))
+    sp_obj.add_calculator_neighbour(x_train=x_train,y_train=y_train,label_names = label_tags)
     return sp_obj
 
 
