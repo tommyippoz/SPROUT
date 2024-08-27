@@ -133,34 +133,37 @@ def train_binary_adjudicator(x_train: numpy.ndarray, y_train: numpy.ndarray,
     for clf_base in CLASSIFIERS:
         clf_name = get_classifier_name(clf_base)
         for ratio in misc_ratios:
-            clf = copy.deepcopy(clf_base)
-            if ratio is not None:
-                x_tr, y_tr = sample_adj_data(x_train, y_train, ratio)
-            else:
-                x_tr = x_train
-                y_tr = y_train
-            start_ms = current_ms()
-            clf.fit(x_tr, y_tr)
-            end_ms = current_ms()
-            y_pred = clf.predict(x_test)
-            mcc = sklearn.metrics.matthews_corrcoef(y_test, y_pred)
-            if verbose:
-                print("[" + clf_name + "][ratio=" + str(ratio) + "] Accuracy: " + str(
-                    sklearn.metrics.accuracy_score(y_test, y_pred))
-                      + " and MCC of " + str(mcc) + " in " + str((end_ms - start_ms) / 60000) + " mins")
-            if mcc > best_metrics["MCC"]:
-                best_ratio = ratio
-                best_clf = clf
-                [tn, fp], [fn, tp] = sklearn.metrics.confusion_matrix(y_test, y_pred)
-                best_metrics = {"MCC": mcc,
-                                "Accuracy": sklearn.metrics.accuracy_score(y_test, y_pred),
-                                "AUC ROC": sklearn.metrics.roc_auc_score(y_test, y_pred),
-                                "Precision": sklearn.metrics.precision_score(y_test, y_pred),
-                                "Recall": sklearn.metrics.recall_score(y_test, y_pred),
-                                "TP": tp,
-                                "TN": tn,
-                                "FP": fp,
-                                "FN": fn}
+            try:
+                clf = copy.deepcopy(clf_base)
+                if ratio is not None:
+                    x_tr, y_tr = sample_adj_data(x_train, y_train, ratio)
+                else:
+                    x_tr = x_train
+                    y_tr = y_train
+                start_ms = current_ms()
+                clf.fit(x_tr, y_tr)
+                end_ms = current_ms()
+                y_pred = clf.predict(x_test)
+                mcc = sklearn.metrics.matthews_corrcoef(y_test, y_pred)
+                if verbose:
+                    print("[" + clf_name + "][ratio=" + str(ratio) + "] Accuracy: " + str(
+                        sklearn.metrics.accuracy_score(y_test, y_pred))
+                          + " and MCC of " + str(mcc) + " in " + str((end_ms - start_ms) / 60000) + " mins")
+                if mcc > best_metrics["MCC"]:
+                    best_ratio = ratio
+                    best_clf = clf
+                    [tn, fp], [fn, tp] = sklearn.metrics.confusion_matrix(y_test, y_pred)
+                    best_metrics = {"MCC": mcc,
+                                    "Accuracy": sklearn.metrics.accuracy_score(y_test, y_pred),
+                                    "AUC ROC": sklearn.metrics.roc_auc_score(y_test, y_pred),
+                                    "Precision": sklearn.metrics.precision_score(y_test, y_pred),
+                                    "Recall": sklearn.metrics.recall_score(y_test, y_pred),
+                                    "TP": tp,
+                                    "TN": tn,
+                                    "FP": fp,
+                                    "FN": fn}
+            except:
+                print("Label error on classifier %s", clf_name)
 
     if verbose:
         print("\nBest classifier is " + get_classifier_name(best_clf) + "/" + str(best_ratio) +

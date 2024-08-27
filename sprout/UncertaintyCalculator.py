@@ -10,8 +10,6 @@ import pandas
 import pandas as pd
 import pyod.models.base
 import scipy.stats
-from confens.classifiers.ConfidenceBagging import ConfidenceBagging
-from confens.classifiers.ConfidenceBoosting import ConfidenceBoosting
 from pyod.models.copod import COPOD
 from scipy.stats import stats
 from sklearn.neighbors import NearestNeighbors
@@ -742,64 +740,64 @@ class FeatureBaggingUncertainty(UncertaintyCalculator):
     def uncertainty_calculator_name(self):
         return 'FeatureBagging Uncertainty (' + str(self.n_baggers) + '/' + str(self.bag_type) + ')'
 
-
-class ConfidenceBaggingUncertainty(CombinedUncertainty):
-    """
-    Defines a uncertainty measure that creates a bagging/boosting meta learner using a generic clf as a base estimator
-    """
-
-    def __init__(self, clf, x_train, y_train=None, n_base: int = 10, max_features: float = 0.7, sampling_ratio: float = 0.7,
-                 perc_decisors: float = None, n_decisors: int = None, n_classes: int = 2):
-        super().__init__(ConfidenceBagging(clf, n_base, max_features, sampling_ratio, perc_decisors, n_decisors),
-                         x_train, y_train, n_classes)
-        self.n_classes = n_classes
-
-    def save_params(self, main_folder, tag):
-        """
-        Returns the name of the strategy to calculate uncertainty score (as string)
-        :param main_folder: the folder where to save the details of the calculator
-        :param tag: tag to name files
-        """
-        return {"clf": self.del_clf.clf.__class__.__name__,
-                "n_base": self.del_clf.n_base,
-                "max_features": self.del_clf.max_features,
-                "sampling_ratio": self.del_clf.sampling_ratio,
-                "n_decisors": self.del_clf.n_decisors,
-                "n_classes": self.n_classes}
-
-    def uncertainty_calculator_name(self):
-        return "ConfidenceBagger(" + str(self.del_clf.n_base) + "-" + str(self.del_clf.n_decisors) + "-" + \
-               str(self.del_clf.max_features) + "-" + str(self.del_clf.sampling_ratio) + ")"
-
-
-class ConfidenceBoostingUncertainty(CombinedUncertainty):
-    """
-    Defines a uncertainty measure that creates a bagging/boosting meta learner using a generic clf as a base estimator
-    """
-
-    def __init__(self, clf, x_train, y_train=None, n_base: int = 10, learning_rate: float = None, sampling_ratio: float = 0.5,
-                 contamination: float = None, conf_thr: float = 0.8, n_classes: int = 2):
-        super().__init__(ConfidenceBoosting(clf, n_base, learning_rate, sampling_ratio, contamination, conf_thr),
-                         x_train, y_train, n_classes)
-        self.n_classes = n_classes
-
-    def save_params(self, main_folder, tag):
-        """
-        Returns the name of the strategy to calculate uncertainty score (as string)
-        :param main_folder: the folder where to save the details of the calculator
-        :param tag: tag to name files
-        """
-        return {"clf": self.del_clf.clf.__class__.__name__,
-                "n_base": self.del_clf.n_base,
-                "learning_rate": self.del_clf.learning_rate,
-                "sampling_ratio": self.del_clf.sampling_ratio,
-                "contamination": self.del_clf.contamination,
-                "conf_thr": self.del_clf.conf_thr,
-                "n_classes": self.n_classes}
-
-    def uncertainty_calculator_name(self):
-        return "ConfidenceBooster(" + str(self.del_clf.n_base) + "-" + str(self.del_clf.conf_thr) + "-" + \
-               str(self.del_clf.learning_rate) + "-" + str(self.del_clf.sampling_ratio) + ")"
+#
+# class ConfidenceBaggingUncertainty(CombinedUncertainty):
+#     """
+#     Defines a uncertainty measure that creates a bagging/boosting meta learner using a generic clf as a base estimator
+#     """
+#
+#     def __init__(self, clf, x_train, y_train=None, n_base: int = 10, max_features: float = 0.7, sampling_ratio: float = 0.7,
+#                  perc_decisors: float = None, n_decisors: int = None, n_classes: int = 2):
+#         super().__init__(ConfidenceBagging(clf, n_base, max_features, sampling_ratio, perc_decisors, n_decisors),
+#                          x_train, y_train, n_classes)
+#         self.n_classes = n_classes
+#
+#     def save_params(self, main_folder, tag):
+#         """
+#         Returns the name of the strategy to calculate uncertainty score (as string)
+#         :param main_folder: the folder where to save the details of the calculator
+#         :param tag: tag to name files
+#         """
+#         return {"clf": self.del_clf.clf.__class__.__name__,
+#                 "n_base": self.del_clf.n_base,
+#                 "max_features": self.del_clf.max_features,
+#                 "sampling_ratio": self.del_clf.sampling_ratio,
+#                 "n_decisors": self.del_clf.n_decisors,
+#                 "n_classes": self.n_classes}
+#
+#     def uncertainty_calculator_name(self):
+#         return "ConfidenceBagger(" + str(self.del_clf.n_base) + "-" + str(self.del_clf.n_decisors) + "-" + \
+#                str(self.del_clf.max_features) + "-" + str(self.del_clf.sampling_ratio) + ")"
+#
+#
+# class ConfidenceBoostingUncertainty(CombinedUncertainty):
+#     """
+#     Defines a uncertainty measure that creates a bagging/boosting meta learner using a generic clf as a base estimator
+#     """
+#
+#     def __init__(self, clf, x_train, y_train=None, n_base: int = 10, learning_rate: float = None, sampling_ratio: float = 0.5,
+#                  contamination: float = None, conf_thr: float = 0.8, n_classes: int = 2):
+#         super().__init__(ConfidenceBoosting(clf, n_base, learning_rate, sampling_ratio, contamination, conf_thr),
+#                          x_train, y_train, n_classes)
+#         self.n_classes = n_classes
+#
+#     def save_params(self, main_folder, tag):
+#         """
+#         Returns the name of the strategy to calculate uncertainty score (as string)
+#         :param main_folder: the folder where to save the details of the calculator
+#         :param tag: tag to name files
+#         """
+#         return {"clf": self.del_clf.clf.__class__.__name__,
+#                 "n_base": self.del_clf.n_base,
+#                 "learning_rate": self.del_clf.learning_rate,
+#                 "sampling_ratio": self.del_clf.sampling_ratio,
+#                 "contamination": self.del_clf.contamination,
+#                 "conf_thr": self.del_clf.conf_thr,
+#                 "n_classes": self.n_classes}
+#
+#     def uncertainty_calculator_name(self):
+#         return "ConfidenceBooster(" + str(self.del_clf.n_base) + "-" + str(self.del_clf.conf_thr) + "-" + \
+#                str(self.del_clf.learning_rate) + "-" + str(self.del_clf.sampling_ratio) + ")"
 
 
 class ReconstructionLoss(UncertaintyCalculator):
@@ -866,3 +864,44 @@ class ReconstructionLoss(UncertaintyCalculator):
 
     def uncertainty_calculator_name(self):
         return 'AutoEncoder Loss (' + str(self.enc_tag) + ')'
+
+
+class KNNUncertainty(UncertaintyCalculator):
+    """
+    Computes uncertainty via Distance wrt the k-th neighbour.
+    """
+
+    def __init__(self, x_train, k):
+        self.x_train = x_train
+        try:
+            self.n_neighbors = int(k)
+        except:
+            self.n_neighbors = 19
+
+    def save_params(self, main_folder, tag):
+        """
+        Returns the name of the strategy to calculate uncertainty score (as string)
+        :param main_folder: the folder where to save the details of the calculator
+        :param tag: tag to name files
+        """
+        return {"n_neighbors": self.n_neighbors}
+
+    def uncertainty_calculator_name(self):
+        return 'uncertainty calculator on ' + str(self.n_neighbors) + '-NN distance'
+
+    def uncertainty_scores(self, feature_values_array, proba_array, classifier):
+        """
+        Computes uncertainty by predicting the labels for the k-NN of each data point.
+        uncertainty score ranges from 0 (complete disagreement) to 1 (complete agreement)
+        :param feature_values_array: the feature values of the data points in the test set
+        :param proba_array: the probability arrays assigned by the algorithm to the data points
+        :param classifier: the classifier used for classification
+        :return: dictionary of two arrays: uncertainty and Detail
+        """
+        start_time = current_ms()
+        #print("Starting kNN search ...")
+        near_neighbors = NearestNeighbors(n_neighbors=self.n_neighbors,
+                                          algorithm='kd_tree',
+                                          n_jobs=-1).fit(self.x_train)
+        distances, indices = near_neighbors.kneighbors(feature_values_array)
+        return numpy.max(distances, axis=1)

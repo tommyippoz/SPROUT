@@ -11,9 +11,7 @@ from sklearn.naive_bayes import GaussianNB
 
 from sprout.UncertaintyCalculator import EntropyUncertainty, ConfidenceInterval, ExternalSupervisedUncertainty, \
     CombinedUncertainty, MultiCombinedUncertainty, NeighborsUncertainty, ProximityUncertainty, \
-    ReconstructionLoss, \
-    ExternalUnsupervisedUncertainty, MaxProbUncertainty, AgreementUncertainty, \
-    ConfidenceBaggingUncertainty, ConfidenceBoostingUncertainty
+    ReconstructionLoss, ExternalUnsupervisedUncertainty, MaxProbUncertainty, AgreementUncertainty, KNNUncertainty
 from sprout.classifiers.Classifier import get_classifier_name
 from sprout.utils import general_utils
 from sprout.utils.general_utils import get_full_class_name, current_ms
@@ -212,25 +210,33 @@ class SPROUTObject:
         """
         self.trust_calculators.append(NeighborsUncertainty(x_train=x_train, y_train=y_train, k=k, labels=label_names))
 
+    def add_calculator_knn_distance(self, x_train, k=19):
+        """
+        Neighbour-based Trust Calculator (CM6x in the paper)
+        :param x_train: features in the train set
+        :param k: k parameter for kNN search
+        """
+        self.trust_calculators.append(KNNUncertainty(x_train=x_train, k=k))
+
     def add_calculator_agreement(self, clf_set, x_train, y_train=None):
         self.trust_calculators.append(AgreementUncertainty(clf_set=clf_set, x_train=x_train, y_train=y_train))
 
     def add_calculator_proximity(self, x_train, n_iterations=10, range=0.1, weighted=False):
         self.trust_calculators.append(ProximityUncertainty(x_train, n_iterations, range, weighted))
 
-    def add_calculator_bagging(self, base_clf, x_train, y_train, n_base: int = 10, max_features: float = 0.7,
-                               sampling_ratio: float = 0.7, perc_decisors: float = None, n_decisors: int = None,
-                               n_classes=2):
-        self.trust_calculators.append(
-            ConfidenceBaggingUncertainty(base_clf, x_train, y_train, n_base, max_features, sampling_ratio,
-                                         perc_decisors, n_decisors, n_classes))
-
-    def add_calculator_boosting(self, base_clf, x_train, y_train, n_base: int = 10, learning_rate: float = None,
-                                sampling_ratio: float = 0.5, contamination: float = None, conf_thr: float = 0.8,
-                                n_classes=2):
-        self.trust_calculators.append(
-            ConfidenceBoostingUncertainty(base_clf, x_train, y_train, n_base, learning_rate, sampling_ratio,
-                                          contamination, conf_thr, n_classes))
+    # def add_calculator_bagging(self, base_clf, x_train, y_train, n_base: int = 10, max_features: float = 0.7,
+    #                            sampling_ratio: float = 0.7, perc_decisors: float = None, n_decisors: int = None,
+    #                            n_classes=2):
+    #     self.trust_calculators.append(
+    #         ConfidenceBaggingUncertainty(base_clf, x_train, y_train, n_base, max_features, sampling_ratio,
+    #                                      perc_decisors, n_decisors, n_classes))
+    #
+    # def add_calculator_boosting(self, base_clf, x_train, y_train, n_base: int = 10, learning_rate: float = None,
+    #                             sampling_ratio: float = 0.5, contamination: float = None, conf_thr: float = 0.8,
+    #                             n_classes=2):
+    #     self.trust_calculators.append(
+    #         ConfidenceBoostingUncertainty(base_clf, x_train, y_train, n_base, learning_rate, sampling_ratio,
+    #                                       contamination, conf_thr, n_classes))
 
     def add_calculator_recloss(self, x_train, tag='simple'):
         """
