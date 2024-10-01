@@ -24,7 +24,7 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB, ComplementNB
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler
-from model import *
+from plmodels import *
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split
@@ -62,11 +62,10 @@ def get_dnn_classifiers():
     :return: a list of classifier objects
     """
     models = []
-    model_name = ['ResNet', 'AlexNet']
-    model = ResNet(num_classes=10, channel=CHANNELS, num_epochs=1, save_dir=TMP_FOLDER)
-    model.create_model()
-    models.append(model)
-
+    model_name = ['resnet50', 'alexnet']
+    for model in model_name:
+        model = ImageClassifier(model, num_classes=10, learning_rate=1e-3, max_epochs=1)
+        models.append(model)
     return models
 
 def get_del_classifiers():
@@ -74,8 +73,7 @@ def get_del_classifiers():
     This should return a classifier objects (Model objects in your code) that you want to use as a checker classifier.
     :return: a classifier object
     """
-    model = AlexNet(num_classes=10, channel=CHANNELS, num_epochs=1, save_dir=TMP_FOLDER)
-    model.create_model()
+    model = ImageClassifier('alexnet', num_classes=10, learning_rate=1e-3, max_epochs=1)
 
     return model
 
@@ -85,10 +83,10 @@ def get_list_del_classifiers():
     :return: a classifier object
     """
     models = []
-    model = AlexNet(num_classes=10, channel=CHANNELS, num_epochs=1, save_dir=TMP_FOLDER)
-    model.create_model()
-    models.append(model)
-
+    model_name = ['resnet50']
+    for model in model_name:
+        model = ImageClassifier(model_name=model, num_classes=10, learning_rate=1e-3, max_epochs=1)
+        models.append(model)
     return models
 def read_image_dataset(dataset_file):
 
@@ -99,11 +97,12 @@ def read_image_dataset(dataset_file):
     :return: x_train, y_train, x_test, y_test, labels
     """
     transform = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize((256, 256)),
         transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,))
+        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        # transforms.Normalize((0.5,), (0.5,))
     ])
-    custom_data = GenericDatasetLoader(dataset_name=dataset_file, root_dir = TRAIN_DATA_FOLDER, transform= transform, batch_size=1)
+    custom_data = GenericDatasetLoader(dataset_name=dataset_file, root_dir = TRAIN_DATA_FOLDER, transform= transform, batch_size=64)
 
     train_loader = custom_data.create_dataloader(split='train')
 
@@ -163,7 +162,7 @@ def compute_datasets_uncertainties():
                 sprout_obj = copy.deepcopy(sp_obj)
                 # Building and exercising classifier
                 print(DEVICE)
-                classifier.fit(dataset = train_loader)
+                classifier.fit(train_dataloader = train_loader)
                 # classifier.load_model('/home/fahad/Project/SPROUT/debug/tmp/ResNet_0_model_weights.pth')
                 y_proba = classifier.predict_proba(test_loader)
                 y_pred = classifier.predict(test_loader)
@@ -243,15 +242,15 @@ def build_supervised_object(x_train, y_train, label_tags):
     # UM1
     # sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9)
     # UM2
-    sp_obj.add_calculator_maxprob()
-    # # UM3
-    sp_obj.add_calculator_entropy(n_classes=len(label_tags))
-    # # UM9
-    sp_obj.add_calculator_recloss(x_train=x_train)
-    #
-    sp_obj.add_calculator_combined(classifier= classifier[0], x_train=x_train,y_train = y_train, n_classes=len(label_tags))
-    sp_obj.add_calculator_multicombined(clf_set=classifier, x_train=x_train, y_train=y_train, n_classes=len(label_tags))
-    sp_obj.add_calculator_neighbour(x_train=x_train,y_train=y_train,label_names = label_tags)
+    # sp_obj.add_calculator_maxprob()
+    # # # UM3
+    # sp_obj.add_calculator_entropy(n_classes=len(label_tags))
+    # # # UM9
+    sp_obj.add_calculator_recloss(x_train=x_train,num_classes=len(label_tags))
+    # #
+    # sp_obj.add_calculator_combined(classifier= classifier[0], x_train=x_train,y_train = y_train, n_classes=len(label_tags))
+    # sp_obj.add_calculator_multicombined(clf_set=classifier, x_train=x_train, y_train=y_train, n_classes=len(label_tags))
+    # sp_obj.add_calculator_neighbour(x_train=x_train,y_train=y_train,label_names = label_tags)
     return sp_obj
 
 
