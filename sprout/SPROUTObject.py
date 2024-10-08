@@ -183,7 +183,7 @@ class SPROUTObject:
         self.trust_calculators.append(
             MultiCombinedUncertainty(clf_set=clf_set, x_train=x_train, y_train=y_train, norm=n_classes))
 
-    def add_calculator_neighbour(self, x_train, y_train, label_names, k=19):
+    def add_calculator_neighbour(self, x_train, y_train, label_names, k=2):
         """
         Neighbour-based Trust Calculator (CM6 in the paper)
         :param x_train: features in the train set
@@ -213,13 +213,13 @@ class SPROUTObject:
             ConfidenceBoostingUncertainty(base_clf, x_train, y_train, n_base, learning_rate, sampling_ratio,
                                           contamination, conf_thr, n_classes))
 
-    def add_calculator_recloss(self, x_train, tag='conv'):
+    def add_calculator_recloss(self, x_train, num_classes, tag='conv'):
         """
         External Trust Calculator using Bayes (CM3 in the paper)
         :param x_train: features in the train set
         :param tag: tagstring to initialize autoencoder
         """
-        self.trust_calculators.append(ReconstructionLoss(dataloader=x_train, enc_tag=tag))
+        self.trust_calculators.append(ReconstructionLoss(dataloader=x_train,num_classes=num_classes, enc_tag=tag))
 
     def predict_set_misclassifications(self, data_set, classifier, y_proba=None, verbose=True, as_pandas=True):
         trust_set = self.compute_set_trust(data_set, classifier, y_proba, verbose, as_pandas)

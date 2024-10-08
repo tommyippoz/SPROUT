@@ -22,7 +22,9 @@ import torch.nn as nn
 import torch.optim as optim
 
 from tqdm import tqdm
-from model import *
+from debug import plmodels
+
+from models import *
 from sprout.classifiers.AutoEncoder import DeepAutoEncoder, SingleAutoEncoder, SingleSparseAutoEncoder
 from sprout.classifiers.Classifier import get_classifier_name
 from sprout.utils.general_utils import current_ms, get_full_class_name
@@ -131,6 +133,8 @@ class EntropyUncertainty(UncertaintyCalculator):
         if not isinstance(feature_values_array, DataLoader):
             if not isinstance(feature_values_array, np.ndarray):
                 feature_values_array = feature_values_array.to_numpy()
+        else:
+            feature_values_array = feature_values_array.dataset
         if len(feature_values_array) == len(proba_array):
             uncertainty = [self.uncertainty_score(proba_array[i]) for i in range(0, len(proba_array))]
         else:
@@ -153,7 +157,7 @@ class NeighborsUncertainty(UncertaintyCalculator):
         try:
             self.n_neighbors = int(k)
         except:
-            self.n_neighbors = 19
+            self.n_neighbors = 2
         self.labels = labels
 
     def save_params(self, main_folder, tag):
@@ -231,7 +235,7 @@ class NeighborsUncertainty(UncertaintyCalculator):
             neighbour_agreement = [0.0 for i in range(len(np_feature_values_array))]
             neighbour_uncertainty = [0.0 for i in range(len(np_feature_values_array))]
             neighbour_c = [0 for i in range(len(np_feature_values_array))]
-            for i in tqdm.tqdm(range(len(np_feature_values_array))):
+            for i in tqdm(range(len(np_feature_values_array))):
                 predict_neighbours = train_classes[indices[i]]
                 agreements = (predict_neighbours == predict_classes[i]).sum()
                 neighbour_agreement[i] = agreements / len(predict_neighbours)
@@ -924,8 +928,9 @@ class ReconstructionLoss(UncertaintyCalculator):
     Defines an uncertainty measure that uses the reconstruction error of an autoencoder as uncertainty measure.
     """
 
-    def __init__(self, dataloader, enc_tag: str = 'conv'):
+    def __init__(self, dataloader,num_classes, enc_tag: str = 'conv'):
         self.ae = None
+        self.num_classes = num_classes
         self.enc_tag = enc_tag
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -935,28 +940,11 @@ class ReconstructionLoss(UncertaintyCalculator):
             _, channels, _, _ = x_train.shape
             # print("Channels is the Function ",channels)
             if enc_tag == 'conv':
-                self.ae = ConvAutoEncoder(channels).to(self.device)
+                self.ae = plmodels.ConvAutoEncoder(max_epochs=2).to(self.device)
             else:
                 raise ValueError(f"Unsupported encoder type: {enc_tag}")
 
-            # Normalize data
-            self.dataloader = dataloader
-            self.ae.train()
-            optimizer = optim.Adam(self.ae.parameters(), lr=0.001)
-            criterion = nn.MSELoss()
-            epochs = 1
-
-            for epoch in range(epochs):  # 50 epochs
-                epoch_loss = 0.0  # Initialize epoch_loss
-                for batch, _ in tqdm.tqdm(dataloader, desc=f"Epoch {epoch + 1}/{epochs}"):
-                    batch = batch.to(self.device)
-                    optimizer.zero_grad()
-                    outputs = self.ae(batch)
-                    loss = criterion(outputs, batch)
-                    loss.backward()
-                    optimizer.step()
-                    epoch_loss += loss.item()
-                print(f"Epoch {epoch + 1}/{epochs}, Loss: {epoch_loss / len(dataloader)}")
+        self.ae.fit(dataloader)
 
     def save_params(self, main_folder, tag):
         """
@@ -976,18 +964,10 @@ class ReconstructionLoss(UncertaintyCalculator):
         :param proba_array: the probability arrays assigned by the algorithm to the data points
         :return: array of uncertainty scores
         """
-        all_losses = []
-        self.ae.eval()
-        criterion = nn.MSELoss()
-        with torch.no_grad():
-            for batch,_ in tqdm.tqdm(dataloader, desc="Evaluating"):
-                # if isinstance(batch, tuple) and len(batch) == 2:
-                #     batch, _ = batch  # Unpack if dataloader returns (data, label)
-                batch = batch.to(self.device)
-                outputs = self.ae(batch)
-                loss = criterion(outputs, batch)
-                all_losses.append(loss.cpu().numpy())
-        return np.asarray(all_losses)
+        self.ae.fit(dataloader)
+        self.train_losses_np = self.ae.return_training_loss()
+
+        return self.train_losses_np
 
     def uncertainty_calculator_name(self):
         return 'AutoEncoder Loss (' + str(self.enc_tag) + ')'

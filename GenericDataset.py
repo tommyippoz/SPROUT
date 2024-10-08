@@ -11,10 +11,19 @@ class CustomDataset(Dataset):
     def __init__(self, data_dir, transform=None):
         self.data_dir = data_dir
         self.transform = transform
+        # Store the class names
+
         self.dataset = datasets.ImageFolder(root=self.data_dir, transform=self.transform)
+        self.classes = self.dataset.classes  # List of class names
     def __getitem__(self, idx):
-        paths = self.dataset.imgs[idx][0]  # Get file path associated with the image
-        return self.dataset[idx], paths
+        # Get image and label from dataset
+        image, labels = self.dataset[idx]
+        # Get file path corresponding to the image
+        # Get the class name corresponding to the label
+        class_name = self.classes[labels]
+        # path = self.dataset.imgs[idx][0]  # The first item is the file path
+        # Return the image, label, and the file path
+        return image, labels
     def __len__(self):
         return len(self.dataset)
 

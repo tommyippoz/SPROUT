@@ -6,6 +6,7 @@ from sklearn.metrics import confusion_matrix
 from torchvision import models
 import pandas as pd
 import numpy as np
+from pytorch_lightning.callbacks import EarlyStopping
 class Model:
     def __init__(self, model_name):
         self.model_name = model_name
@@ -100,15 +101,28 @@ class ImageClassifier(pl.LightningModule, Model):
         else:
             model = getattr(models, model_name)(pretrained=pretrained)
 
-            # Adjust the final layer based on the number of classes
-            if hasattr(model, 'fc'):
-                num_ftrs = model.fc.in_features
-                model.fc = nn.Linear(num_ftrs, num_classes)
-            elif hasattr(model, 'classifier'):
-                num_ftrs = model.classifier[-1].in_features
+            # For models with an 'fc' layer (like ResNet)
+        if hasattr(model, 'fc') and isinstance(model.fc, nn.Linear):
+            num_ftrs = model.fc.in_features
+            model.fc = nn.Linear(num_ftrs, num_classes)
+
+            # For models with a 'classifier' layer (like AlexNet, DenseNet, VGG)
+        elif hasattr(model, 'classifier'):
+            # Check if 'classifier' is a Sequential layer (as in AlexNet or VGG)
+            if isinstance(model.classifier, nn.Sequential):
+                num_ftrs = model.classifier[-1].in_features  # Last layer of the Sequential
                 model.classifier[-1] = nn.Linear(num_ftrs, num_classes)
+
+            # If 'classifier' is a single Linear layer (as in DenseNet)
+            elif isinstance(model.classifier, nn.Linear):
+                num_ftrs = model.classifier.in_features
+                model.classifier = nn.Linear(num_ftrs, num_classes)
+
             else:
-                raise ValueError("Unsupported model type")
+                raise ValueError(f"Unsupported classifier type: {type(model.classifier)}")
+
+        else:
+            raise ValueError("Unsupported model type: No 'fc' or 'classifier' layer found")
 
         return model
 
@@ -117,11 +131,33 @@ class ImageClassifier(pl.LightningModule, Model):
     def forward(self, x):
         return self.model(x)
 
+    def get_logits_from_model_output(self,outputs):
+        """
+        Extracts logits from model output, handling different output types.
+        """
+        if isinstance(outputs, tuple):
+            # Some models might return a tuple (e.g., ResNet)
+            return outputs[0]  # Usually the first element is the logits
+
+        elif hasattr(outputs, 'logits'):
+            # For models like Inception V3
+            return outputs.logits
+
+        elif isinstance(outputs, torch.Tensor):
+            # If the output is directly a tensor
+            return outputs
+
+        else:
+            raise ValueError("Unsupported model output type: {}".format(type(outputs)))
+
     def training_step(self, batch, batch_idx):
         inputs, labels = batch
         inputs, labels = inputs.to(self.device), labels.to(self.device)
         outputs = self(inputs)
-        loss = self.criterion(outputs, labels)
+        # Get logits from the model output
+        logits = self.get_logits_from_model_output(outputs)
+
+        loss = self.criterion(logits, labels)
         self.log('train_loss', loss)
         return loss
 
@@ -156,8 +192,9 @@ class ImageClassifier(pl.LightningModule, Model):
             val_dataloader: Dataloader for validation data (optional).
             max_epochs: Number of epochs to train (default: 10).
         """
+
         # Create the PyTorch Lightning Trainer
-        trainer = pl.Trainer(max_epochs=self.max_epochs)
+        trainer = pl.Trainer(max_epochs=self.max_epochs,callbacks=[EarlyStopping(monitor="train_loss", mode="min")])
 
         # Fit the model using the trainer and dataloaders
         if val_dataloader is not None:
@@ -221,69 +258,69 @@ class ImageClassifier(pl.LightningModule, Model):
         return probabilities.cpu().detach().numpy()
 
 
-class AutoEncoderLightning(pl.LightningModule):
-    def __init__(self, model_name,num_classes,max_epochs=10, model_kwargs=None, learning_rate=1e-3):
-        """
-        Args:
-            model_class (class): The class of the autoencoder model to instantiate (e.g., 'ConvAutoEncoder').
-            model_kwargs (dict): Optional keyword arguments for the model class instantiation.
-            learning_rate (float): Learning rate for the optimizer.
-        """
-        super(AutoEncoderLightning, self).__init__()
-        self.model_class = model_name  # The class of the autoencoder model
-        self.learning_rate = learning_rate
-        self.criterion = nn.MSELoss()  # Reconstruction loss
-        self.max_epochs = max_epochs
-        self.model_kwargs = model_kwargs if model_kwargs else {}
-
-        # Dynamically load the autoencoder model
-        self.model = self.load_model(self.model_class, self.model_kwargs)
-
-    def load_model(self, model_class, model_kwargs):
-        """
-        Dynamically loads and instantiates a model based on the provided class and keyword arguments.
-        """
-        return model_class(**model_kwargs)
-
-    def forward(self, x):
-        return self.model(x)
-
-    def fit(self, train_dataloader, val_dataloader=None):
-        """
-        Trains the model using the provided dataloaders and PyTorch Lightning's Trainer.
-
-        Args:
-            train_dataloader: Dataloader for training data.
-            val_dataloader: Dataloader for validation data (optional).
-            max_epochs: Number of epochs to train (default: 10).
-        """
-        # Create the PyTorch Lightning Trainer
-        trainer = pl.Trainer(max_epochs=self.max_epochs)
-
-        # Fit the model using the trainer and dataloaders
-        if val_dataloader is not None:
-            trainer.fit(self, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
-        else:
-            trainer.fit(self, train_dataloaders=train_dataloader)
-
-    def training_step(self, batch, batch_idx):
-        inputs, _ = batch  # For autoencoders, the target is the same as the input
-        inputs = inputs.to(self.device)
-        outputs = self(inputs)
-        loss = self.criterion(outputs, inputs)  # Reconstruction loss
-        self.log('train_loss', loss)
-        return loss
-
-    def validation_step(self, batch, batch_idx):
-        inputs, _ = batch  # For autoencoders, the target is the same as the input
-        inputs = inputs.to(self.device)
-        outputs = self(inputs)
-        loss = self.criterion(outputs, inputs)  # Reconstruction loss
-        self.log('val_loss', loss)
-        return loss
-
-    def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=self.learning_rate)
+# class AutoEncoderLightning(pl.LightningModule):
+#     def __init__(self, model_name,num_classes,max_epochs=10, model_kwargs=None, learning_rate=1e-3):
+#         """
+#         Args:
+#             model_class (class): The class of the autoencoder model to instantiate (e.g., 'ConvAutoEncoder').
+#             model_kwargs (dict): Optional keyword arguments for the model class instantiation.
+#             learning_rate (float): Learning rate for the optimizer.
+#         """
+#         super(AutoEncoderLightning, self).__init__()
+#         self.model_class = model_name  # The class of the autoencoder model
+#         self.learning_rate = learning_rate
+#         self.criterion = nn.MSELoss()  # Reconstruction loss
+#         self.max_epochs = max_epochs
+#         self.model_kwargs = model_kwargs if model_kwargs else {}
+#
+#         # Dynamically load the autoencoder model
+#         self.model = self.load_model(self.model_class, self.model_kwargs)
+#
+#     def load_model(self, model_class, model_kwargs):
+#         """
+#         Dynamically loads and instantiates a model based on the provided class and keyword arguments.
+#         """
+#         return model_class(**model_kwargs)
+#
+#     def forward(self, x):
+#         return self.model(x)
+#
+#     def fit(self, train_dataloader, val_dataloader=None):
+#         """
+#         Trains the model using the provided dataloaders and PyTorch Lightning's Trainer.
+#
+#         Args:
+#             train_dataloader: Dataloader for training data.
+#             val_dataloader: Dataloader for validation data (optional).
+#             max_epochs: Number of epochs to train (default: 10).
+#         """
+#         # Create the PyTorch Lightning Trainer
+#         trainer = pl.Trainer(max_epochs=self.max_epochs)
+#
+#         # Fit the model using the trainer and dataloaders
+#         if val_dataloader is not None:
+#             trainer.fit(self, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
+#         else:
+#             trainer.fit(self, train_dataloaders=train_dataloader)
+#
+#     def training_step(self, batch, batch_idx):
+#         inputs, _ = batch  # For autoencoders, the target is the same as the input
+#         inputs = inputs.to(self.device)
+#         outputs = self(inputs)
+#         loss = self.criterion(outputs, inputs)  # Reconstruction loss
+#         self.log('train_loss', loss)
+#         return loss
+#
+#     def validation_step(self, batch, batch_idx):
+#         inputs, _ = batch  # For autoencoders, the target is the same as the input
+#         inputs = inputs.to(self.device)
+#         outputs = self(inputs)
+#         loss = self.criterion(outputs, inputs)  # Reconstruction loss
+#         self.log('val_loss', loss)
+#         return loss
+#
+#     def configure_optimizers(self):
+#         return optim.Adam(self.parameters(), lr=self.learning_rate)
 
 class ConvAutoEncoder(pl.LightningModule):
     def __init__(self,max_epochs=1):
@@ -354,7 +391,7 @@ class ConvAutoEncoder(pl.LightningModule):
         """
         self.individual_losses = []
         # Create the PyTorch Lightning Trainer
-        trainer = pl.Trainer(max_epochs=self.max_epochs)
+        trainer = pl.Trainer(max_epochs=self.max_epochs,callbacks=[EarlyStopping(monitor="train_loss", mode="min")])
 
         # Fit the model using the trainer and dataloaders
         if val_dataloader is not None:

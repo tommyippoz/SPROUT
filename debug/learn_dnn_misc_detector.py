@@ -45,7 +45,7 @@ TMP_FOLDER = "tmp"
 # The name of the new misclassification detector
 MODEL_TAG = "dnn_misc_detector"
 # The folder from which image datasets are gonna be loaded
-TRAIN_DATA_FOLDER = "/home/fahad/Project/SPROUT/dataset/custom/"
+TRAIN_DATA_FOLDER = "/home/fahad/Project/SPROUT/dataset/imagenet/"
 # This is to down-sample or over-sample the percentage of misclassified predictions
 # in the training set of the misclassification detector
 MISC_RATIOS = [None, 0.05, 0.1, 0.2, 0.3]
@@ -53,6 +53,10 @@ MISC_RATIOS = [None, 0.05, 0.1, 0.2, 0.3]
 CHANNELS = 0
 # Check if CUDA is available
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#Number of Classes
+NUM_CLASSES = 15
+#Number of Epochs
+MAX_EPOCHS = 100
 # -------------------------------------------------------------------------------------------------------
 # FUNCTIONS THAT YOU HAVE TO IMPLEMENT
 
@@ -62,9 +66,9 @@ def get_dnn_classifiers():
     :return: a list of classifier objects
     """
     models = []
-    model_name = ['resnet50', 'alexnet']
+    model_name = ['vgg11','densenet121','googlenet','inception_v3','resnet50', 'alexnet']
     for model in model_name:
-        model = ImageClassifier(model, num_classes=10, learning_rate=1e-3, max_epochs=1)
+        model = ImageClassifier(model, num_classes=NUM_CLASSES, learning_rate=1e-3, max_epochs=MAX_EPOCHS)
         models.append(model)
     return models
 
@@ -73,7 +77,7 @@ def get_del_classifiers():
     This should return a classifier objects (Model objects in your code) that you want to use as a checker classifier.
     :return: a classifier object
     """
-    model = ImageClassifier('alexnet', num_classes=10, learning_rate=1e-3, max_epochs=1)
+    model = ImageClassifier('alexnet', num_classes=NUM_CLASSES, learning_rate=1e-3, max_epochs=MAX_EPOCHS)
 
     return model
 
@@ -83,9 +87,9 @@ def get_list_del_classifiers():
     :return: a classifier object
     """
     models = []
-    model_name = ['resnet50']
+    model_name = ['vgg11','densenet121','googlenet','inception_v3','resnet50', 'alexnet']
     for model in model_name:
-        model = ImageClassifier(model_name=model, num_classes=10, learning_rate=1e-3, max_epochs=1)
+        model = ImageClassifier(model_name=model, num_classes=NUM_CLASSES, learning_rate=1e-3, max_epochs=MAX_EPOCHS)
         models.append(model)
     return models
 def read_image_dataset(dataset_file):
@@ -97,12 +101,12 @@ def read_image_dataset(dataset_file):
     :return: x_train, y_train, x_test, y_test, labels
     """
     transform = transforms.Compose([
-        transforms.Resize((256, 256)),
+        transforms.Resize((304, 304)),
         transforms.ToTensor(),
         # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         # transforms.Normalize((0.5,), (0.5,))
     ])
-    custom_data = GenericDatasetLoader(dataset_name=dataset_file, root_dir = TRAIN_DATA_FOLDER, transform= transform, batch_size=64)
+    custom_data = GenericDatasetLoader(dataset_name=dataset_file, root_dir = TRAIN_DATA_FOLDER, transform= transform, batch_size=8)
 
     train_loader = custom_data.create_dataloader(split='train')
 
@@ -112,12 +116,10 @@ def read_image_dataset(dataset_file):
 
     global CHANNELS
     CHANNELS = custom_data.get_num_channels(train_loader)
-    # CHANNELS = 3
-    print('Number of Channels: ',CHANNELS)
-    # X_train, y_train = custom_data.dataloader_to_numpy(train_loader)
-    # X_test, y_test = custom_data.dataloader_to_numpy(test_loader)
 
     label_tags = train_loader.dataset.classes
+    global NUM_CLASSES
+    NUM_CLASSES= len(label_tags)
 
     # return train_loader, test_loader, X_train, X_test, y_train, y_test, label_tags
     return train_loader, test_loader, y_test, label_tags
@@ -174,7 +176,7 @@ def compute_datasets_uncertainties():
                 out_df = pd.concat([out_df, q_df], axis=1)
 
                 # Printing Dataframe containing uncertainty measures
-                file_out = os.path.join(TMP_FOLDER, dataset_file + "_" + get_classifier_name(classifier) + '.csv')
+                file_out = os.path.join(TMP_FOLDER, dataset_file + "_" + get_classifier_name(classifier.model) + '.csv')
                 if not os.path.exists(os.path.dirname(file_out)):
                     os.mkdir(os.path.dirname(file_out))
                 out_df.to_csv(file_out, index=False)
@@ -242,15 +244,15 @@ def build_supervised_object(x_train, y_train, label_tags):
     # UM1
     # sp_obj.add_calculator_confidence(x_train=x_data, y_train=y_train, confidence_level=0.9)
     # UM2
-    # sp_obj.add_calculator_maxprob()
+    sp_obj.add_calculator_maxprob()
     # # # UM3
-    # sp_obj.add_calculator_entropy(n_classes=len(label_tags))
+    sp_obj.add_calculator_entropy(n_classes=len(label_tags))
     # # # UM9
     sp_obj.add_calculator_recloss(x_train=x_train,num_classes=len(label_tags))
     # #
-    # sp_obj.add_calculator_combined(classifier= classifier[0], x_train=x_train,y_train = y_train, n_classes=len(label_tags))
-    # sp_obj.add_calculator_multicombined(clf_set=classifier, x_train=x_train, y_train=y_train, n_classes=len(label_tags))
-    # sp_obj.add_calculator_neighbour(x_train=x_train,y_train=y_train,label_names = label_tags)
+    sp_obj.add_calculator_combined(classifier= classifier[0], x_train=x_train,y_train = y_train, n_classes=len(label_tags))
+    sp_obj.add_calculator_multicombined(clf_set=classifier, x_train=x_train, y_train=y_train, n_classes=len(label_tags))
+    sp_obj.add_calculator_neighbour(x_train=x_train,y_train=y_train,label_names = label_tags)
     return sp_obj
 
 
