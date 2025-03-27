@@ -334,30 +334,6 @@ class SPROUTObject:
                     elif "ProximityUncertainty" in calculator_name:
                         calc = ProximityUncertainty(x_train=x_train, artificial_points=params["artificial_points"],
                                                     range_wideness=params["range"], weighted=params["weighted"])
-                    elif "ConfidenceBagging" in calculator_name:
-                        calc = ConfidenceBaggingUncertainty(clf=clf, x_train=x_train, y_train=y_train,
-                                                            n_base=int(params["n_base"]) if params[
-                                                                                                "n_base"] != 'None' else None,
-                                                            max_features=float(params["max_features"]) if params[
-                                                                                                              "max_features"] != 'None' else None,
-                                                            sampling_ratio=float(params["sampling_ratio"]) if
-                                                            params["sampling_ratio"] != 'None' else None,
-                                                            n_decisors=int(params["n_decisors"]) if params[
-                                                                                                        "n_decisors"] != 'None' else None,
-                                                            n_classes=len(label_names))
-                    elif "ConfidenceBoosting" in calculator_name:
-                        calc = ConfidenceBoostingUncertainty(clf=clf, x_train=x_train, y_train=y_train,
-                                                             n_base=int(params["n_base"]) if params[
-                                                                                                 "n_base"] != 'None' else None,
-                                                             learning_rate=float(params["learning_rate"]) if params[
-                                                                                                                 "learning_rate"] != 'None' else None,
-                                                             sampling_ratio=float(params["sampling_ratio"]) if
-                                                             params["sampling_ratio"] != 'None' else None,
-                                                             contamination=float(params["contamination"]) if params[
-                                                                                                                 "contamination"] != 'None' else None,
-                                                             conf_thr=float(params["conf_thr"]) if params[
-                                                                                                       "conf_thr"] != 'None' else None,
-                                                             n_classes=len(label_names))
                     elif "ReconstructionLoss" in calculator_name:
                         calc = ReconstructionLoss(x_train=x_train, enc_tag=params["enc_tag"])
                     else:
@@ -465,6 +441,25 @@ class SPROUTObject:
             x_test = numpy.nan_to_num(x_test)
             misc_pred = self.binary_adjudicator.predict(x_test)
             return misc_pred
+        else:
+            print("Adjudicator is not trained")
+            return None
+
+    def predict_misclassifications_probability(self, x, classifier, verbose=True) -> numpy.ndarray:
+        """
+        Predicts on a test set
+        :param x: the test features x_test
+        :param classifier: the classifier object
+        :param verbose: True if debug information has to be shown
+        :return: a ndarray
+        """
+        if self.binary_adjudicator is not None:
+            # Calculating Trust Measures with SPROUT
+            unc_m = self.compute_set_trust(data_set=x, classifier=classifier, verbose=verbose)
+            x_test = unc_m.select_dtypes(exclude=['object']).to_numpy()
+            x_test = numpy.nan_to_num(x_test)
+            misc_proba = self.binary_adjudicator.predict_proba(x_test)
+            return misc_proba
         else:
             print("Adjudicator is not trained")
             return None
