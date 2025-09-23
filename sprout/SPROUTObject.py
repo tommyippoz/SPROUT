@@ -426,7 +426,7 @@ class SPROUTObject:
             print('Unable to load SPROUT model')
             return out_df, clf_pred
 
-    def predict_misclassifications(self, x, classifier, verbose=True) -> numpy.ndarray:
+       def predict_misclassifications(self, x, classifier, verbose=True) -> numpy.ndarray:
         """
         Predicts on a test set
         :param x: the test features x_test
@@ -437,9 +437,9 @@ class SPROUTObject:
         if self.binary_adjudicator is not None:
             # Calculating Trust Measures with SPROUT
             unc_m = self.compute_set_trust(data_set=x, classifier=classifier, verbose=verbose)
-            x_test = unc_m.select_dtypes(exclude=['object']).to_numpy()
-            x_test = numpy.nan_to_num(x_test)
-            misc_pred = self.binary_adjudicator.predict(x_test)
+            x = unc_m.select_dtypes(exclude=['object']).to_numpy()
+            x = numpy.nan_to_num(x)
+            misc_pred = self.binary_adjudicator.predict(x)
             return misc_pred
         else:
             print("Adjudicator is not trained")
